@@ -86,9 +86,9 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     return next(new AppError("Invalid or expired refresh token. Please log in again.", 401));
   }
 
-  // DB lookup
+  // DB lookup — explicitly select all fields needed for validation
   const user = await User.findById(decoded.id)
-    .select("+refreshTokenHash +passwordChangedAt");
+    .select("+refreshTokenHash +passwordChangedAt isActive");
 
   if (!user || !user.isActive) {
     clearAuthCookies(res);
@@ -129,7 +129,7 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
-exports.logout = asyncHandler(async (req, res) => {
+exports.logout = asyncHandler(async (req, res, _next) => {
   // Clear DB hash so this refresh token can never be used again
   await User.findByIdAndUpdate(req.user.id, { refreshTokenHash: null });
 
@@ -141,7 +141,7 @@ exports.logout = asyncHandler(async (req, res) => {
 
 // ─── Logout All Devices ───────────────────────────────────────────────────────
 
-exports.logoutAll = asyncHandler(async (req, res) => {
+exports.logoutAll = asyncHandler(async (req, res, _next) => {
   // Bump passwordChangedAt → ALL access tokens for this user are instantly invalid
   // (authenticate.js rejects tokens issued before this timestamp)
   await User.findByIdAndUpdate(req.user.id, {
@@ -240,13 +240,18 @@ exports.changePassword = asyncHandler(async (req, res, next) => {
     return next(new AppError("Current password is incorrect.", 401));
   }
 
+  // Save first — pre-save hook sets passwordChangedAt.
+  // Tokens are generated AFTER save so their iat is always > passwordChangedAt,
+  // preventing an immediate "password changed" rejection on the very next request.
+  user.password = newPassword;
+  await user.save(); // pre-save hook hashes password and sets passwordChangedAt
+
   const payload         = { id: user._id, role: user.role, email: user.email };
   const newAccessToken  = generateAccessToken(payload);
   const newRefreshToken = generateRefreshToken(payload);
 
-  user.password         = newPassword;
   user.refreshTokenHash = hashToken(newRefreshToken);
-  await user.save(); // pre-save hook sets passwordChangedAt
+  await user.save({ validateBeforeSave: false });
 
   // Set fresh cookies so user stays logged in after password change
   setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });

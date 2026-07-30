@@ -6,7 +6,7 @@ const crypto = require("crypto");
  */
 const generateAccessToken = (payload) => {
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    expiresIn: process.env.JWT_EXPIRES_IN || "15m", // default 15m — must be short-lived
     issuer: "examneeti",
   });
 };

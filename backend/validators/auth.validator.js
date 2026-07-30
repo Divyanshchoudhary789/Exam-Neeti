@@ -36,8 +36,11 @@ const changePasswordSchema = Joi.object({
     .messages({ "any.only": "Passwords do not match." }),
 });
 
+// refreshToken is sent via httpOnly signed cookie by web clients.
+// API clients (Postman, mobile) can optionally send it in the body.
+// We make the body field optional — the controller handles the cookie fallback.
 const refreshTokenSchema = Joi.object({
-  refreshToken: Joi.string().required(),
+  refreshToken: Joi.string().optional(),
 });
 
 module.exports = {

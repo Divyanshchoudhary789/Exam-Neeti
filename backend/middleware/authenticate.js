@@ -43,9 +43,16 @@ const authenticate = asyncHandler(async (req, res, next) => {
   try {
     decoded = verifyAccessToken(token);
   } catch (err) {
-    // Clear cookie if it was a cookie-based token (might be tampered/expired)
+    // Clear cookie if it was a cookie-based token (might be tampered/expired).
+    // Must NOT pass path here — access_token has no path restriction (it's
+    // sent to all routes), so clearCookie without path matches correctly.
     if (req.signedCookies?.access_token) {
-      res.clearCookie("access_token", { httpOnly: true, signed: true });
+      res.clearCookie("access_token", {
+        httpOnly: true,
+        signed:   true,
+        secure:   process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      });
     }
     if (err.name === "TokenExpiredError") {
       return next(new AppError("Session expired. Please log in again.", 401));
