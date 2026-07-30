@@ -24,19 +24,18 @@ const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
 
 /**
  * Determine sameSite value based on environment.
- * - Production: "none" if cross-origin, "lax" if same-origin
+ * - Production: always "none" with secure:true (supports cross-origin cookies)
  * - Development: "lax" (works with localhost cross-port scenarios)
+ *
+ * In production, we default to "none" because:
+ * 1. Frontend is typically on a different domain (Vercel, Netlify, etc.)
+ * 2. Backend is on Render or another host
+ * 3. Cross-origin cookies REQUIRE SameSite=None AND Secure=true
+ * 4. If same-origin in production (rare), "none" still works but is slightly
+ *    less restrictive than "lax" — acceptable tradeoff for simpler config.
  */
 const getSameSiteValue = () => {
-  if (isProd()) {
-    // In production, if CLIENT_URL is different domain, use "none" with secure:true
-    // Otherwise use "lax" for better security
-    const clientUrl = process.env.CLIENT_URL || "";
-    const isClientCrossOrigin = clientUrl && !clientUrl.includes("://localhost");
-    return isClientCrossOrigin ? "none" : "lax";
-  }
-  // Development: "lax" allows cookies across ports (localhost:3000 → localhost:10000)
-  return "lax";
+  return isProd() ? "none" : "lax";
 };
 
 /**

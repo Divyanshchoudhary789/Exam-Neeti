@@ -1,5 +1,6 @@
 const User = require("../models/User.model");
 const { verifyAccessToken } = require("../utils/token");
+const { clearAuthCookies } = require("../utils/cookies");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 
@@ -43,16 +44,10 @@ const authenticate = asyncHandler(async (req, res, next) => {
   try {
     decoded = verifyAccessToken(token);
   } catch (err) {
-    // Clear cookie if it was a cookie-based token (might be tampered/expired).
-    // Must NOT pass path here — access_token has no path restriction (it's
-    // sent to all routes), so clearCookie without path matches correctly.
+    // Clear stale/tampered/expired cookies — use the central utility so
+    // sameSite + secure flags always match what was set at login time.
     if (req.signedCookies?.access_token) {
-      res.clearCookie("access_token", {
-        httpOnly: true,
-        signed:   true,
-        secure:   process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      });
+      clearAuthCookies(res);
     }
     if (err.name === "TokenExpiredError") {
       return next(new AppError("Session expired. Please log in again.", 401));

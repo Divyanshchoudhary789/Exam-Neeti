@@ -53,8 +53,11 @@ exports.login = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Return user info in body — tokens are in cookies, no need to expose in body
-  return sendSuccess(res, 200, "Login successful.", {
+  // Return user info in body — tokens are in cookies (production).
+  // In non-production, also return accessToken in body so frontend dev on
+  // localhost can use it via Authorization: Bearer header (cross-origin
+  // HTTP→HTTPS environments don't support SameSite=None cookies).
+  const responseData = {
     user: {
       _id:         user._id,
       name:        user.name,
@@ -63,7 +66,13 @@ exports.login = asyncHandler(async (req, res, next) => {
       batch:       user.batch,
       lastLoginAt: user.lastLoginAt,
     },
-  });
+  };
+
+  if (process.env.NODE_ENV !== "production") {
+    responseData.accessToken = accessToken;
+  }
+
+  return sendSuccess(res, 200, "Login successful.", responseData);
 });
 
 // ─── Refresh Token ────────────────────────────────────────────────────────────
@@ -124,7 +133,13 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
   // Set new cookies
   setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });
 
-  return sendSuccess(res, 200, "Token refreshed.");
+  // In non-production, also return new accessToken in body for localhost dev
+  const responseData = {};
+  if (process.env.NODE_ENV !== "production") {
+    responseData.accessToken = newAccessToken;
+  }
+
+  return sendSuccess(res, 200, "Token refreshed.", Object.keys(responseData).length ? responseData : undefined);
 });
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
