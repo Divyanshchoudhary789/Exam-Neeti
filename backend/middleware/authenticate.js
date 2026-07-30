@@ -39,7 +39,19 @@ const authenticate = asyncHandler(async (req, res, next) => {
   }
 
   // ── Verify signature & expiry ────────────────────────────────────────────────
-  const decoded = verifyAccessToken(token); // throws JsonWebTokenError / TokenExpiredError
+  let decoded;
+  try {
+    decoded = verifyAccessToken(token);
+  } catch (err) {
+    // Clear cookie if it was a cookie-based token (might be tampered/expired)
+    if (req.signedCookies?.access_token) {
+      res.clearCookie("access_token", { httpOnly: true, signed: true });
+    }
+    if (err.name === "TokenExpiredError") {
+      return next(new AppError("Session expired. Please log in again.", 401));
+    }
+    return next(new AppError("Invalid token. Please log in again.", 401));
+  }
 
   // ── DB lookup — always check current account state ───────────────────────────
   const user = await User.findById(decoded.id)
