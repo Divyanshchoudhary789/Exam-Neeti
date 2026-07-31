@@ -83,6 +83,7 @@ const NOTIFICATION_TRIGGER = Object.freeze({
   SPRINT_COMPLETED:       "sprint_completed",
   PASSWORD_RESET:         "password_reset",
   ADMIN_INVITED:          "admin_invited",
+  ADMIN_DELETED:          "admin_deleted",
 });
 
 const NOTIFICATION_STATUS = Object.freeze({

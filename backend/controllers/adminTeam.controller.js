@@ -322,6 +322,96 @@ exports.reactivateAdmin = asyncHandler(async (req, res, next) => {
   });
 });
 
+// ─── DELETE /admin-team/:id  — Permanently delete admin account ──────────────
+//
+// Hard delete is intentionally a distinct, irreversible operation separate from
+// deactivation. Deactivate = lock out. Delete = full removal + data scrub.
+//
+// Safety guardrails (all enforced server-side, never trust client):
+//  1. Cannot delete yourself.
+//  2. Cannot delete another super_admin — only seed script manages super_admins.
+//  3. Optional "reason" body field is recorded in the audit log for accountability.
+//  4. Audit log is written BEFORE deletion so the actor reference is still valid.
+//  5. Notification email is sent to the deleted admin's address (best-effort).
+//  6. All active sessions are invalidated by clearing refreshTokenHash — the
+//     access token is short-lived and will expire on its own (acceptable window).
+
+exports.deleteAdmin = asyncHandler(async (req, res, next) => {
+  const { reason } = req.body; // optional justification — saved in audit metadata
+
+  const target = await User.findOne({
+    _id:  req.params.id,
+    role: { $in: [ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+  });
+
+  // 404 — admin not found or not an admin role
+  if (!target) return next(new AppError("Admin not found.", 404));
+
+  // Guard 1 — self-delete prevention
+  if (target._id.toString() === req.user.id) {
+    return next(new AppError("You cannot delete your own account.", 400));
+  }
+
+  // Guard 2 — super_admin accounts are immutable via API
+  if (target.role === ROLES.SUPER_ADMIN) {
+    return next(
+      new AppError(
+        "Super admin accounts cannot be deleted via the API. Use the database directly if absolutely required.",
+        403
+      )
+    );
+  }
+
+  // Capture a snapshot of the target before deletion — audit log needs this
+  const snapshot = {
+    _id:       target._id,
+    name:      target.name,
+    email:     target.email,
+    role:      target.role,
+    isActive:  target.isActive,
+    createdAt: target.createdAt,
+  };
+
+  // Write audit log BEFORE deletion — actor/target refs must exist in DB at write time.
+  // If audit write fails (non-throwing by design in writeAudit), we still proceed.
+  await writeAudit({
+    actor:    req.user,
+    action:   ADMIN_ACTIONS.ADMIN_DELETED,
+    target,
+    metadata: {
+      deletedAdmin: snapshot,
+      reason:       reason || null,
+    },
+    req,
+  });
+
+  // Hard delete the user document from the database
+  await User.deleteOne({ _id: target._id });
+
+  // Best-effort notification to the deleted admin — fire-and-forget
+  sendEmail({
+    to:          snapshot.email,
+    subject:     "Your Exam Neeti admin account has been deleted",
+    html:        templates.adminDeleted({
+      name:      snapshot.name,
+      deletedBy: req.user.email,
+    }),
+    trigger:     NOTIFICATION_TRIGGER.ADMIN_DELETED,
+    recipientId: snapshot._id,   // no longer in DB but log references the old id
+    contextRef:  snapshot._id,
+  }).catch((err) =>
+    console.error("[deleteAdmin] Email notification failed:", err.message)
+  );
+
+  return sendSuccess(res, 200, "Admin account permanently deleted.", {
+    deleted: {
+      _id:   snapshot._id,
+      name:  snapshot.name,
+      email: snapshot.email,
+    },
+  });
+});
+
 // ─── GET /admin-team/audit-logs  — Audit log viewer ──────────────────────────
 
 exports.getAuditLogs = asyncHandler(async (req, res) => {

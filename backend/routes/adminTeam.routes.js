@@ -91,4 +91,13 @@ router.patch(
   adminTeamController.reactivateAdmin
 );
 
+// Permanently delete an admin account (hard delete — irreversible)
+// Requires super_admin. Cannot target self or another super_admin.
+// Body: { reason?: string }  — optional justification recorded in audit log
+router.delete(
+  "/:id",
+  authorize(ROLES.SUPER_ADMIN),
+  adminTeamController.deleteAdmin
+);
+
 module.exports = router;

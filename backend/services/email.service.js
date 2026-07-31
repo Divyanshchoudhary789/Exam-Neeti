@@ -174,6 +174,14 @@ const templates = {
       <p><strong>Temporary Password:</strong> <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">${password}</code></p>
       <p style="color:#e74c3c;"><strong>Important:</strong> Please change your password immediately after your first login.</p>
     `),
+
+  adminDeleted: ({ name, deletedBy }) =>
+    baseTemplate(`
+      <p>Hi <strong>${name}</strong>,</p>
+      <p>Your admin account on <strong>Exam Neeti</strong> has been permanently deleted by <strong>${deletedBy}</strong>.</p>
+      <p>You will no longer be able to log in to the admin panel.</p>
+      <p>If you believe this was done in error, please contact the platform owner.</p>
+    `),
 };
 
 module.exports = { sendEmail, templates };
