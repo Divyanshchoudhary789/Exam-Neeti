@@ -92,7 +92,16 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 
 app.use("/api", apiLimiter);
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
+// ─── Root & Health Check ──────────────────────────────────────────────────────
+
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Welcome to Exam Neeti.",
+    version: "1.0.0",
+    docs:    "/health",
+  });
+});
 
 app.get("/health", (req, res) => {
   res.status(200).json({
