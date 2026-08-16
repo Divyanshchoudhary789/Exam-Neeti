@@ -93,7 +93,9 @@ const examSchema = new mongoose.Schema(
 );
 
 examSchema.index({ sprint: 1, batch: 1 });
-examSchema.index({ sprint: 1, examNumber: 1 }, { unique: true });
+// Unique exam number per sprint+batch combination (not globally per sprint,
+// because each batch gets its own independent exam sequence within a sprint)
+examSchema.index({ sprint: 1, batch: 1, examNumber: 1 }, { unique: true });
 examSchema.index({ status: 1 });
 examSchema.index({ batch: 1, status: 1 });
 

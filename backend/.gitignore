@@ -5,3 +5,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Question bank seed images — large binary files, don't commit
+seedData/images/
+
+PRODUCTION_READY.md
+QUESTION_BANK_API.md
+STATUS.md

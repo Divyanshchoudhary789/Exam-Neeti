@@ -27,6 +27,20 @@ const getTransporter = () => {
 };
 
 /**
+ * Escapes HTML special characters to prevent XSS in email clients.
+ * Any user-controlled value inserted into HTML templates must be escaped.
+ */
+const escHtml = (str) => {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g,  "&amp;")
+    .replace(/</g,  "&lt;")
+    .replace(/>/g,  "&gt;")
+    .replace(/"/g,  "&quot;")
+    .replace(/'/g,  "&#x27;");
+};
+
+/**
  * Sends an email and records the result in the NotificationLog.
  *
  * @param {Object} options
@@ -102,83 +116,84 @@ const baseTemplate = (content) => `
 </html>
 `;
 
+// All user-controlled values are passed through escHtml() to prevent XSS in email clients
 const templates = {
   accountCreated: ({ name, email, password }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
       <p>Your Exam Neeti account has been created. You can now log in using the credentials below.</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Temporary Password:</strong> ${password}</p>
+      <p><strong>Email:</strong> ${escHtml(email)}</p>
+      <p><strong>Temporary Password:</strong> <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">${escHtml(password)}</code></p>
       <p>Please change your password after your first login.</p>
     `),
 
   examAvailable: ({ name, examTitle, examNumber, dashboardUrl }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>A new exam is now available for you: <strong>${examTitle || `Exam ${examNumber}`}</strong>.</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>A new exam is now available for you: <strong>${escHtml(examTitle || `Exam ${examNumber}`)}</strong>.</p>
       <p>Log in to your dashboard to attempt it.</p>
-      <a href="${dashboardUrl}" class="btn">Go to Dashboard</a>
+      <a href="${escHtml(dashboardUrl)}" class="btn">Go to Dashboard</a>
     `),
 
   examSubmitted: ({ name, examTitle, examNumber }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>Your submission for <strong>${examTitle || `Exam ${examNumber}`}</strong> has been received successfully.</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Your submission for <strong>${escHtml(examTitle || `Exam ${examNumber}`)}</strong> has been received successfully.</p>
       <p>Your results will be ready shortly. You will receive another email once the analytics are computed.</p>
     `),
 
   analyticsReady: ({ name, examTitle, examNumber, dashboardUrl }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>Your results for <strong>${examTitle || `Exam ${examNumber}`}</strong> are ready.</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Your results for <strong>${escHtml(examTitle || `Exam ${examNumber}`)}</strong> are ready.</p>
       <p>Visit your dashboard to view detailed analytics, subject-wise breakdown, and recoverable marks.</p>
-      <a href="${dashboardUrl}" class="btn">View Results</a>
+      <a href="${escHtml(dashboardUrl)}" class="btn">View Results</a>
     `),
 
   batchAnalyticsUpdated: ({ adminName, batchName, dashboardUrl }) =>
     baseTemplate(`
-      <p>Hi <strong>${adminName}</strong>,</p>
-      <p>Batch-level analytics for <strong>${batchName}</strong> have been recalculated and are now up to date.</p>
-      <a href="${dashboardUrl}" class="btn">View Management Dashboard</a>
+      <p>Hi <strong>${escHtml(adminName)}</strong>,</p>
+      <p>Batch-level analytics for <strong>${escHtml(batchName)}</strong> have been recalculated and are now up to date.</p>
+      <a href="${escHtml(dashboardUrl)}" class="btn">View Management Dashboard</a>
     `),
 
   sprintCompleted: ({ name, sprintName, dashboardUrl }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>Congratulations! You have completed all exams in the sprint: <strong>${sprintName}</strong>.</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Congratulations! You have completed all exams in the sprint: <strong>${escHtml(sprintName)}</strong>.</p>
       <p>Your full Sprint performance summary is now available on your dashboard.</p>
-      <a href="${dashboardUrl}" class="btn">View Sprint Summary</a>
+      <a href="${escHtml(dashboardUrl)}" class="btn">View Sprint Summary</a>
     `),
 
   passwordReset: ({ name, resetUrl }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
       <p>You requested a password reset. Click the link below to set a new password. This link is valid for <strong>10 minutes</strong>.</p>
-      <a href="${resetUrl}" class="btn">Reset Password</a>
+      <a href="${escHtml(resetUrl)}" class="btn">Reset Password</a>
       <p>If you did not request this, please ignore this email.</p>
     `),
 
   reportReady: ({ name, reportType, downloadUrl }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>Your requested report (<strong>${reportType}</strong>) is ready for download.</p>
-      <a href="${downloadUrl}" class="btn">Download Report</a>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Your requested report (<strong>${escHtml(reportType)}</strong>) is ready for download.</p>
+      <a href="${escHtml(downloadUrl)}" class="btn">Download Report</a>
     `),
 
   adminInvited: ({ name, email, password, role, invitedBy }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>You have been added to the <strong>Exam Neeti</strong> admin team as <strong>${role}</strong> by ${invitedBy}.</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>You have been added to the <strong>Exam Neeti</strong> admin team as <strong>${escHtml(role)}</strong> by ${escHtml(invitedBy)}.</p>
       <p>You can now log in using the credentials below.</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Temporary Password:</strong> <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">${password}</code></p>
+      <p><strong>Email:</strong> ${escHtml(email)}</p>
+      <p><strong>Temporary Password:</strong> <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">${escHtml(password)}</code></p>
       <p style="color:#e74c3c;"><strong>Important:</strong> Please change your password immediately after your first login.</p>
     `),
 
   adminDeleted: ({ name, deletedBy }) =>
     baseTemplate(`
-      <p>Hi <strong>${name}</strong>,</p>
-      <p>Your admin account on <strong>Exam Neeti</strong> has been permanently deleted by <strong>${deletedBy}</strong>.</p>
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Your admin account on <strong>Exam Neeti</strong> has been permanently deleted by <strong>${escHtml(deletedBy)}</strong>.</p>
       <p>You will no longer be able to log in to the admin panel.</p>
       <p>If you believe this was done in error, please contact the platform owner.</p>
     `),

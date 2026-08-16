@@ -1,0 +1,2162 @@
+[
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Quantum Numbers",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Minimum Principal Quantum Number",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What is the lowest value of n that allows g orbital to exist?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "6",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "7",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "4",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "5",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d): For g orbital, value of \\(l\\) is 4 .\n(0 = s, 1 = p, 2 = d, 3 = f, 4 = g)\nSince \\(l = n - 1\\), n should be 5.",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Stoichiometry",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Element Content Determination",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "How much copper is present in 50 g of \\(\\text{CuSO}_4\\)?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "19.90 g",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "24.9 g",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "12.5 g",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "31.75 g",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) : Molar mass of \\(\\text{CuSO}_4 = 159.5\\text{ g}\\)\nMass of copper present in 159.5 g of \\(\\text{CuSO}_4 = 63.5\\text{ g}\\)\nMass of copper present in 50 g of \\(\\text{CuSO}_4 = 19.90\\text{ g}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Concentration Terms / Molality",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Direct Mass-to-Molality Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What will be the molality of the solution made by dissolving 10 g of NaOH in 100 g of water?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "2.5 m",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "5 m",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "10 m",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "1.25 m",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) : Molality = \\(\\frac{10 / 40}{100 / 1000} = 2.5\\text{ m}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Shapes of Atomic Orbitals",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Orbital Shape Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Though the five d – orbitals are degenerate, the first four d – orbitals are similar to each other in shape whereas the fifth d – orbital is different from others. What is the name of the fifth orbital?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(d{xy}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(d{z^2}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(d{xz}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(d{x^2-y^2}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b) The five d – orbitals are degenerate and have equal energy. The shape of first four orbitals is similar which are double dumb-bell, but the fifth one, \\(d_{z^2}\\), has a different shape.",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Stoichiometry & Concentration Terms",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Required Reactant Volume Determination",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What volume of 5M \\(\\text{Na}_2\\text{SO}_4\\) must be added to 25 mL of 1 M \\(\\text{BaCl}_2\\) to produce 10 g of \\(\\text{BaSO}_4\\)?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "5 mL",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "8 mL",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "10 mL",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "12 mL",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) :\n\\(\\text{Na}_2\\text{SO}_4 + \\text{BaCl}_2 \\rightarrow \\text{BaSO}_4 + 2\\text{NaCl}\\)\nNo. of moles of \\(\\text{BaSO}_4 = \\frac{10}{233} = 0.0428\\)\nNo. of moles of \\(\\text{Na}_2\\text{SO}_4\\) needed\nVolume = 5 mL",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Aufbau Principle",
+    "questionCategory": "Conceptual Statement Based",
+    "questionVariant": "Subshell Energy Comparison Variant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Which of the following statements is correct ?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "(n – 1) d subshell has lower energy than ns subshell",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "(n – 1) d subshell has higher energy than ns subshell",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "(n + 1) d subshell has lower energy than nf subshell",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "nf subshell has lower energy than (n + 2) s subshell",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\nThe energy of AOs depends on the \\(n + l\\) rule.",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Concentration Terms Interconversion",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Density to Molarity Conversion",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What is the molarity of \\(\\text{H}_2\\text{SO}_4\\) solution that has a density of 1.84 g/cc and contains 98% by mass of \\(\\text{H}_2\\text{SO}_4\\)? (Given atomic mass of S = 32)",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "4.18 M",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "8.14 M",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "18.4 M",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "18 M",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(c)\nMolarity = \\(\\frac{\\% \\times d \\times 10}{M} = \\frac{98 \\times 1.84 \\times 10}{98} = 18.4\\text{ M}\\)\n(d in gm/ml.)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Electronic Configuration",
+    "questionCategory": "Analytical",
+    "questionVariant": "Subshell-wise Electron Equivalence",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Which have the same number of s- electrons as the d - electrons in \\(\\text{Fe}^{2+}\\)?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "Li",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "Na",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "N",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "P",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\nP has 6 electrons in s-subshell, which equals the number of d-electrons in \\(\\text{Fe}^{2+}\\) (6 electrons).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Atomicity",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Total Atom Count Determination",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "How many atoms in total are present in 1 kg of sugar?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(7.92 \\times 10^{25}\\) atoms",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(6.02 \\times 10^{23}\\) atoms",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(3.5 \\times 10^{24}\\) atoms",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(1.2 \\times 10^{26}\\) atoms",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) : One molecule of sugar (\\(\\text{C}_{12}\\text{H}_{22}\\text{O}_{11}\\)) = 45 atoms\nNumber of moles of sugar = \\(\\frac{1000}{342}\\)\nNumber of molecules = \\(\\frac{1000}{342} \\times 6.023 \\times 10^{23}\\) molecules\nNumber of atoms = \\(\\frac{1000}{342} \\times 6.023 \\times 10^{23} \\times 45 = 7.92 \\times 10^{25}\\) atoms",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Electronic Configuration",
+    "questionCategory": "Analytical",
+    "questionVariant": "Quantum Value Electron",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "questionType": "mcq",
+    "text": "The number of electrons in sulphur atom having \\(n + l = 3\\)?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "2",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "4",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "6",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "8",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\nThe electronic configuration of sulphur atom is \\(1s^2 2s^2 2p^6 3s^2 3p^4\\). The orbitals with \\((n + l) = 3\\) are 2p (2+1=3) and 3s (3+0=3), therefore 8 electrons (6 in 2p + 2 in 3s) in sulphur atom have \\((n + l) = 3\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Concentration Terms",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Mole Fraction Determination",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "18 g of glucose is dissolved in 30 g of water. The mole fraction of glucose in the solution is:",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "0.056",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "0.1",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "0.5",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "0.9",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) : No. of moles of glucose = \\(\\frac{18}{180} = 0.1\\)\nNo. of moles of water = \\(\\frac{30}{18} = 1.66\\)\nTotal no. of moles of solution = \\(0.1 + 1.66 = 1.76\\)\nMole fraction of glucose = \\(\\frac{0.1}{1.76} = 0.056\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Electronic Configuration",
+    "questionCategory": "Conceptual",
+    "questionVariant": "Quantum Set to Element Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Which atom contains an electron with quantum number n = 3, \\(l = 2\\), m = –1, s = –1/2?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "Ne",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "Co",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "Cl",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "K",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\nQuantum numbers n = 3, \\(l = 2\\), m = –1, s = –1/2 represents a 3d electron which is present in Co.",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Gas Stoichiometry",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Gas Volume to Reactant Moles",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "How many moles of potassium chlorate need to be heated to produce 11.2 litre oxygen at N.T.P.?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\frac{1}{2}\\) mol",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\frac{1}{3}\\) mol",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\frac{1}{4}\\) mol",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\frac{2}{3}\\) mol",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\n\\(2\\text{KClO}_3 \\rightarrow 2\\text{KCl} + 3\\text{O}_2\\)\n\\(\\frac{3}{2}\\) mole or 33.6 litre \\(\\text{O}_2\\) from 1 mole \\(\\text{KClO}_3\\)\n11.2 litre of \\(\\text{O}_2\\) formed by \\(\\frac{1}{3}\\) mole \\(\\text{KClO}_3\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Quantum Numbers",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Invalid Quantum Set Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Which of the following sets of quantum numbers is not possible ?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "n = 2, \\(l = 1\\), m = –1, s = –\\(\\frac{1}{2}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "n = 2, \\(l = 0\\), m = 0, s = +\\(\\frac{1}{2}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "n = 3, \\(l = 2\\), m = –2, s = +\\(\\frac{1}{2}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "n = 3, \\(l = 2\\), m = –3, s = +\\(\\frac{1}{2}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\nNumerical value of m cannot be greater than that of \\(l\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Atomicity",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Mass-to-Specific-Atom",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "How many oxygen atoms will be present in 88 g of \\(\\text{CO}_2\\)?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(2.408 \\times 10^{24}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(1.204 \\times 10^{24}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(6.023 \\times 10^{23}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(3.011 \\times 10^{23}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) : 1 mole of \\(\\text{CO}_2 = 44\\text{ g}\\)\n88 g = 2 moles\nNo. of oxygen atoms in 2 moles = \\(2 \\times 2 \\times 6.022 \\times 10^{23} = 2.408 \\times 10^{24}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Orbital Angular Momentum",
+    "questionCategory": "Analytical Calculation",
+    "questionVariant": "Radial Node-based Angular Momentum Calculation",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "questionType": "mcq",
+    "text": "For an electron, with n = 3 has only one radial node. The orbital angular momentum of the electron will be",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "0",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\sqrt{6}\\frac{h}{2\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\sqrt{2}\\frac{h}{2\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\frac{h}{2\\pi}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(c)\nNumber of radial nodes = \\(n - l - 1 = 1\\), \\(n = 3\\).\n\\(3 - l - 1 = 1 \\implies l = 1\\).\nOrbital angular momentum = \\(\\sqrt{l(l+1)}\\frac{h}{2\\pi} = \\sqrt{1(1+1)}\\frac{h}{2\\pi} = \\sqrt{2}\\frac{h}{2\\pi}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Electron Counting",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Mass-to-Total-Electrons Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What is the total number of electrons present in 1.6 g of methane?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(6.02 \\times 10^{23}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "16",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(1.6 \\times 10^{23}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(3.01 \\times 10^{23}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a) : 1 mole of \\(\\text{CH}_4 = 16\\text{ g}\\)\ncontains 10 electrons\n1.6 g of \\(\\text{CH}_4\\) contains = \\(\\frac{1.6}{16} \\times 10 \\times 6.023 \\times 10^{23} = 6.023 \\times 10^{23}\\) electrons",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Dual Nature of Matter",
+    "questionCategory": "Direct Formula Based",
+    "questionVariant": "de-Broglie Relationship Identification",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "questionType": "mcq",
+    "text": "Which of the following expressions gives the de-Broglie relationship",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(p = \\frac{h}{\\lambda}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\lambda = \\frac{h}{mv}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\lambda = \\frac{h}{m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\lambda = mh\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\nAccording to de-Broglie equation \\(\\lambda = \\frac{h}{p} = \\frac{h}{mv}\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Atomicity",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Mass-to-Specific-Atom Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What will be the number of hydrogen atoms in 4.25 g of \\(\\text{NH}_3\\)?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(6.023 \\times 10^{23}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(1.5 \\times 10^{23}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(4.5 \\times 10^{23}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(3.01 \\times 10^{23}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(c) : Number of hydrogen atoms in one mole or 17 g of \\(\\text{NH}_3 = 3 \\times 6.023 \\times 10^{23}\\)\nNumber of hydrogen atoms in 4.25 g of \\(\\text{NH}_3 = \\frac{3 \\times 6.023 \\times 10^{23} \\times 4.25}{17} = 4.51 \\times 10^{23}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Equivalent Weight",
+    "questionCategory": "Analytical Calculation",
+    "questionVariant": "Equivalent Weight of Oxidizing",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "In the reaction \\(\\text{I}_2 + 2e^- \\rightarrow 2\\text{I}^-\\), equivalent mass of iodine will be equal to –",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "its molecular weight",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "1/2 of its molecular weight",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "1/4 of its molecular weight",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "twice the molecular weight",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b). \\(\\text{I}_2 + 2e^- \\rightarrow 2\\text{I}^-\\)\nEq. mass of \\(\\text{I}_2 = \\frac{\\text{Molecular weight}}{2}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Dual Nature of Matter",
+    "questionCategory": "Direct Formula Based",
+    "questionVariant": "Standard Formula Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "The de-Broglie wavelength of a particle with mass m and velocity v is",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\frac{h}{mv}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\frac{hv}{m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\frac{hm}{v}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(hmv\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a)\n\\(\\lambda = \\frac{h}{mv}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Redox Reactions & Equivalent Weight",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Redox n-Factor based Equivalent Weight Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What is the equivalent weight of \\(\\text{HNO}_3\\) in the following reaction ?\n\\(\\text{HNO}_3 + \\text{H}_2\\text{S} \\rightarrow \\text{H}_2\\text{O} + \\text{NO} + \\text{S}\\)",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "21",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "11.5",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "33",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "None of these",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a)\nThe x factor for \\(\\text{HNO}_3 = 5 - 2 = 3\\)\nHence equivalent wt. of \\(\\text{HNO}_3 = \\frac{63}{3} = 21\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Dual Nature of Matter",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Kinetic Energy to de-Broglie Wavelength",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "An electron has kinetic energy equal to \\(1\\text{ eV}\\). The de-Broglie wavelength will be nearly",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(10^{-10}\\text{ m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(10^{-12}\\text{ m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(1.22 \\times 10^{-10}\\text{ m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(1.22 \\times 10^{-9}\\text{ m}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(c)\nFormula for de-Broglie wavelength:\n\\(\\lambda = \\frac{h}{p} = \\frac{h}{\\sqrt{2m(K.E.)}}\\)\n\\(\\lambda = \\frac{6.626 \\times 10^{-34}}{\\sqrt{2 \\times 9.1 \\times 10^{-31} \\times 1.6 \\times 10^{-19}}} \\approx 1.22 \\times 10^{-10}\\text{ m}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Atomic Structure",
+    "questionCategory": "Analytical Calculation",
+    "questionVariant": "Particle Charge-to-Mass Ratio Determination",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "The specific charge of proton is e/m then for an \\(\\alpha\\)-particle it will be",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "e/m",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "2e/m",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "e/4m",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "e/2m",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\nSpecific charge = \\(\\frac{q}{m}\\)\nFor \\(\\alpha\\)-particle, charge = 2e, mass = 4m.\nSpecific charge = \\(\\frac{2e}{4m} = \\frac{e}{2m}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Limiting Reagent",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Limiting Reagent",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "At NTP, 1L of \\(\\text{O}_2\\) reacts with 3L of carbon monoxide. What will be the volume of CO and \\(\\text{CO}_2\\) after the reaction?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "1 L \\(\\text{CO}_2\\), 1 L CO",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "2 L \\(\\text{CO}_2\\), 2 L CO",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "1 L \\(\\text{CO}_2\\), 2 L CO",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "2 L \\(\\text{CO}_2\\), 1 L CO",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d). \\(2\\text{CO} + \\text{O}_2 \\rightarrow 2\\text{CO}_2\\)\n2 vol : 1 vol : 2 vol\n1 vol of \\(\\text{O}_2\\) reacts with 2 vol of CO\n1 L of \\(\\text{O}_2\\) reacts with 2 L of CO\nCO left after reaction = 3 – 2 = 1 L\n1 L of \\(\\text{O}_2\\) produces 2 L of \\(\\text{CO}_2\\).\nHence, after the reaction, CO = 1 L, \\(\\text{CO}_2 = 2\\text{ L}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Quantum Mechanics",
+    "questionCategory": "Direct Formula Based",
+    "questionVariant": "Mathematical Inequality Identification",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "questionType": "mcq",
+    "text": "According to heisenberg uncertainty principle",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\Delta x \\cdot \\Delta p \\le \\frac{h}{4\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\Delta x \\cdot \\Delta p \\ge \\frac{h}{4\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\Delta x \\cdot \\Delta p = \\frac{h}{2\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\Delta x \\cdot \\Delta p < \\frac{h}{4\\pi}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\nAccording to uncertainty principle, the product of uncertainties of the position and momentum is \\(\\Delta x \\cdot \\Delta p \\ge \\frac{h}{4\\pi}\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Dual Nature of Radiation",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Wavelength to Momentum Conversion",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "If wavelength of photon is \\(2.2 \\times 10^{-11}\\text{ m}\\) and \\(h = 6.6 \\times 10^{-34}\\text{ J-sec}\\), then momentum of photon is",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(3 \\times 10^{-23}\\text{ kg m/s}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(3.3 \\times 10^{-22}\\text{ kg m/s}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(1.45 \\times 10^{-44}\\text{ kg m/s}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(6.62 \\times 10^{-34}\\text{ kg m/s}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a)\n\\(p = \\frac{h}{\\lambda} = \\frac{6.6 \\times 10^{-34}}{2.2 \\times 10^{-11}} = 3 \\times 10^{-23}\\text{ kg m/s}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Equivalent Weight",
+    "questionCategory": "Conceptual",
+    "questionVariant": "Redox n-Factor based Equivalent Weight Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "In acidic medium, the equivalent weight of \\(\\text{K}_2\\text{Cr}_2\\text{O}_7\\) (mol. wt. = M) is",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "M",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "M/2",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "M/3",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "M/6",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d). Equivalent weight\n\\(\\text{Cr}_2\\text{O}_7^{2-} + 14\\text{H}^+ + 6e^- \\rightarrow 2\\text{Cr}^{3+} + 7\\text{H}_2\\text{O}\\)\nChange in oxidation state per Cr = 3, total change for 2 Cr = 6.\nEquivalent weight of \\(\\text{K}_2\\text{Cr}_2\\text{O}_7 = \\frac{M}{6}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Quantum Mechanics",
+    "questionCategory": "Formula Identification",
+    "questionVariant": "Invalid Uncertainty Expression Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Which one is not the correct relation in the following",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\Delta x \\cdot \\Delta p \\ge \\frac{h}{4\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\Delta E \\cdot \\Delta t \\ge \\frac{h}{4\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\Delta v \\cdot \\Delta x \\le \\frac{h}{4\\pi m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\Delta x \\cdot \\Delta v \\ge \\frac{h}{4\\pi m}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(c)\n\\(\\Delta v \\cdot \\Delta x \\le \\frac{h}{4\\pi m}\\) is not the correct relation. The correct Heisenberg’s uncertainty equation is \\(\\Delta x \\cdot \\Delta v \\ge \\frac{h}{4\\pi m}\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Bohr's Atomic Model",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Bohr Model Applicability Scope",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Bohr's model can explain",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "The spectrum of hydrogen atom only",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "Spectrum of atom or ion containing one electron only",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "The spectrum of hydrogen molecule",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "The solar spectrum",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\nAccording to the Bohr model, it applies to species (atoms or ions) containing only one electron.",
+      "hasLatex": false,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Shapes of Atomic Orbitals",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Sub-shell Geometry Identification",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "questionType": "mcq",
+    "text": "Which of the sub-shell is circular",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "s",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "p",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "d",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "f",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a)\nIt consists of the s-orbital which is spherical/circular in cross-section.",
+      "hasLatex": false,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Faraday's Charge Relation",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Total Charge to Moles of Electrons Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "How many mol of electrons will have total charge equal to 4816 coulomb.",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "0.05 mole",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "5 mole",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(6.95 \\times 10^{-21}\\text{ mol}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "0.01 mole",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a). Charge on 1 mol electron = 96500 C\nMoles of electrons = \\(\\frac{4816}{96500} = 0.05\\text{ mol}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Hydrogen Spectrum",
+    "questionCategory": "Direct Fact",
+    "questionVariant": "Hydrogen Spectral Region Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "________ Series of lines are the only lines in hydrogen spectrum which appear in the visible region.",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "Lyman",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "Balmer",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "Paschen",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "Brackett",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b): In Balmer series, the lines appear in visible region.",
+      "hasLatex": false,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Empirical Formula Calculation",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Percentage Composition to Empirical Formula",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "An organic compound contains carbon, hydrogen and oxygen. Its elemental analysis gave C, 38.71% and H, 9.67%. The empirical formula of the compound would be:",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\text{CH}_4\\text{O}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\text{CH}_3\\text{O}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\text{CH}_2\\text{O}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\text{CHO}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b). C \\(\\rightarrow \\frac{38.71}{12} = 3.22 \\rightarrow 1\\)\nO \\(\\rightarrow \\frac{51.62}{16} = 3.22 \\rightarrow 1\\)\nH \\(\\rightarrow \\frac{9.67}{1} = 9.67 \\rightarrow 3\\)\nThus empirical formula = \\(\\text{CH}_3\\text{O}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Bohr's Model & Hydrogen Spectrum",
+    "questionCategory": "Fact-based Application",
+    "questionVariant": "Balmer Line Wavelength",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "What is the colour corresponding to the wavelength of light emitted when the electron in a hydrogen atom undergoes transition from n = 4 to n = 2?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "Blue",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "Red",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "Yellow",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "Green",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(a): Transition from n = 4 to n = 2 produces a line at 486.1 nm, which corresponds to blue-green / blue light.",
+      "hasLatex": false,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Bohr's Model of Atom",
+    "questionCategory": "Formula Application",
+    "questionVariant": "Orbit Angular Momentum Quantization",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "According to Bohr’s theory the angular momentum of an electron in 5th orbit is.",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(1.0 \\frac{h}{\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(1.5 \\frac{h}{\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(2.0 \\frac{h}{\\pi}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(2.5 \\frac{h}{\\pi}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d): \\(L = \\frac{nh}{2\\pi} = \\frac{5h}{2\\pi} = 2.5\\frac{h}{\\pi}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Stoichiometry",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Vapour Density to Molecular Formula Determination",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "An organic compound has an empirical formula of \\(\\text{CH}_2\\text{O}\\). If its vapour density is 30, what is its molecular formula?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\text{CH}_2\\text{O}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\text{C}_2\\text{H}_4\\text{O}_2\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\text{C}_3\\text{H}_6\\text{O}_3\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\text{C}_4\\text{H}_8\\text{O}_4\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(B) 1. Molar Mass = \\(2 \\times \\text{Vapour Density} = 2 \\times 30 = 60\\text{ g/mol}\\)\n2. Empirical Formula Mass (\\(\\text{CH}_2\\text{O}\\)) = \\(12 + 2(1) + 16 = 30\\text{ g/mol}\\)\n3. Ratio n = \\(\\frac{\\text{Molar Mass}}{\\text{Empirical Mass}} = \\frac{60}{30} = 2\\)\n4. Molecular Formula = \\((\\text{CH}_2\\text{O})_2 = \\text{C}_2\\text{H}_4\\text{O}_2\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Bohr's Atomic Model",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Model Limitations Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Which one is not in agreement with Bohr’s model of atom?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "Line spectra of hydrogen atom",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "Pauli’s exclusion principle",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "Planck’s theory",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "Heisenberg’s uncertainty principle",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d): Bohr’s model is not in agreement with Heisenberg’s uncertainty principle.",
+      "hasLatex": false,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Quantitative Analysis",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Combustion Analysis to Empirical Formula",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "0.30 g of an organic compound containing C, H, and O on complete combustion gives 0.44 g of \\(\\text{CO}_2\\) and 0.18 g of \\(\\text{H}_2\\text{O}\\). What is the empirical formula of the compound?",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\text{CH}_2\\text{O}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\text{C}_2\\text{H}_4\\text{O}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\text{CHO}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\text{CH}_4\\text{O}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(A) 1. Mass of C = \\(\\frac{12}{44} \\times 0.44 = 0.12\\text{ g}\\)\n2. Mass of H = \\(\\frac{2}{18} \\times 0.18 = 0.02\\text{ g}\\)\n3. Mass of O = \\(0.30 - (0.12 + 0.02) = 0.16\\text{ g}\\)\n4. Moles: C = \\(\\frac{0.12}{12} = 0.01\\) | H = \\(\\frac{0.02}{1} = 0.02\\) | O = \\(\\frac{0.16}{16} = 0.01\\)\n5. Ratio C : H : O = 1 : 2 : 1 \\(\\rightarrow\\) Empirical Formula = \\(\\text{CH}_2\\text{O}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Bohr's Model & Spectral Lines Energy",
+    "questionCategory": "Analytical Calculation",
+    "questionVariant": "Energy-Wavelength Correlation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Suppose that a hypothetical atom gives a red, green, blue and violet line spectrum. Which jump (from higher to lower energy level) according to the figure would give off the red spectral line?",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(n = 3 \\rightarrow n = 1\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(n = 2 \\rightarrow n = 1\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(n = 4 \\rightarrow n = 1\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(n = 3 \\rightarrow n = 2\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\nAccording to energy, Violet > Blue > Green > Red.\nRed line corresponds to smallest energy transition, which is \\(n = 3 \\rightarrow n = 2\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Bohr's Model of Atom",
+    "questionCategory": "Direct Formula Based",
+    "questionVariant": "Orbit Energy Formula Identification",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "The energy of an electron in nth orbit of hydrogen atom is –",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "–\\(\\frac{13.6}{n}\\) eV",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "–\\(\\frac{13.6}{n^3}\\) eV",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "–\\(\\frac{13.6}{n^2}\\) eV",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "–\\(\\frac{13.6}{n^4}\\) eV",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(c)\n\\(E = -\\frac{13.6}{n^2}\\text{ eV}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Dual Nature of Matter",
+    "questionCategory": "Algebraic Calculation",
+    "questionVariant": "de-Broglie Wavelength Algebraic Condition",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "If wavelength is equal to the distance travelled by the electron in one second, then –",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(\\lambda = \\frac{h}{p}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(\\lambda = \\frac{h}{m}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(\\lambda = \\sqrt{\\frac{h}{mv}}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(\\lambda = \\sqrt{\\frac{h}{m}}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\n\\(\\lambda = v\\)\nsince \\(\\lambda = \\frac{h}{mv}\\), substituting \\(v = \\lambda\\) gives \\(\\lambda = \\frac{h}{m\\lambda} \\implies \\lambda^2 = \\frac{h}{m} \\implies \\lambda = \\sqrt{\\frac{h}{m}}\\).",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Mole Concept",
+    "topic": "Mole Concept & Stoichiometry",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Percentage Purity & Decomposition Stoichiometry",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "questionType": "mcq",
+    "text": "What mass of an 80% pure sample of \\(\\text{CaCO}_3\\) is required to produce 11.2 L of \\(\\text{CO}_2\\) gas at STP on complete decomposition? (Molar mass of \\(\\text{CaCO}_3 = 100\\text{ g/mol}\\))",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "50 g",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "62.5 g",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "40 g",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "80 g",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(B) 1. Reaction: \\(\\text{CaCO}_3 \\rightarrow \\text{CaO} + \\text{CO}_2\\)\n2. 22.4 L \\(\\text{CO}_2\\) at STP requires 1 mole (100 g) of pure \\(\\text{CaCO}_3\\).\n3. 11.2 L \\(\\text{CO}_2\\) requires = \\(\\frac{100}{22.4} \\times 11.2 = 50\\text{ g}\\) pure \\(\\text{CaCO}_3\\).\n4. Mass of 80% pure sample required = \\(\\frac{50}{0.80} = 62.5\\text{ g}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Planck's Quantum Theory",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Number to Photon Energy Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "Energy of a photon having wave number \\(1.00\\text{ cm}^{-1}\\) is –",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(6.62 \\times 10^{-34}\\text{ J}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(1.99 \\times 10^{-23}\\text{ J}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(6.62 \\times 10^{-32}\\text{ J}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(6.62 \\times 10^{-36}\\text{ J}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(b)\n\\(E = hc\\bar{\nu} = 6.62 \\times 10^{-34} \\times 3 \\times 10^{10} \\times 1.00 = 1.986 \\times 10^{-23}\\text{ J}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XII",
+    "chapter": "Atomic Structure",
+    "topic": "Electromagnetic Radiation Characteristics",
+    "questionCategory": "Numerical Calculation",
+    "questionVariant": "Frequency to Wave Number Conversion",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "questionType": "mcq",
+    "text": "The frequency of a wave is \\(6 \\times 10^{15}\\text{ s}^{-1}\\). Its wave number would be",
+    "hasLatex": true,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      {
+        "key": "A",
+        "text": "\\(10^5\\text{ cm}^{-1}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "B",
+        "text": "\\(2 \\times 10^{-5}\\text{ cm}^{-1}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "C",
+        "text": "\\(2 \\times 10^{-7}\\text{ cm}^{-1}\\)",
+        "localImagePath": null
+      },
+      {
+        "key": "D",
+        "text": "\\(2 \\times 10^5\\text{ cm}^{-1}\\)",
+        "localImagePath": null
+      }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(d)\nApply \\(\\bar{\nu} = \\frac{\nu}{c} = \\frac{6 \\times 10^{15}}{3 \\times 10^{10}\\text{ cm/s}} = 2 \\times 10^5\\text{ cm}^{-1}\\)",
+      "hasLatex": true,
+      "localImagePath": null,
+      "localImagePaths": []
+    },
+    "sourceRef": "Minor Test - 1 Mole Concept and Atomic XII Ongoning F"
+  }
+]

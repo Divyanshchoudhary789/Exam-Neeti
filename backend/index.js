@@ -13,6 +13,36 @@ const { apiLimiter } = require("./middleware/rateLimiter");
 const { createQuestionModel } = require("./models/Question.model");
 const AppError = require("./utils/AppError");
 
+// ─── Startup: Validate required environment variables ─────────────────────────
+// Fail fast with a clear error rather than mysterious runtime failures.
+const REQUIRED_ENV_VARS = [
+  "MONGO_URI",
+  "JWT_SECRET",
+  "JWT_REFRESH_SECRET",
+  "COOKIE_SECRET",
+  "BREVO_SMTP_USER",
+  "BREVO_SMTP_PASS",
+  "EMAIL_FROM_ADDRESS",
+  "CLIENT_URL",
+];
+
+const missingVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+if (missingVars.length > 0) {
+  console.error(
+    `[Startup] FATAL: Missing required environment variables:\n  ${missingVars.join("\n  ")}\n` +
+    `Check your .env file against .env.example`
+  );
+  process.exit(1);
+}
+
+// Warn if QUESTION_BANK_MONGO_URI is not set — exam generation will be unavailable
+if (!process.env.QUESTION_BANK_MONGO_URI) {
+  console.warn(
+    "[Startup] WARNING: QUESTION_BANK_MONGO_URI is not set — " +
+    "exam generation and slot stats will be unavailable."
+  );
+}
+
 const app = express();
 
 // ─── Trust Proxy (required for Render deployment) ─────────────────────────────
@@ -50,8 +80,10 @@ app.use(
 );
 
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
-// Conservative default — 50kb covers all normal API payloads.
-// Bulk-import route gets its own higher limit via express.json({limit:"2mb"}) if needed.
+// FIX: Bulk-import override MUST come BEFORE the 50kb global parser, otherwise
+// the 50kb limit fires first and rejects large payloads with a 413.
+// Multer handles multipart/form-data for question uploads separately (no body-parser needed).
+app.use("/api/v1/users/bulk-import", express.json({ limit: "2mb" }));
 app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
@@ -72,9 +104,6 @@ app.get("/health", (req, res) => {
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
-
-// Bulk-import endpoint needs a larger body limit for student CSV payloads
-app.use("/api/v1/users/bulk-import", express.json({ limit: "2mb" }));
 
 app.use("/api/v1", mainRouter);
 

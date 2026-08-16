@@ -6,36 +6,43 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "lint": "eslint . --ext .js"
+    "lint": "eslint . --ext .js",
+    "seed:admin": "node seedAdmin.js",
+    "seed:syllabus": "node scripts/seedSyllabus.js",
+    "seed:blueprint": "node scripts/seedBlueprint.js",
+    "seed:questions": "node scripts/seedQuestions.js",
+    "seed:all": "node seedAdmin.js && node scripts/seedSyllabus.js && node scripts/seedBlueprint.js",
+    "extract:docx": "node scripts/extractDocx.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "author": "Divyansh Choudhary",
   "license": "ISC",
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
   "dependencies": {
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.5.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
-    "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
-    "exceljs": "^4.4.0",
+    "exceljs": "3.10.0",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.1",
     "helmet": "^8.3.0",
     "joi": "^18.2.3",
     "jsonwebtoken": "^9.0.3",
+    "katex": "^0.16.22",
     "mongoose": "^9.8.0",
-    "multer": "^2.2.0",
-    "node-cron": "^4.6.0",
+    "multer": "^2.0.1",
     "nodemailer": "^9.0.3",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
-    "pdfkit": "^0.16.0",
-    "sharp": "^0.35.3"
+    "pdfkit": "^0.16.0"
   },
   "devDependencies": {
+    "jszip": "^3.10.1",
     "nodemon": "^3.1.14"
   }
 }

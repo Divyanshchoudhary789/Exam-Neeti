@@ -471,16 +471,18 @@ exports.getPlatformStats = asyncHandler(async (req, res) => {
     totalAttempts,
     recentAdmins,
   ] = await Promise.all([
-    User.countDocuments({ role: ROLES.ADMIN }),
-    User.countDocuments({ role: ROLES.ADMIN, isActive: true }),
+    // FIX: Include both admin and super_admin in team counts (was excluding super_admin)
+    User.countDocuments({ role: { $in: [ROLES.ADMIN, ROLES.SUPER_ADMIN] } }),
+    User.countDocuments({ role: { $in: [ROLES.ADMIN, ROLES.SUPER_ADMIN] }, isActive: true }),
     User.countDocuments({ role: ROLES.STUDENT }),
     User.countDocuments({ role: ROLES.STUDENT, isActive: true }),
     Batch.countDocuments(),
     Batch.countDocuments({ isActive: true }),
     Exam.countDocuments(),
     Attempt.countDocuments({ status: ATTEMPT_STATUS.SUBMITTED }),
-    User.find({ role: ROLES.ADMIN })
-      .select("name email isActive lastLoginAt createdAt")
+    // FIX: Include super_admin in recent admins list too
+    User.find({ role: { $in: [ROLES.ADMIN, ROLES.SUPER_ADMIN] } })
+      .select("name email role isActive lastLoginAt createdAt")
       .sort({ createdAt: -1 })
       .limit(5)
       .lean(),

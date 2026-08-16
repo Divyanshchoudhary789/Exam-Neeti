@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { PROGRAM_TYPES } = require("../config/constants");
 
 const batchSchema = new mongoose.Schema(
   {
@@ -14,6 +15,16 @@ const batchSchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, "Description cannot exceed 500 characters."],
       default: "",
+    },
+    /**
+     * programType — links this batch to a test-series program.
+     * Drives blueprint filtering and syllabus coverage scoping.
+     * class_xi | class_xii | dropper
+     */
+    programType: {
+      type: String,
+      enum: [...Object.values(PROGRAM_TYPES), null],
+      default: null,
     },
     isActive: {
       type: Boolean,

@@ -14,7 +14,10 @@ const apiLimiter = rateLimit({
     success: false,
     message: "Too many requests from this IP. Please try again later.",
   },
-  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
+  // DISABLE_RATE_LIMIT is strictly blocked in production — prevents accidental exposure
+  skip: () =>
+    process.env.NODE_ENV !== "production" &&
+    process.env.DISABLE_RATE_LIMIT === "true",
 });
 
 /**
@@ -30,7 +33,10 @@ const authLimiter = rateLimit({
     success: false,
     message: "Too many authentication attempts. Please try again after 15 minutes.",
   },
-  skip: () => process.env.DISABLE_RATE_LIMIT === "true",
+  // DISABLE_RATE_LIMIT is strictly blocked in production
+  skip: () =>
+    process.env.NODE_ENV !== "production" &&
+    process.env.DISABLE_RATE_LIMIT === "true",
 });
 
 module.exports = { apiLimiter, authLimiter };

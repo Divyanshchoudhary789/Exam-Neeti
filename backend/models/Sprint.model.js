@@ -75,7 +75,7 @@ const sprintSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: Object.values(SPRINT_STATUS),
-      default: SPRINT_STATUS.ACTIVE,
+      default: SPRINT_STATUS.DRAFT,   // FIX: was ACTIVE — sprints must go through draft→active workflow
     },
     totalQuestions: {
       type: Number,

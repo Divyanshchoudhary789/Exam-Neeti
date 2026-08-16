@@ -3,6 +3,7 @@ const Batch = require("../models/Batch.model");
 const Attempt = require("../models/Attempt.model");
 const AnalyticsResult = require("../models/AnalyticsResult.model");
 const StudentProbability = require("../models/StudentProbability.model");
+const SyllabusProgress = require("../models/SyllabusProgress.model");
 const Report = require("../models/Report.model");
 const AdminAuditLog = require("../models/AdminAuditLog.model");
 const AppError = require("../utils/AppError");
@@ -72,56 +73,92 @@ exports.bulkImportStudents = asyncHandler(async (req, res, next) => {
   const batch = await Batch.findById(batchId);
   if (!batch) return next(new AppError("Batch not found.", 404));
 
-  const results = { created: [], failed: [] };
+  // FIX: Single DB query to find all already-registered emails (was N queries)
+  const emails = students.map((s) => s.email.toLowerCase().trim());
+  const existingUsers = await User.find(
+    { email: { $in: emails } },
+    "email"
+  ).lean();
+  const existingEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
+
+  const toCreate   = [];
+  const failedFast = [];
 
   for (const studentData of students) {
-    try {
-      const plainPassword =
-        studentData.password || crypto.randomBytes(6).toString("hex");
+    const email = studentData.email?.toLowerCase().trim();
+    if (!email) {
+      failedFast.push({ email: studentData.email || "(empty)", reason: "Email is required." });
+      continue;
+    }
+    if (existingEmails.has(email)) {
+      failedFast.push({ email: studentData.email, reason: "Email already registered." });
+      continue;
+    }
+    toCreate.push(studentData);
+  }
 
-      const existing = await User.findOne({ email: studentData.email });
-      if (existing) {
-        results.failed.push({
-          email: studentData.email,
-          reason: "Email already registered.",
-        });
-        continue;
-      }
-
+  // FIX: Parallel creates instead of sequential
+  const createResults = await Promise.allSettled(
+    toCreate.map(async (studentData) => {
+      const plainPassword = studentData.password || crypto.randomBytes(6).toString("hex");
       const student = await User.create({
-        name: studentData.name,
-        email: studentData.email,
-        phone: studentData.phone || null,
+        name:     studentData.name,
+        email:    studentData.email,
+        phone:    studentData.phone || null,
         password: plainPassword,
-        role: ROLES.STUDENT,
-        batch: batchId,
+        role:     ROLES.STUDENT,
+        batch:    batchId,
       });
+      return { student, plainPassword };
+    })
+  );
 
-      await sendEmail({
-        to: student.email,
-        subject: "Welcome to Exam Neeti — Your Account is Ready",
-        html: templates.accountCreated({
-          name: student.name,
-          email: student.email,
-          password: plainPassword,
-        }),
-        trigger: NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
-        recipientId: student._id,
-        contextRef: student._id,
-      });
+  const results = { created: [], failed: [...failedFast] };
 
+  // FIX: Collect created students and fire emails in background (non-blocking)
+  const emailQueue = [];
+  for (let i = 0; i < createResults.length; i++) {
+    const r = createResults[i];
+    if (r.status === "fulfilled") {
+      const { student, plainPassword } = r.value;
       results.created.push({ _id: student._id, email: student.email, name: student.name });
-    } catch (err) {
-      results.failed.push({ email: studentData.email, reason: err.message });
+      emailQueue.push({ student, plainPassword });
+    } else {
+      results.failed.push({ email: toCreate[i].email, reason: r.reason?.message || "Unknown error." });
     }
   }
 
+  // Send welcome emails in the background — do not block the HTTP response
+  setImmediate(() => {
+    Promise.allSettled(
+      emailQueue.map(({ student, plainPassword }) =>
+        sendEmail({
+          to:          student.email,
+          subject:     "Welcome to Exam Neeti — Your Account is Ready",
+          html:        templates.accountCreated({
+            name:     student.name,
+            email:    student.email,
+            password: plainPassword,
+          }),
+          trigger:     NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
+          recipientId: student._id,
+          contextRef:  student._id,
+        })
+      )
+    ).then((settled) => {
+      const failed = settled.filter((r) => r.status === "rejected");
+      if (failed.length > 0) {
+        console.error(`[bulkImport] ${failed.length} welcome email(s) failed to send.`);
+      }
+    });
+  });
+
   return sendSuccess(res, 207, "Bulk import completed.", {
     totalProcessed: students.length,
-    totalCreated: results.created.length,
-    totalFailed: results.failed.length,
-    created: results.created,
-    failed: results.failed,
+    totalCreated:   results.created.length,
+    totalFailed:    results.failed.length,
+    created:        results.created,
+    failed:         results.failed,
   });
 });
 
@@ -300,6 +337,7 @@ exports.deleteStudent = asyncHandler(async (req, res, next) => {
     Attempt.deleteMany({ student: student._id }),
     AnalyticsResult.deleteMany({ student: student._id }),
     StudentProbability.deleteMany({ student: student._id }),
+    SyllabusProgress.deleteMany({ student: student._id }),
     Report.deleteMany({ owner: student._id }),
   ]);
 

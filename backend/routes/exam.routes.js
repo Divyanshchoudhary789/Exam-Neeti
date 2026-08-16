@@ -18,6 +18,9 @@ router.use(authenticate);
 // These must be defined BEFORE router.use(authorize(ROLES.ADMIN)) so students
 // can reach them. Each controller enforces its own ownership / batch checks.
 
+// Student: list all published/completed exams for own batch (with attempt status annotation)
+router.get("/my-exams", examController.getMyExams);
+
 // Student: list own submitted attempts
 router.get("/my-attempts", examController.getMyAttempts);
 
@@ -48,5 +51,11 @@ router.post("/", validate(createExamSchema), examController.generateExam);
 
 // Admin: update exam metadata (title, duration, status, etc.)
 router.patch("/:id", validate(updateExamSchema), examController.updateExam);
+
+// Admin: list attempts for a specific exam (for review/monitoring)
+router.get("/:id/attempts", examController.listExamAttempts);
+
+// Admin: delete a DRAFT exam (cannot delete published/in-use exams)
+router.delete("/:id", examController.deleteExam);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const User = require("../models/User.model");
 const Attempt = require("../models/Attempt.model");
 const AnalyticsResult = require("../models/AnalyticsResult.model");
 const StudentProbability = require("../models/StudentProbability.model");
+const SyllabusProgress = require("../models/SyllabusProgress.model");
 const Report = require("../models/Report.model");
 const AdminAuditLog = require("../models/AdminAuditLog.model");
 const AppError = require("../utils/AppError");
@@ -15,11 +16,12 @@ const { ROLES, ADMIN_ACTIONS } = require("../config/constants");
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 exports.createBatch = asyncHandler(async (req, res, next) => {
-  const { name, description } = req.body;
+  const { name, description, programType } = req.body;
 
   const batch = await Batch.create({
     name,
     description,
+    programType: programType || null,
     createdBy: req.user.id,
   });
 
@@ -63,11 +65,12 @@ exports.getBatch = asyncHandler(async (req, res, next) => {
 });
 
 exports.updateBatch = asyncHandler(async (req, res, next) => {
-  const { name, description, isActive } = req.body;
+  const { name, description, isActive, programType } = req.body;
   const updates = {};
-  if (name !== undefined) updates.name = name;
+  if (name        !== undefined) updates.name        = name;
   if (description !== undefined) updates.description = description;
-  if (isActive !== undefined) updates.isActive = isActive;
+  if (isActive    !== undefined) updates.isActive    = isActive;
+  if (programType !== undefined) updates.programType = programType;
 
   const batch = await Batch.findByIdAndUpdate(req.params.id, updates, {
     returnDocument: "after",
@@ -194,6 +197,7 @@ exports.deleteBatch = asyncHandler(async (req, res, next) => {
       Attempt.deleteMany({ student: { $in: studentIds } }),
       AnalyticsResult.deleteMany({ student: { $in: studentIds } }),
       StudentProbability.deleteMany({ student: { $in: studentIds } }),
+      SyllabusProgress.deleteMany({ student: { $in: studentIds } }),
       Report.deleteMany({ owner: { $in: studentIds } }),
     ]);
   }

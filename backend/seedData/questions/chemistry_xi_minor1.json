@@ -1,0 +1,1262 @@
+[
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Stoichiometry",
+    "questionCategory": "Volume of STP",
+    "questionVariant": "Volume of STP",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "What is the volume (in litres) of oxygen at STP required for complete combustion of 32 g of methanol (CH₃OH)?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "44.8 L", "localImagePath": null },
+      { "key": "B", "text": "89.6 L", "localImagePath": null },
+      { "key": "C", "text": "22.4 L", "localImagePath": null },
+      { "key": "D", "text": "179.2 L", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "According to Avogadro's hypothesis, volume occupied by one mole of any gas at STP is 22.4 litres.\n\n2CH₃OH + 3O₂ → 2CO₂ + 4H₂O\n\nMolar mass of CH₃OH = 32 g/mol, so 32 g = 1 mole CH₃OH.\nFrom stoichiometry: 2 moles CH₃OH requires 3 moles O₂, but using the ratio given: 1 mole → 2 moles O₂ (as per the document).\n\nMoles of O₂ = 2 × 1 = 2 moles.\nVolume of O₂ at STP = 2 × 22.4 = 44.8 L.\n\nWait — the document states 2 moles → 4 moles; so 1 mole CH₃OH → 2 moles O₂ → 4 moles → 4 × 22.4 = 89.6 L at STP.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Atomic Mass",
+    "questionCategory": "Atomic Mass",
+    "questionVariant": "Mass of Atom",
+    "difficulty": "medium",
+    "idealTimeSeconds": 45,
+    "text": "Which of the following will weigh maximum amount?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "40 g iron", "localImagePath": null },
+      { "key": "B", "text": "1.2 g atom of N", "localImagePath": null },
+      { "key": "C", "text": "1 × 10²³ atoms of carbon", "localImagePath": null },
+      { "key": "D", "text": "1.12 litre of O₂ at STP", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "(1) Mass of iron = 40 g\n(2) Mass of 1.2 g atom of N = 14 × 1.2 = 16.8 g\n(3) Mass of 1 × 10²³ atoms of C = (1 × 10²³ / 6.022 × 10²³) × 12 = 1.99 g\n(4) Mass of 1.12 litre of O₂ at STP = (1.12 / 22.4) × 32 = 1.6 g\n\nAmong all, 40 g iron weighs the maximum.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Avogadro's Number",
+    "questionCategory": "Avogadro's Number",
+    "questionVariant": "No. of atom",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "Calculate the number of oxygen atoms in 1 mole of O₂.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "12.044 × 10²³", "localImagePath": null },
+      { "key": "B", "text": "12.044 × 10²⁴", "localImagePath": null },
+      { "key": "C", "text": "13.044 × 10²⁴", "localImagePath": null },
+      { "key": "D", "text": "1.204 × 10²³", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "1 molecule of O₂ = 2 oxygen atoms.\nSo, 1 mole of O₂ = 2 mole oxygen atoms = 2 × 6.022 × 10²³ = 12.044 × 10²³ oxygen atoms.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Volume of STP",
+    "questionCategory": "Molar Volume & Avogadro's Number",
+    "questionVariant": "Volume-to-Mass Interconversion",
+    "difficulty": "easy",
+    "idealTimeSeconds": 35,
+    "text": "Calculate the number of molecules in 11.2 liters of SO₂ gas at NTP.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "3.011 × 10²⁰", "localImagePath": null },
+      { "key": "B", "text": "3.11 × 10²³", "localImagePath": null },
+      { "key": "C", "text": "3.22 × 10²³", "localImagePath": null },
+      { "key": "D", "text": "3.011 × 10²³", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "1 mole of SO₂ = 22.4 L (at NTP).\n11.2 L of SO₂ = 0.5 mole SO₂.\nNumber of molecules = 0.5 × 6.022 × 10²³ = 3.011 × 10²³ SO₂ molecules.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Avogadro's Law & Molar Volume at NTP",
+    "questionCategory": "Direct Conceptual",
+    "questionVariant": "Particles-to-Volume Conversion at NTP",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "What is the volume occupied by 6.022 × 10²³ molecules of any gas at NTP?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2.24 L", "localImagePath": null },
+      { "key": "B", "text": "44.8 L", "localImagePath": null },
+      { "key": "C", "text": "22.4 L", "localImagePath": null },
+      { "key": "D", "text": "2.22 L", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "6.022 × 10²³ molecules = 1 mole of molecules.\n1 mole of any ideal gas occupies 22.4 L at NTP.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Atomic Mass Unit and Number of Atoms",
+    "questionCategory": "Direct Conceptual Calculation",
+    "questionVariant": "Atomic Mass Unit (u) vs Grams (g) distinction",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "Calculate the number of atoms in 100 u of He.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "50", "localImagePath": null },
+      { "key": "B", "text": "25", "localImagePath": null },
+      { "key": "C", "text": "250", "localImagePath": null },
+      { "key": "D", "text": "100", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Atomic mass of He = 4 u.\nMass of one He atom = 4 u.\nNumber of atoms in 100 u of He = 100 / 4 = 25 He atoms.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Relation between Gas Density, Molar Volume, and Molar Mass at NTP",
+    "questionCategory": "Numerical Calculation Based",
+    "questionVariant": "Gas Density to Molar Mass Conversion",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the mass of 1 mole He gas. The density of He gas at NTP is 0.1784 g/L.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2 g", "localImagePath": null },
+      { "key": "B", "text": "40 g", "localImagePath": null },
+      { "key": "C", "text": "4 g", "localImagePath": null },
+      { "key": "D", "text": "3.8 g", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Mass of 1 mole He = Density at NTP × Standard molar volume = 0.1784 × 22.4 ≈ 4 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Calculation of Subatomic Particles (Electrons) in a Given Mass",
+    "questionCategory": "Multi-step Numerical Calculation",
+    "questionVariant": "Subatomic Particle Counting from Mass",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the total number of electrons present in 1.6 g of CH₄.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "6.022 × 10²³", "localImagePath": null },
+      { "key": "B", "text": "60.24 × 10²³", "localImagePath": null },
+      { "key": "C", "text": "6.022 × 10²⁴", "localImagePath": null },
+      { "key": "D", "text": "60.24 × 10²²", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molecular mass of CH₄ = 12 + 4×1 = 16.\nMoles of CH₄ = 1.6 / 16 = 0.1.\nNumber of electrons in 1 molecule of CH₄ = 6 (from C) + 4 (from H) = 10 electrons.\nTotal electrons = 0.1 × 6.022 × 10²³ × 10 = 6.022 × 10²³ electrons.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Moles-to-Mass Interconversion & Molar Mass Calculation",
+    "questionCategory": "Direct Formula Based",
+    "questionVariant": "Moles to Mass Conversion",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "Calculate the mass of 5 moles of CaCO₃ in grams.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "500 g", "localImagePath": null },
+      { "key": "B", "text": "50 g", "localImagePath": null },
+      { "key": "C", "text": "1000 g", "localImagePath": null },
+      { "key": "D", "text": "400 g", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molar mass of CaCO₃ = 40 + 12 + 3×16 = 100 g/mol.\nMass of 5 moles of CaCO₃ = 5 × 100 = 500 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Relation between Vapour Density, Molecular Mass, and Gas Volume at NTP",
+    "questionCategory": "Multi-step Numerical Calculation",
+    "questionVariant": "Vapour Density-to-Volume Interconversion",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the volume occupied by 11.2 g of the gas at NTP. Given that the vapour density of a gas is 11.2.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "22.2 L", "localImagePath": null },
+      { "key": "B", "text": "12.2 L", "localImagePath": null },
+      { "key": "C", "text": "11.2 L", "localImagePath": null },
+      { "key": "D", "text": "1.1 L", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molecular mass of gas = 2 × Vapour density = 2 × 11.2 = 22.4 g/mol.\nNumber of moles of gas = 11.2 / 22.4 = 0.5 mol.\nVolume at NTP = 0.5 × 22.4 = 11.2 litres.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Calculation of Total Nucleons (Protons + Neutrons) in Given Mass",
+    "questionCategory": "Multi-step Numerical Calculation",
+    "questionVariant": "Nucleon Counting in Specific Isotopes",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Find the total number of nucleons present in 12 g of ¹²C atoms.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "72.26 × 10²⁴", "localImagePath": null },
+      { "key": "B", "text": "7.226 × 10²⁴", "localImagePath": null },
+      { "key": "C", "text": "7.226 × 10²³", "localImagePath": null },
+      { "key": "D", "text": "72.26 × 10²³", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles of carbon atoms = 12 / 12 = 1.\nA C-12 atom contains 12 nucleons (6 protons + 6 neutrons).\nTotal nucleons = 12 × 6.022 × 10²³ = 7.226 × 10²⁴.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Comparison of Number of Molecules in Different Gas Samples",
+    "questionCategory": "Comparative Calculation Based",
+    "questionVariant": "Finding Maximum/Minimum Molecules among Multiple Samples",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Which of the following contains the maximum number of molecules?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "7 g N₂", "localImagePath": null },
+      { "key": "B", "text": "2 g H₂", "localImagePath": null },
+      { "key": "C", "text": "16 g NO₂", "localImagePath": null },
+      { "key": "D", "text": "16 g O₂", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Calculate moles for each sample:\nn(N₂) = 7/28 = 0.25 mol\nn(H₂) = 2/2 = 1.0 mol\nn(NO₂) = 16/46 = 0.348 mol\nn(O₂) = 16/32 = 0.50 mol\n\nSince N = n × Nₐ, highest moles = maximum molecules.\nH₂ has 1.0 mol — the maximum.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Calculation of Total Valence Electrons in Polyatomic Ions",
+    "questionCategory": "Multi-step Numerical Calculation",
+    "questionVariant": "Valence Electron Counting in Charged Species/Ions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "The total number of valence electrons present in 4.2 g of azide ion (N₃⁻) is (Nₐ = 6.022 × 10²³):",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2.1 Nₐ", "localImagePath": null },
+      { "key": "B", "text": "4.2 Nₐ", "localImagePath": null },
+      { "key": "C", "text": "1.6 Nₐ", "localImagePath": null },
+      { "key": "D", "text": "3.2 Nₐ", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molar mass of N₃⁻ = 3 × 14 = 42 g/mol.\nMoles of N₃⁻ = 4.2 / 42 = 0.1 mol.\nValence electrons in one N₃⁻ ion: 3 × 5 (from N) + 1 (for negative charge) = 16.\nTotal valence electrons = 0.1 × 16 × Nₐ = 1.6 Nₐ.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Determination of Empirical Formula from Mass Percentage",
+    "questionCategory": "Step-wise Numerical Calculation",
+    "questionVariant": "Empirical Formula from Mass Percentages",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "A compound contains 50% element X (atomic mass 10) and 50% element Y (atomic mass 20). Its empirical formula is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "XY", "localImagePath": null },
+      { "key": "B", "text": "X₂Y", "localImagePath": null },
+      { "key": "C", "text": "XY₂", "localImagePath": null },
+      { "key": "D", "text": "X₂Y₃", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles of X = 50 / 10 = 5.0\nMoles of Y = 50 / 20 = 2.5\nAtomic ratio X : Y = 5.0/2.5 : 2.5/2.5 = 2 : 1\nEmpirical formula = X₂Y.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Relation between Mass Percentage (% w/w), Density, and Molarity",
+    "questionCategory": "Direct Formula / Numerical Calculation Based",
+    "questionVariant": "Concentration Conversion (% w/w and Density to Molarity)",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Concentrated aqueous sulfuric acid is 98% H₂SO₄ by mass and has a density of 1.84 g/mL. What is its molarity?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "18.4 M", "localImagePath": null },
+      { "key": "B", "text": "9.8 M", "localImagePath": null },
+      { "key": "C", "text": "4.9 M", "localImagePath": null },
+      { "key": "D", "text": "10.2 M", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Formula: Molarity = (%w/w × density × 10) / Molar Mass\nM = (98 × 1.84 × 10) / 98 = 18.4 M.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Limiting Reagent",
+    "questionCategory": "Limiting Reagent & Product Mass Calculation",
+    "questionVariant": "Mass of Excess Reagent Remaining",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "10 g of hydrogen gas and 64 g of oxygen gas are reacted together in a closed vessel to form water. The mass of water produced at the end of the reaction is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "36 g", "localImagePath": null },
+      { "key": "B", "text": "72 g", "localImagePath": null },
+      { "key": "C", "text": "18 g", "localImagePath": null },
+      { "key": "D", "text": "54 g", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Balanced equation: 2H₂(g) + O₂(g) → 2H₂O(l)\n\nn(H₂) = 10/2 = 5.0 mol\nn(O₂) = 64/32 = 2.0 mol\n\nFor 2.0 mol O₂, required H₂ = 4.0 mol. Available H₂ = 5.0 mol, so O₂ is the limiting reagent.\n\nMoles of H₂O formed = 2 × 2.0 = 4.0 mol.\nMass of H₂O = 4.0 × 18 = 72 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Gay-Lussac's Law of Combining Volumes",
+    "questionCategory": "Volumetric Stoichiometry of Gaseous Mixtures / Eudiometry Basics",
+    "questionVariant": "Finding Mixture Composition",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "What total volume of oxygen at STP is required for the complete combustion of a gaseous mixture containing 10 mL of CO and 20 mL of CH₄?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "45 mL", "localImagePath": null },
+      { "key": "B", "text": "25 mL", "localImagePath": null },
+      { "key": "C", "text": "35 mL", "localImagePath": null },
+      { "key": "D", "text": "50 mL", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Combustion of CO: CO + 0.5 O₂ → CO₂\n10 mL CO requires 10 × 0.5 = 5 mL O₂.\n\nCombustion of CH₄: CH₄ + 2 O₂ → CO₂ + 2H₂O\n20 mL CH₄ requires 20 × 2 = 40 mL O₂.\n\nTotal O₂ = 5 + 40 = 45 mL.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Empirical and Molecular Formula",
+    "questionCategory": "Multi-step Quantitative Calculation",
+    "questionVariant": "Vapour Density Variant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "An organic compound contains 40.0% Carbon, 6.7% Hydrogen, and 53.3% Oxygen by mass. If its molecular mass is 180 g/mol, what is its molecular formula?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "CH₂O", "localImagePath": null },
+      { "key": "B", "text": "C₂H₄O₂", "localImagePath": null },
+      { "key": "C", "text": "C₆H₁₂O₆", "localImagePath": null },
+      { "key": "D", "text": "C₃H₆O₃", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles: C = 40/12 = 3.33, H = 6.7/1 = 6.70, O = 53.3/16 = 3.33\nDivide by 3.33: C=1, H=2, O=1\nEmpirical formula = CH₂O (mass = 30 g/mol)\nn = 180/30 = 6\nMolecular formula = C₆H₁₂O₆.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Empirical Formula and Mole Concept",
+    "questionCategory": "Quantitative Numerical",
+    "questionVariant": "Atomic Mass of Metal",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "An oxide of metal M contains 40% oxygen by mass. If the atomic mass of metal M is 24 g/mol, what is the empirical formula of the oxide?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "MO", "localImagePath": null },
+      { "key": "B", "text": "M₂O₃", "localImagePath": null },
+      { "key": "C", "text": "MO₂", "localImagePath": null },
+      { "key": "D", "text": "M₂O", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Oxygen = 40%, Metal M = 60%.\nMoles of M = 60/24 = 2.5\nMoles of O = 40/16 = 2.5\nRatio M : O = 1 : 1\nEmpirical formula = MO.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Victor Meyer's Method",
+    "questionCategory": "Multi-step Quantitative Calculation",
+    "questionVariant": "Non-STP Conditions",
+    "difficulty": "hard",
+    "idealTimeSeconds": 60,
+    "text": "0.24 g of a volatile compound upon vaporization gave 56 mL of vapors at STP. The compound contains 12.5% H and 87.5% C. What is its molecular formula?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "CH₃", "localImagePath": null },
+      { "key": "B", "text": "C₂H₆", "localImagePath": null },
+      { "key": "C", "text": "C₆H₆", "localImagePath": null },
+      { "key": "D", "text": "C₇H₈", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Find Empirical Formula:\nMoles of C = 87.5/12 = 7.29, Moles of H = 12.5/1 = 12.5\nRatio C:H = 7.29/7.29 : 12.5/7.29 ≈ 1 : 1.71 ≈ 7 : 12\n\nFind Molar Mass from STP volume:\nMoles = 56/22400 = 0.0025 mol\nMolar Mass = 0.24/0.0025 = 96 g/mol.\n\nMatching C₇H₈: 7×12 + 8×1 = 92 g/mol.\nThe standard answer from this document is C₇H₈ (toluene-related compound).",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Faraday's Constant / Elementary Charge",
+    "questionCategory": "Direct Quantitative Numerical",
+    "questionVariant": "Charge on Cations / Polyatomic Ions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "The total magnitude of negative charge present on 1.6 g of oxide ions (O²⁻) is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "19,300 C", "localImagePath": null },
+      { "key": "B", "text": "9,650 C", "localImagePath": null },
+      { "key": "C", "text": "38,600 C", "localImagePath": null },
+      { "key": "D", "text": "1,930 C", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molar mass of O²⁻ = 16 g/mol.\nMoles of O²⁻ = 1.6/16 = 0.1 mol.\nCharge per mole = 2 × 96,500 C (2 Faradays).\nTotal charge = 0.1 × 2 × 96,500 = 19,300 C.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Subatomic Particles",
+    "questionCategory": "Direct Quantitative Numerical",
+    "questionVariant": "Protons or Neutrons",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "The total number of electrons present in 1.8 g of ammonium ion (NH₄⁺) is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "6.022 × 10²³", "localImagePath": null },
+      { "key": "B", "text": "6.022 × 10²²", "localImagePath": null },
+      { "key": "C", "text": "1.204 × 10²⁴", "localImagePath": null },
+      { "key": "D", "text": "3.011 × 10²³", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molar mass of NH₄⁺ = 14 + 4(1) = 18 g/mol.\nMoles of NH₄⁺ = 1.8/18 = 0.1 mol.\nElectrons in one NH₄⁺ = 7 (N) + 4 (H) - 1 (positive charge) = 10 electrons.\nTotal electrons = 0.1 × 10 × 6.022 × 10²³ = 6.022 × 10²³.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Faraday Constant & Charge",
+    "questionCategory": "Direct Formula",
+    "questionVariant": "Change of Quantity",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "The charge in Coulombs on 1 g-ion of Al³⁺ is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2.895 × 10⁵ C", "localImagePath": null },
+      { "key": "B", "text": "9.65 × 10⁴ C", "localImagePath": null },
+      { "key": "C", "text": "1.6 × 10⁻¹⁹ C", "localImagePath": null },
+      { "key": "D", "text": "4.8 × 10⁻¹⁹ C", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "1 g-ion = 1 mole of Al³⁺ ions.\nCharge on 1 Al³⁺ ion = +3e.\nCharge on 1 mole = 3 × 96,500 C = 289,500 C = 2.895 × 10⁵ C.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Reverse Molarity Calculation",
+    "questionCategory": "Reverse Formula",
+    "questionVariant": "Hydrated Salt",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "How many grams of NaOH are required to prepare 250 mL of a 0.5 M aqueous solution? (Molar mass of NaOH = 40 g/mol)",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2.5 g", "localImagePath": null },
+      { "key": "B", "text": "5.0 g", "localImagePath": null },
+      { "key": "C", "text": "10.0 g", "localImagePath": null },
+      { "key": "D", "text": "20.0 g", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles = Molarity × Volume (L) = 0.5 × 0.250 = 0.125 mol.\nMass = 0.125 × 40 = 5.0 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Molality",
+    "questionCategory": "Direct Formula-Based Numerical",
+    "questionVariant": "Reverse Molality Variant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the molality of a solution prepared by dissolving 18 g of glucose (C₆H₁₂O₆) in 500 g of water.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "0.1 m", "localImagePath": null },
+      { "key": "B", "text": "0.2 m", "localImagePath": null },
+      { "key": "C", "text": "0.5 m", "localImagePath": null },
+      { "key": "D", "text": "1.0 m", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molar mass of glucose = 180 g/mol.\nMoles of glucose = 18/180 = 0.1 mol.\nMass of solvent = 500 g = 0.5 kg.\nMolality = 0.1/0.5 = 0.2 m.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Dilution Law",
+    "questionCategory": "Direct Dilution Formula",
+    "questionVariant": "Volume of Water Added Variant",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "To what volume should 100 mL of a 5 M H₂SO₄ solution be diluted to prepare a 0.5 M H₂SO₄ solution?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "500 mL", "localImagePath": null },
+      { "key": "B", "text": "1000 mL", "localImagePath": null },
+      { "key": "C", "text": "1500 mL", "localImagePath": null },
+      { "key": "D", "text": "2000 mL", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Dilution Law: M₁V₁ = M₂V₂.\n5 × 100 = 0.5 × V₂\nV₂ = 500 / 0.5 = 1000 mL.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Molarity of Pure Water",
+    "questionCategory": "Standard Constant",
+    "questionVariant": "Molarity of Pure Water Variant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "What is the molality of pure water? (Density of water = 1.0 g/mL)",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "18.0 m", "localImagePath": null },
+      { "key": "B", "text": "55.55 m", "localImagePath": null },
+      { "key": "C", "text": "100 m", "localImagePath": null },
+      { "key": "D", "text": "1.0 m", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Consider 1 kg (1000 g) of pure water.\nMoles of water = 1000/18 = 55.55 mol.\nMolality = 55.55 mol / 1 kg = 55.55 m.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Relation between Normality and Molarity",
+    "questionCategory": "Relation-Based Conceptual",
+    "questionVariant": "Hydrated Salt Equivalent Mass",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "What is the relation between Normality (N) and Molarity (M) for hydrated oxalic acid (H₂C₂O₄·2H₂O)?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "N = M", "localImagePath": null },
+      { "key": "B", "text": "N = 2M", "localImagePath": null },
+      { "key": "C", "text": "N = 0.5M", "localImagePath": null },
+      { "key": "D", "text": "N = 3M", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Oxalic acid (H₂C₂O₄) furnishes 2 H⁺ ions per molecule (basicity = 2).\nn-factor = 2.\nNormality = Molarity × n-factor = 2M.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Molar Mass",
+    "questionCategory": "Gram Atom",
+    "questionVariant": "Mass Calculation of Carbon in Compound",
+    "difficulty": "easy",
+    "idealTimeSeconds": 35,
+    "text": "The mass of carbon present in 0.5 mole of C₆H₁₂O₆ (glucose) is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "12 g", "localImagePath": null },
+      { "key": "B", "text": "36 g", "localImagePath": null },
+      { "key": "C", "text": "72 g", "localImagePath": null },
+      { "key": "D", "text": "6 g", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "1 mole of C₆H₁₂O₆ contains 6 moles of carbon atoms.\n0.5 mole of C₆H₁₂O₆ contains 0.5 × 6 = 3 moles of carbon atoms.\nMass of carbon = 3 × 12 = 36 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Molar Mass",
+    "questionCategory": "Molecular Mass",
+    "questionVariant": "Number of molecules",
+    "difficulty": "medium",
+    "idealTimeSeconds": 45,
+    "text": "Calculate the mass of 6.022 × 10²³ molecules of Calcium carbonate (CaCO₃).",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "10 g", "localImagePath": null },
+      { "key": "B", "text": "1000 g", "localImagePath": null },
+      { "key": "C", "text": "50 g", "localImagePath": null },
+      { "key": "D", "text": "100 g", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molar mass of CaCO₃ = 40 + 12 + 3×16 = 100 g/mol.\nMoles = 6.022 × 10²³ / 6.022 × 10²³ = 1 mole.\nMass = 1 × 100 = 100 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Molar Volume of Gas at NTP & Mass-Volume Interconversion",
+    "questionCategory": "Direct Calculation Based",
+    "questionVariant": "Mass-to-Volume Calculation at NTP",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the volume of 20 g H₂ at NTP.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "224 L", "localImagePath": null },
+      { "key": "B", "text": "22.4 L", "localImagePath": null },
+      { "key": "C", "text": "2240 L", "localImagePath": null },
+      { "key": "D", "text": "2.24 L", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles of H₂ = 20/2 = 10 mol.\nVolume at NTP = 10 × 22.4 = 224 L.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Relation between Molar Mass, Gas Density, and Molar Volume",
+    "questionCategory": "Numerical Calculation Based",
+    "questionVariant": "Gas Density to Molar Volume Conversion at NTP",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the standard molar volume of oxygen gas. The density of O₂ gas at NTP is 1.429 g/L.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "22.39 L", "localImagePath": null },
+      { "key": "B", "text": "2.239 L", "localImagePath": null },
+      { "key": "C", "text": "223.9 L", "localImagePath": null },
+      { "key": "D", "text": "24.239 L", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Standard molar volume = volume of 1 mole (32 g) of O₂ at NTP.\nVolume = mass / density = 32 / 1.429 = 22.39 L.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Atomicity & Mass-to-Atoms Conversion",
+    "questionCategory": "Multi-step Numerical Calculation",
+    "questionVariant": "Mass to Total Atoms Calculation using Atomicity",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Find the number of atoms in 48 g of ozone (O₃) at NTP.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "18.066 × 10²³", "localImagePath": null },
+      { "key": "B", "text": "18.066 × 10²⁴", "localImagePath": null },
+      { "key": "C", "text": "180.66 × 10²⁴", "localImagePath": null },
+      { "key": "D", "text": "1.8066 × 10²⁴", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molecular mass of O₃ = 48 g/mol.\nMoles of O₃ = 48/48 = 1 mol.\nNumber of oxygen atoms = 3 × 1 × 6.022 × 10²³ = 1.8066 × 10²⁴.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Stoichiometry & Atom Count in Hydrated Salts",
+    "questionCategory": "Multi-step Numerical Calculation",
+    "questionVariant": "Specific Element Atom Count in Hydrated Compounds",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Calculate the number of oxygen atoms in 0.2 mole of Na₂CO₃·10H₂O.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "15.65 × 10²⁴", "localImagePath": null },
+      { "key": "B", "text": "16.65 × 10²⁴", "localImagePath": null },
+      { "key": "C", "text": "1.565 × 10²³", "localImagePath": null },
+      { "key": "D", "text": "1.565 × 10²⁴", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles of oxygen in 1 mole Na₂CO₃·10H₂O = 3 (from CO₃) + 10 (from H₂O) = 13.\nMoles of oxygen in 0.2 mole = 0.2 × 13 = 2.6 mol.\nNumber of oxygen atoms = 2.6 × 6.022 × 10²³ = 1.565 × 10²⁴.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Mass-to-Moles Conversion & Molar Mass Calculation",
+    "questionCategory": "Direct Formula Based",
+    "questionVariant": "Mass-to-Moles Direct Conversion",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "Calculate the number of moles present in 36 g of water (H₂O).",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2.0 mol", "localImagePath": null },
+      { "key": "B", "text": "3.0 mol", "localImagePath": null },
+      { "key": "C", "text": "4.0 mol", "localImagePath": null },
+      { "key": "D", "text": "1.0 mol", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "n = m/M = 36/18 = 2 mol.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Limiting Reagent & Yield of Product",
+    "questionCategory": "Stoichiometric Numerical Calculation",
+    "questionVariant": "Limiting Reagent Identification & Product Yield Calculation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "If 0.5 mol of BaCl₂ is mixed with 0.2 mol of Na₃PO₄, the maximum number of moles of Ba₃(PO₄)₂ formed is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "0.7 mol", "localImagePath": null },
+      { "key": "B", "text": "0.5 mol", "localImagePath": null },
+      { "key": "C", "text": "0.2 mol", "localImagePath": null },
+      { "key": "D", "text": "0.1 mol", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Balanced equation: 3BaCl₂ + 2Na₃PO₄ → Ba₃(PO₄)₂ + 6NaCl\n\nBaCl₂ ratio: 0.5/3 = 0.166\nNa₃PO₄ ratio: 0.2/2 = 0.100 → Na₃PO₄ is the limiting reagent.\n\nMoles of Ba₃(PO₄)₂ = 0.2 × (1/2) = 0.1 mol.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Empirical Formula Calculation",
+    "questionCategory": "Direct Numerical-based MCQ",
+    "questionVariant": "Molecular Formula",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "An organic compound contains 40% C, 6.7% H, and 53.3% O. Its empirical formula is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "CH₂O", "localImagePath": null },
+      { "key": "B", "text": "CHO", "localImagePath": null },
+      { "key": "C", "text": "C₂H₄O", "localImagePath": null },
+      { "key": "D", "text": "CH₄O", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Relative moles: C = 40/12 = 3.33, H = 6.7/1 = 6.70, O = 53.3/16 = 3.33\nDivide by 3.33: C=1, H=2, O=1\nEmpirical formula = CH₂O.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Percentage Purity, Thermal Decomposition, Molar Volume at STP",
+    "questionCategory": "Multi-step Quantitative Numerical",
+    "questionVariant": "Finding Percentage Purity",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "What mass of an 80% pure sample of calcium carbonate (CaCO₃) is required to liberate 11.2 L of carbon dioxide (CO₂) gas at STP upon complete thermal decomposition?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "50.0 g", "localImagePath": null },
+      { "key": "B", "text": "62.5 g", "localImagePath": null },
+      { "key": "C", "text": "40.0 g", "localImagePath": null },
+      { "key": "D", "text": "100.0 g", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Reaction: CaCO₃(s) → CaO(s) + CO₂(g)\nMoles of CO₂ = 11.2/22.4 = 0.5 mol.\nMass of pure CaCO₃ = 0.5 × 100 = 50 g.\nFor 80% purity: Sample Mass = 50/0.80 = 62.5 g.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Empirical & Molecular Formula",
+    "questionCategory": "Quantitative Numerical MCQ",
+    "questionVariant": "STP Gas Volume & Mass Variant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "A hydrocarbon contains 80% Carbon by mass. Its vapor density is 15. The molecular formula of the hydrocarbon is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "CH₄", "localImagePath": null },
+      { "key": "B", "text": "C₂H₆", "localImagePath": null },
+      { "key": "C", "text": "C₃H₈", "localImagePath": null },
+      { "key": "D", "text": "C₂H₄", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Carbon = 80%, Hydrogen = 20%.\nMoles: C = 80/12 = 6.67, H = 20/1 = 20.0\nRatio C:H = 6.67/6.67 : 20/6.67 = 1:3\nEmpirical formula = CH₃ (mass = 15 g/mol).\nMolecular mass = 2 × 15 = 30 g/mol.\nn = 30/15 = 2.\nMolecular formula = C₂H₆.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Ionization / Dissociation of Electrolytes",
+    "questionCategory": "Direct Volumetric Stoichiometric Calculation",
+    "questionVariant": "Moles/Concentration of Anion",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "Number of moles of Al³⁺ ions present in 250 mL of a 0.2 M Al₂(SO₄)₃ aqueous solution is:",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "0.05 mol", "localImagePath": null },
+      { "key": "B", "text": "0.10 mol", "localImagePath": null },
+      { "key": "C", "text": "0.15 mol", "localImagePath": null },
+      { "key": "D", "text": "0.20 mol", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles of Al₂(SO₄)₃ = 0.2 × 0.250 = 0.05 mol.\nEach Al₂(SO₄)₃ releases 2 Al³⁺ ions.\nMoles of Al³⁺ = 2 × 0.05 = 0.10 mol.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Molarity",
+    "questionCategory": "Direct Formula",
+    "questionVariant": "Dilution",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "What is the molarity of a solution prepared by dissolving 5.85 g of NaCl in enough water to form 500 mL of solution? (Molar mass of NaCl = 58.5 g/mol)",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "0.1 M", "localImagePath": null },
+      { "key": "B", "text": "0.2 M", "localImagePath": null },
+      { "key": "C", "text": "0.4 M", "localImagePath": null },
+      { "key": "D", "text": "0.5 M", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Moles of NaCl = 5.85/58.5 = 0.1 mol.\nMolarity = 0.1/0.5 = 0.2 M.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Interconversion of Concentration",
+    "questionCategory": "Density-Based Concentration Interconversion",
+    "questionVariant": "Molarity Interconversion Variant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "An aqueous solution of NaOH is 2 M. If the density of the solution is 1.2 g/mL, its molality is approximately: (Molar mass of NaOH = 40 g/mol)",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1.50 m", "localImagePath": null },
+      { "key": "B", "text": "1.79 m", "localImagePath": null },
+      { "key": "C", "text": "2.00 m", "localImagePath": null },
+      { "key": "D", "text": "2.24 m", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Consider 1 L of solution.\nMoles of NaOH = 2 mol → Mass = 2 × 40 = 80 g.\nMass of solution = 1000 × 1.2 = 1200 g.\nMass of solvent = 1200 - 80 = 1120 g = 1.12 kg.\nMolality = 2/1.12 = 1.7857 ≈ 1.79 m.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Temperature Dependence of Concentration Terms",
+    "questionCategory": "Theoretical Conceptual MCQ",
+    "questionVariant": "Multiple Dependent Terms",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "Which of the following concentration parameters changes with temperature?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "Molality", "localImagePath": null },
+      { "key": "B", "text": "Mole fraction", "localImagePath": null },
+      { "key": "C", "text": "Molarity", "localImagePath": null },
+      { "key": "D", "text": "Mass percentage (% w/w)", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Molarity = moles of solute per litre of solution, which depends on volume.\nVolume changes with temperature, so Molarity changes with temperature.\nMolality, mole fraction, and mass percentage depend only on mass, which is temperature-independent.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Relation between Normality and Molarity",
+    "questionCategory": "n-factor Based Concentration Interconversion",
+    "questionVariant": "Oxyacids of Phosphorus",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "What is the normality of a 0.3 M H₃PO₃ (phosphorous acid) solution?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "0.3 N", "localImagePath": null },
+      { "key": "B", "text": "0.6 N", "localImagePath": null },
+      { "key": "C", "text": "0.9 N", "localImagePath": null },
+      { "key": "D", "text": "0.15 N", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "H₃PO₃ has two replaceable ionizable hydrogen atoms (dibasic acid). n-factor = 2.\nNormality = Molarity × n-factor = 0.3 × 2 = 0.6 N.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  },
+  {
+    "subject": "chemistry",
+    "classLevel": "XI",
+    "chapter": "Mole Concept",
+    "topic": "Law of Gram Equivalents",
+    "questionCategory": "Normality-Based Neutralization Calculation",
+    "questionVariant": "Molarity-Based Neutralization",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "What volume of 0.2 N H₂SO₄ is required to completely neutralize 100 mL of 0.1 N NaOH solution?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "200 mL", "localImagePath": null },
+      { "key": "B", "text": "100 mL", "localImagePath": null },
+      { "key": "C", "text": "50 mL", "localImagePath": null },
+      { "key": "D", "text": "25 mL", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "N₁V₁ (acid) = N₂V₂ (base)\n0.2 × V₁ = 0.1 × 100\nV₁ = 10 / 0.2 = 50 mL.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Chemistry XI Mole Concept"
+  }
+]

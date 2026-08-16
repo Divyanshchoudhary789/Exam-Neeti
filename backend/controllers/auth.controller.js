@@ -202,14 +202,23 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 
   const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
 
-  await sendEmail({
-    to:          user.email,
-    subject:     "Password Reset Request — Exam Neeti",
-    html:        templates.passwordReset({ name: user.name, resetUrl }),
-    trigger:     NOTIFICATION_TRIGGER.PASSWORD_RESET,
-    recipientId: user._id,
-    contextRef:  user._id,
-  });
+  try {
+    await sendEmail({
+      to:          user.email,
+      subject:     "Password Reset Request — Exam Neeti",
+      html:        templates.passwordReset({ name: user.name, resetUrl }),
+      trigger:     NOTIFICATION_TRIGGER.PASSWORD_RESET,
+      recipientId: user._id,
+      contextRef:  user._id,
+    });
+  } catch (emailErr) {
+    // FIX: Email failed — clear the orphaned token so the user can retry
+    console.error("[Auth] forgotPassword email failed:", emailErr.message);
+    user.passwordResetToken   = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+    return next(new AppError("Failed to send reset email. Please try again later.", 502));
+  }
 
   return sendSuccess(res, 200, "If that email is registered, a reset link has been sent.");
 });

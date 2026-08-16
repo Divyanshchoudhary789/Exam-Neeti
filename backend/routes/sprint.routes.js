@@ -27,4 +27,7 @@ router.get("/:id", sprintController.getSprint);
 router.patch("/:id", validate(updateSprintSchema), sprintController.updateSprint);
 router.get("/:id/slot-stats", sprintController.getSlotStats);
 
+// Admin: delete a DRAFT sprint (blocked if any exams reference it)
+router.delete("/:id", sprintController.deleteSprint);
+
 module.exports = router;

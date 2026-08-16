@@ -19,4 +19,13 @@ router.get("/sprint/:sprintId/exam-performance", dashboardController.getExamPerf
 router.get("/sprint/:sprintId/subject-performance", dashboardController.getSubjectPerformance);
 router.get("/sprint/:sprintId/summary", dashboardController.getAnalyticsSummary);
 
+// Admin: chapter & topic cohort breakdown — shows where students struggle most
+router.get("/sprint/:sprintId/chapter-topic-breakdown", dashboardController.getChapterTopicBreakdown);
+
+// Admin: student attempt status list — who submitted, who is pending, who hasn't started
+router.get("/sprint/:sprintId/student-status", dashboardController.getStudentAttemptStatus);
+
+// Admin: full attempt history for a single student across a sprint
+router.get("/sprint/:sprintId/student/:studentId/history", dashboardController.getStudentAttemptHistory);
+
 module.exports = router;

@@ -7,6 +7,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
 const { computeAnalytics, computeCompleteAnalytics } = require("../services/analytics.service");
 const { computeAdvancedAnalytics } = require("../services/advancedAnalytics.service");
+const { getCoverageMetrics } = require("../services/coverage.service");
 const { ROLES, ATTEMPT_STATUS } = require("../config/constants");
 
 // ─── Get analytics for a specific attempt ────────────────────────────────────
@@ -75,9 +76,14 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
   const studentId = req.user.role === ROLES.STUDENT ? req.user.id : req.params.studentId;
   const { sprintId } = req.params;
 
+  // FIX: Add a reasonable hard cap. A NEET sprint realistically has ≤50 exams.
+  // Fetching unlimited results for a student would unboundedly grow with exam count.
+  const MAX_EXAMS_PER_SPRINT = 100;
+
   const allAnalytics = await AnalyticsResult.find({ student: studentId, sprint: sprintId })
     .populate("exam", "title examNumber totalMarks scheduledAt")
     .sort({ createdAt: 1 })
+    .limit(MAX_EXAMS_PER_SPRINT)
     .lean();
 
   if (!allAnalytics.length) {
@@ -191,6 +197,9 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
     improvementFromPrev: idx > 0 ? parseFloat((ar.score - allAnalytics[idx - 1].score).toFixed(2)) : 0,
   }));
 
+  // Coverage metrics — 4 formulas now implemented
+  const coverageMetrics = await getCoverageMetrics(studentId, sprintId);
+
   return sendSuccess(res, 200, "Student sprint summary fetched.", {
     summary: { totalTests, totalScore, highestScore, averageScore, overallAccuracy, overallAttemptRate, overallPercentage },
     subjectPerformance,
@@ -200,6 +209,7 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
       weak:   topicPerformance.filter((t) => t.isWeak),
       strong: topicPerformance.filter((t) => t.isStrong),
     },
+    coverageMetrics,
     timeline,
   });
 });

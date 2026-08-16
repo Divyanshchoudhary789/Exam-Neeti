@@ -68,7 +68,6 @@ const studentProbabilitySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
     },
     sprint: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,14 +1,19 @@
 const Joi = require("joi");
+const { PROGRAM_TYPES } = require("../config/constants");
+
+const VALID_PROGRAM_TYPES = Object.values(PROGRAM_TYPES);
 
 const createBatchSchema = Joi.object({
-  name: Joi.string().trim().min(2).max(100).required(),
+  name:        Joi.string().trim().min(2).max(100).required(),
   description: Joi.string().trim().allow("").default(""),
+  programType: Joi.string().valid(...VALID_PROGRAM_TYPES).allow(null).default(null),
 });
 
 const updateBatchSchema = Joi.object({
-  name: Joi.string().trim().min(2).max(100),
+  name:        Joi.string().trim().min(2).max(100),
   description: Joi.string().trim().allow(""),
-  isActive: Joi.boolean(),
+  isActive:    Joi.boolean(),
+  programType: Joi.string().valid(...VALID_PROGRAM_TYPES).allow(null),
 }).min(1);
 
 const bulkImportStudentsSchema = Joi.object({

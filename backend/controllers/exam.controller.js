@@ -21,6 +21,56 @@ const { getPaginationParams, buildPaginationMeta } = require("../utils/paginatio
 const stripAnswers = (questions) =>
   questions.map(({ correctAnswer, ...rest }) => rest); // eslint-disable-line no-unused-vars
 
+// ─── Helper: hydrate exam questions with full text/options from Question Bank ─
+// questionBankData — array of question documents from the question bank DB
+// examQuestions    — array of exam question slots (from Exam.questions)
+// stripAnswer      — true for students (omit correctAnswer + solution)
+const hydrateQuestions = (examQuestions, questionBankData, stripAnswer = false) => {
+  // Build a map of questionId → full question doc for O(1) lookup
+  const qbMap = {};
+  for (const q of questionBankData) {
+    qbMap[q._id.toString()] = q;
+  }
+
+  return examQuestions.map((slot) => {
+    const full = qbMap[slot.questionId.toString()];
+
+    // If question bank doc not found, return slot as-is (graceful degradation)
+    if (!full) {
+      const { correctAnswer, ...safeSlot } = slot; // eslint-disable-line no-unused-vars
+      return stripAnswer ? safeSlot : slot;
+    }
+
+    const hydrated = {
+      // ── Slot-level fields (marks, position, etc.) ──
+      slotPosition:  slot.slotPosition,
+      questionId:    slot.questionId,
+      subject:       slot.subject,
+      chapter:       slot.chapter,
+      topic:         slot.topic,
+      difficulty:    slot.difficulty,
+      questionType:  slot.questionType,
+      marks:         slot.marks,
+      negativeMarks: slot.negativeMarks,
+
+      // ── Rich content from question bank ───────────────
+      text:          full.text,
+      hasLatex:      full.hasLatex,
+      questionImage: full.questionImage ?? null,
+      options:       full.options,             // [{key, text, image}]
+      idealTimeSeconds: full.idealTimeSeconds ?? null,
+    };
+
+    // Admins get correctAnswer + solution; students do not
+    if (!stripAnswer) {
+      hydrated.correctAnswer = slot.correctAnswer;
+      hydrated.solution      = full.solution ?? null;
+    }
+
+    return hydrated;
+  });
+};
+
 // ─── Admin: Generate (create) a new exam for a batch ─────────────────────────
 
 exports.generateExam = asyncHandler(async (req, res, next) => {
@@ -44,24 +94,38 @@ exports.generateExam = asyncHandler(async (req, res, next) => {
     return next(new AppError("Question bank connection is not available.", 503));
   }
 
-  // Determine the next exam number in this sprint for this batch
+  // FIX: Use atomic findOneAndUpdate to compute examNumber, avoiding race conditions
+  // when two concurrent generateExam calls hit the same sprint+batch simultaneously.
+  // The unique index on {sprint, batch, examNumber} is the final safety net,
+  // but this prevents the unhandled E11000 from ever reaching the client.
+  let examNumber = 1;
   const lastExam = await Exam.findOne({ sprint: sprintId, batch: batchId })
     .sort({ examNumber: -1 })
+    .select("examNumber")
     .lean();
-  const examNumber = lastExam ? lastExam.examNumber + 1 : 1;
+  if (lastExam) examNumber = lastExam.examNumber + 1;
 
-  // Create placeholder first so we have an examId for usage logging
-  const exam = await Exam.create({
-    sprint:          sprintId,
-    batch:           batchId,
-    examNumber,
-    title:           title || `Exam ${examNumber}`,
-    durationMinutes,
-    scheduledAt:     scheduledAt || null,
-    instructions:    instructions || "",
-    status:          EXAM_STATUS.DRAFT,
-    createdBy:       req.user.id,
-  });
+  // Create placeholder first so we have an examId for usage logging.
+  // Wrap in try/catch to handle the rare E11000 race condition gracefully.
+  let exam;
+  try {
+    exam = await Exam.create({
+      sprint:          sprintId,
+      batch:           batchId,
+      examNumber,
+      title:           title || `Exam ${examNumber}`,
+      durationMinutes,
+      scheduledAt:     scheduledAt || null,
+      instructions:    instructions || "",
+      status:          EXAM_STATUS.DRAFT,
+      createdBy:       req.user.id,
+    });
+  } catch (createErr) {
+    if (createErr.code === 11000) {
+      return next(new AppError("An exam with this number already exists for this sprint and batch. Please retry.", 409));
+    }
+    throw createErr;
+  }
 
   // Run question reconstruction
   const selectedSlots = await reconstructExamQuestions(QuestionModel, sprint, exam._id);
@@ -142,23 +206,29 @@ exports.listExams = asyncHandler(async (req, res, next) => {
 });
 
 // ─── Get exam details ─────────────────────────────────────────────────────────
+// Returns exam metadata only — title, duration, totalMarks, sprint, batch, etc.
+// Questions are intentionally excluded here (both for students and admins).
+// Full question content (text + options) is delivered only via startAttempt,
+// which enforces batch membership + creates the attempt record atomically.
 
 exports.getExam = asyncHandler(async (req, res, next) => {
   const exam = await Exam.findById(req.params.id)
-    .populate("sprint", "name totalQuestions durationMinutes")
+    .select("-questions")                          // never expose questions in metadata call
+    .populate("sprint", "name status durationMinutes")
     .populate("batch", "name")
     .lean();
 
   if (!exam) return next(new AppError("Exam not found.", 404));
 
-  // Students must not see correctAnswer before they submit
-  // Also enforce batch membership — a student cannot view exams from other batches
+  // Students: enforce batch membership + only show published/completed exams
   if (req.user.role === ROLES.STUDENT) {
     const student = await User.findById(req.user.id).select("batch").lean();
     if (!student?.batch || student.batch.toString() !== exam.batch._id.toString()) {
       return next(new AppError("You are not authorised to view this exam.", 403));
     }
-    exam.questions = stripAnswers(exam.questions);
+    if (![EXAM_STATUS.PUBLISHED, EXAM_STATUS.COMPLETED].includes(exam.status)) {
+      return next(new AppError("This exam is not available.", 404));
+    }
   }
 
   return sendSuccess(res, 200, "Exam fetched.", { exam });
@@ -207,9 +277,24 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
     if (existingAttempt.status === ATTEMPT_STATUS.SUBMITTED) {
       return next(new AppError("You have already submitted this exam.", 409));
     }
+
+    // ── Hydrate for resume ─────────────────────────────────────────────────
+    const QuestionModel = req.app.get("QuestionModel");
+    let resumeQuestions = exam.questions;
+
+    if (QuestionModel && resumeQuestions.length > 0) {
+      const questionIds = resumeQuestions.map((q) => q.questionId);
+      const questionBankDocs = await QuestionModel.find({ _id: { $in: questionIds } })
+        .select("text hasLatex questionImage options idealTimeSeconds")
+        .lean();
+      resumeQuestions = hydrateQuestions(resumeQuestions, questionBankDocs, true);
+    } else {
+      resumeQuestions = stripAnswers(resumeQuestions);
+    }
+
     return sendSuccess(res, 200, "Resuming existing attempt.", {
       attempt: existingAttempt,
-      exam: { ...exam, questions: stripAnswers(exam.questions) },
+      exam: { ...exam, questions: resumeQuestions },
     });
   }
 
@@ -233,20 +318,56 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
     marksAwarded:     0,
   }));
 
-  const attempt = await Attempt.create({
-    student:    req.user.id,
-    exam:       exam._id,
-    sprint:     exam.sprint._id,
-    batch:      exam.batch,
-    status:     ATTEMPT_STATUS.IN_PROGRESS,
-    responses,
-    totalMarks: exam.totalMarks,
-    startedAt:  new Date(),
-  });
+  // FIX: Handle double-submit race condition — two concurrent startAttempt calls
+  // from the same student would both pass findOne before either create runs.
+  // Catch the E11000 from the unique index and return a friendly 409.
+  let attempt;
+  try {
+    attempt = await Attempt.create({
+      student:    req.user.id,
+      exam:       exam._id,
+      sprint:     exam.sprint._id,
+      batch:      exam.batch,
+      status:     ATTEMPT_STATUS.IN_PROGRESS,
+      responses,
+      totalMarks: exam.totalMarks,
+      startedAt:  new Date(),
+    });
+  } catch (createErr) {
+    if (createErr.code === 11000) {
+      // Race condition: attempt was created by a concurrent request — re-fetch and resume
+      const concurrent = await Attempt.findOne({ student: req.user.id, exam: exam._id });
+      if (concurrent && concurrent.status === ATTEMPT_STATUS.SUBMITTED) {
+        return next(new AppError("You have already submitted this exam.", 409));
+      }
+      if (concurrent) {
+        return sendSuccess(res, 200, "Resuming existing attempt.", {
+          attempt: concurrent,
+          exam:    { ...exam, questions: examQuestions },
+        });
+      }
+    }
+    throw createErr;
+  }
+
+  // ── Hydrate questions with text/options from Question Bank ──────────────
+  const QuestionModel = req.app.get("QuestionModel");
+  let examQuestions = exam.questions;
+
+  if (QuestionModel && examQuestions.length > 0) {
+    const questionIds = examQuestions.map((q) => q.questionId);
+    const questionBankDocs = await QuestionModel.find({ _id: { $in: questionIds } })
+      .select("text hasLatex questionImage options idealTimeSeconds")
+      .lean();                                        // solution intentionally excluded
+
+    examQuestions = hydrateQuestions(examQuestions, questionBankDocs, true); // stripAnswer=true
+  } else {
+    examQuestions = stripAnswers(examQuestions);
+  }
 
   return sendSuccess(res, 201, "Attempt started.", {
     attempt: { _id: attempt._id, startedAt: attempt.startedAt, status: attempt.status },
-    exam:    { ...exam, questions: stripAnswers(exam.questions) },
+    exam:    { ...exam, questions: examQuestions },
   });
 });
 
@@ -333,7 +454,9 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
 
   attempt.responses        = finalResponses;
   attempt.score            = parseFloat(score.toFixed(2));
-  attempt.percentage       = parseFloat(((score / attempt.totalMarks) * 100).toFixed(2));
+  // FIX: Clamp percentage to 0 minimum — negative scores are valid NEET behaviour
+  // but a negative percentage confuses downstream analytics and UI charts.
+  attempt.percentage       = parseFloat((Math.max(0, score) / attempt.totalMarks * 100).toFixed(2));
   attempt.totalTimeSeconds = totalTimeSeconds;
   attempt.status           = ATTEMPT_STATUS.SUBMITTED;
   attempt.submittedAt      = new Date();
@@ -357,10 +480,14 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
 
   // ── Capture all values we need BEFORE setImmediate (req/res may be GC'd) ─────
   const attemptSnapshot = {
-    _id:    attempt._id,
-    sprint: attempt.sprint,
-    batch:  attempt.batch,
-    exam:   attempt.exam,
+    _id:         attempt._id,
+    sprint:      attempt.sprint,
+    batch:       attempt.batch,
+    exam:        attempt.exam,
+    // FIX: capture exam title/number explicitly — 'exam' variable from outer scope
+    // was accessed in setImmediate closure inconsistently. Snapshot it here.
+    examTitle:   exam.title,
+    examNumber:  exam.examNumber,
   };
   const studentSnapshot = {
     _id:   studentDoc._id,
@@ -384,13 +511,22 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
         populatedAttempt.responses
       );
 
+      // Coverage formulas — now that syllabus data is seeded
+      const { updateSyllabusProgress } = require("../services/coverage.service");
+      await updateSyllabusProgress(
+        studentSnapshot._id,
+        attemptSnapshot.sprint,
+        attemptSnapshot._id,
+        populatedAttempt.responses
+      );
+
       await sendEmail({
         to:          studentSnapshot.email,
-        subject:     `Results Ready — ${exam.title}`,
+        subject:     `Results Ready — ${attemptSnapshot.examTitle}`,
         html:        templates.analyticsReady({
           name:        studentSnapshot.name,
-          examTitle:   exam.title,
-          examNumber:  exam.examNumber,
+          examTitle:   attemptSnapshot.examTitle,
+          examNumber:  attemptSnapshot.examNumber,
           dashboardUrl: `${process.env.CLIENT_URL}/dashboard`,
         }),
         trigger:     NOTIFICATION_TRIGGER.ANALYTICS_READY,
@@ -442,6 +578,111 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
   });
 });
 
+// ─── Student: List exams for own batch ───────────────────────────────────────
+// Returns all published (and completed) exams belonging to the student's batch.
+// Questions array is stripped — students must call startAttempt to get questions.
+// Also annotates each exam with the student's own attempt status so the frontend
+// can show "Start", "Resume", or "View Result" buttons without a second request.
+
+exports.getMyExams = asyncHandler(async (req, res, next) => {
+  const { page, limit, skip } = getPaginationParams(req.query);
+  const { sprintId, status } = req.query;
+
+  // ── 1. Resolve student's batch ────────────────────────────────────────────
+  const student = await User.findById(req.user.id).select("batch isActive").lean();
+
+  if (!student) return next(new AppError("Student account not found.", 404));
+  if (!student.isActive) return next(new AppError("Your account is inactive. Please contact admin.", 403));
+  if (!student.batch) {
+    return next(new AppError("You are not assigned to any batch yet. Please contact admin.", 400));
+  }
+
+  // ── 2. Build query — students only see published/completed exams ──────────
+  const filter = {
+    batch:  student.batch,
+    status: { $in: [EXAM_STATUS.PUBLISHED, EXAM_STATUS.COMPLETED] },
+  };
+
+  if (sprintId) {
+    // Basic ObjectId format guard — avoids a Mongoose CastError on bad input
+    if (!/^[a-f\d]{24}$/i.test(sprintId)) {
+      return next(new AppError("Invalid sprintId format.", 400));
+    }
+    filter.sprint = sprintId;
+  }
+
+  // Allow filtering by a specific status, but only within the allowed set
+  if (status) {
+    const allowed = [EXAM_STATUS.PUBLISHED, EXAM_STATUS.COMPLETED];
+    if (!allowed.includes(status)) {
+      return next(new AppError(`Invalid status filter. Allowed: ${allowed.join(", ")}.`, 400));
+    }
+    filter.status = status;
+  }
+
+  // ── 3. Fetch exams + total count in parallel ──────────────────────────────
+  const [exams, total] = await Promise.all([
+    Exam.find(filter)
+      .select("-questions")                          // never expose questions/answers in list
+      .populate("sprint", "name status")
+      .populate("batch",  "name")
+      .sort({ examNumber: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Exam.countDocuments(filter),
+  ]);
+
+  if (exams.length === 0) {
+    return res.status(200).json({
+      success:    true,
+      message:    "No exams found.",
+      data:       { exams: [] },
+      pagination: buildPaginationMeta(total, page, limit),
+    });
+  }
+
+  // ── 4. Annotate with student's own attempt status ─────────────────────────
+  // Single query — fetch all attempts for this student across the current page
+  const examIds = exams.map((e) => e._id);
+  const attempts = await Attempt.find({
+    student: req.user.id,
+    exam:    { $in: examIds },
+  })
+    .select("exam status score percentage submittedAt startedAt")
+    .lean();
+
+  // Build a map for O(1) lookup per exam
+  const attemptMap = {};
+  for (const a of attempts) {
+    attemptMap[a.exam.toString()] = a;
+  }
+
+  const annotatedExams = exams.map((exam) => {
+    const attempt = attemptMap[exam._id.toString()];
+    return {
+      ...exam,
+      attempt: attempt
+        ? {
+            _id:          attempt._id,
+            status:       attempt.status,
+            score:        attempt.score        ?? null,
+            percentage:   attempt.percentage   ?? null,
+            submittedAt:  attempt.submittedAt  ?? null,
+            startedAt:    attempt.startedAt    ?? null,
+          }
+        : null,
+    };
+  });
+
+  return res.status(200).json({
+    success:    true,
+    message:    "Exams fetched successfully.",
+    data:       { exams: annotatedExams },
+    pagination: buildPaginationMeta(total, page, limit),
+  });
+});
+
 // ─── Student: Get own attempts list ──────────────────────────────────────────
 
 exports.getMyAttempts = asyncHandler(async (req, res, next) => {
@@ -488,4 +729,73 @@ exports.getAttemptDetail = asyncHandler(async (req, res, next) => {
   if (!attempt) return next(new AppError("Attempt not found.", 404));
 
   return sendSuccess(res, 200, "Attempt detail fetched.", { attempt });
+});
+
+// ─── Admin: List all attempts for an exam ────────────────────────────────────
+
+exports.listExamAttempts = asyncHandler(async (req, res, next) => {
+  const { page, limit, skip } = getPaginationParams(req.query);
+
+  const exam = await Exam.findById(req.params.id).lean();
+  if (!exam) return next(new AppError("Exam not found.", 404));
+
+  const filter = { exam: req.params.id };
+
+  const [attempts, total] = await Promise.all([
+    Attempt.find(filter)
+      .populate("student", "name email")
+      .select("-responses")
+      .sort({ submittedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Attempt.countDocuments(filter),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    message: "Exam attempts fetched.",
+    data: {
+      exam: { _id: exam._id, title: exam.title, examNumber: exam.examNumber },
+      attempts,
+    },
+    pagination: buildPaginationMeta(total, page, limit),
+  });
+});
+
+// ─── Admin: Delete a draft exam ───────────────────────────────────────────────
+// Only DRAFT exams can be deleted. Published exams may already have attempts
+// associated with them — deleting them would corrupt analytics/attempt data.
+
+exports.deleteExam = asyncHandler(async (req, res, next) => {
+  const exam = await Exam.findById(req.params.id);
+  if (!exam) return next(new AppError("Exam not found.", 404));
+
+  if (exam.status !== EXAM_STATUS.DRAFT) {
+    return next(
+      new AppError(
+        `Cannot delete a ${exam.status} exam. Only DRAFT exams can be deleted. ` +
+        `Set status back to "draft" first if no attempts exist.`,
+        400
+      )
+    );
+  }
+
+  // Extra safety: block if any attempts exist even for a draft exam
+  const attemptCount = await Attempt.countDocuments({ exam: exam._id });
+  if (attemptCount > 0) {
+    return next(
+      new AppError(
+        `Cannot delete exam — it has ${attemptCount} associated attempt(s). ` +
+        `Delete the attempts first or deactivate the exam instead.`,
+        409
+      )
+    );
+  }
+
+  await exam.deleteOne();
+
+  return sendSuccess(res, 200, "Exam deleted successfully.", {
+    deletedExamId: exam._id,
+  });
 });

@@ -23,7 +23,9 @@ const submitAttemptSchema = Joi.object({
     .items(
       Joi.object({
         slotPosition: Joi.number().integer().min(1).required(),
-        questionId: Joi.string().hex().length(24).required(),
+        // questionId is optional — scoring is done by slotPosition, not questionId.
+        // Keeping it optional avoids unnecessary client friction.
+        questionId: Joi.string().hex().length(24).optional(),
         selectedAnswer: Joi.string()
           .valid("A", "B", "C", "D")
           .allow(null)

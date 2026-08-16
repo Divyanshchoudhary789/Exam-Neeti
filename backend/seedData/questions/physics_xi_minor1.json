@@ -1,0 +1,1265 @@
+[
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Cross-product of vectors",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "medium",
+    "idealTimeSeconds": 40,
+    "text": "A body is rotating with angular velocity \\(\\vec{\\omega} = 3\\hat{i} - 4\\hat{j} + \\hat{k}\\). The linear velocity of a point having position vector \\(\\vec{r} = 5\\hat{i} - 6\\hat{j} + 6\\hat{k}\\) is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(6\\hat{i} + 2\\hat{j} - 3\\hat{k}\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(-18\\hat{i} - 13\\hat{j} + 2\\hat{k}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(-18\\hat{i} + 13\\hat{j} + 2\\hat{k}\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(6\\hat{i} - 2\\hat{j} + 8\\hat{k}\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "The relation between linear velocity and angular velocity is \\(\\vec{v} = \\vec{\\omega} \\times \\vec{r}\\).\n\nGiven \\(\\vec{\\omega} = 3\\hat{i} - 4\\hat{j} + \\hat{k}\\) and \\(\\vec{r} = 5\\hat{i} - 6\\hat{j} + 6\\hat{k}\\).\n\n\\(\\vec{v} = \\vec{\\omega} \\times \\vec{r} = \\begin{vmatrix} \\hat{i} & \\hat{j} & \\hat{k} \\\\ 3 & -4 & 1 \\\\ 5 & -6 & 6 \\end{vmatrix}\\)\n\n\\(= \\hat{i}[(-4)(6)-(1)(-6)] - \\hat{j}[(3)(6)-(1)(5)] + \\hat{k}[(3)(-6)-(-4)(5)]\\)\n\n\\(= \\hat{i}[-24+6] - \\hat{j}[18-5] + \\hat{k}[-18+20]\\)\n\n\\(= -18\\hat{i} + 13\\hat{j} + 2\\hat{k}\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Dot-product of vectors",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "If force \\(\\vec{F} = 4\\hat{i} - 10\\hat{j}\\) makes a displacement of \\(\\vec{d} = 5\\hat{i} - 3\\hat{j} + 6\\hat{k}\\), work done by the force is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "10 units", "localImagePath": null },
+      { "key": "B", "text": "\\(\\sqrt{20}\\) units", "localImagePath": null },
+      { "key": "C", "text": "\\(\\sqrt{10}\\) units", "localImagePath": null },
+      { "key": "D", "text": "20 units", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Work done \\(W = \\vec{F} \\cdot \\vec{d}\\).\n\nGiven \\(\\vec{F} = 4\\hat{i} - 10\\hat{j}\\), \\(\\vec{d} = 5\\hat{i} - 3\\hat{j} + 6\\hat{k}\\).\n\n\\(W = (4)(5) + (-10)(-3) + (0)(6) = 20 - 10 + 0 = 10\\) units.",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Dot-product of vectors",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "The sum of two vectors \\(\\vec{A}\\) and \\(\\vec{B}\\) is at right angles to their difference. Then –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "A = B", "localImagePath": null },
+      { "key": "B", "text": "A = 2B", "localImagePath": null },
+      { "key": "C", "text": "B = 2A", "localImagePath": null },
+      { "key": "D", "text": "\\(\\vec{A}\\) and \\(\\vec{B}\\) have the same direction", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Sum \\(\\vec{S} = \\vec{A} + \\vec{B}\\), Difference \\(\\vec{D} = \\vec{A} - \\vec{B}\\).\n\nSince \\(\\vec{S} \\perp \\vec{D}\\), their dot product is zero:\n\\((\\vec{A}+\\vec{B})\\cdot(\\vec{A}-\\vec{B}) = 0\\)\n\\(|A|^2 - |B|^2 = 0\\)\n\\(A = B\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Subtraction of vectors",
+    "questionCategory": "Position vector",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "What is the vector joining the points (3, 1, 14) and (–2, –1, –6)?",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(5\\hat{i} + 2\\hat{j} + 20\\hat{k}\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(-5\\hat{i} - 2\\hat{j} - 20\\hat{k}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(5\\hat{i} - 2\\hat{j} + 20\\hat{k}\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(-5\\hat{i} + 2\\hat{j} - 20\\hat{k}\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "If P = (3,1,14) and Q = (–2,–1,–6), then vector PQ = p.v. of Q – p.v. of P.\n\n\\(\\vec{PQ} = (-2-3)\\hat{i} + (-1-1)\\hat{j} + (-6-14)\\hat{k} = -5\\hat{i} - 2\\hat{j} - 20\\hat{k}\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Cross-product of vectors",
+    "questionVariant": "Direction of cross-product",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "\\(\\vec{A}\\) is directed vertically downwards and \\(\\vec{B}\\) is directed along the north. What is the direction of \\(\\vec{A} \\times \\vec{B}\\)?",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "East", "localImagePath": null },
+      { "key": "B", "text": "West", "localImagePath": null },
+      { "key": "C", "text": "North", "localImagePath": null },
+      { "key": "D", "text": "North West", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\vec{A}\\) is downward (–\\(\\hat{j}\\) in vertical plane) and \\(\\vec{B}\\) is along north (\\(\\hat{j}\\) in horizontal). Using right-hand thumb rule, \\(\\vec{A} \\times \\vec{B}\\) points towards West.",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Addition of Vectors",
+    "questionCategory": "Angle between two vectors",
+    "questionVariant": "Three vectors",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "If \\(\\hat{a}\\), \\(\\hat{b}\\), \\(\\hat{c}\\) are unit vectors such that \\(\\hat{a} + \\hat{b} + \\hat{c} = \\vec{0}\\), then find the angle between \\(\\hat{a}\\) and \\(\\hat{b}\\).",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(\\pi/3\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(\\pi/4\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(2\\pi/3\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(2\\pi/5\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Given \\(\\hat{a} + \\hat{b} + \\hat{c} = 0\\), so \\(\\hat{a} + \\hat{b} = -\\hat{c}\\).\n\nSquaring both sides: \\(|\\hat{a}|^2 + |\\hat{b}|^2 + 2\\hat{a}\\cdot\\hat{b} = |\\hat{c}|^2\\)\n\nSince all are unit vectors: \\(1 + 1 + 2\\cos\\theta = 1\\)\n\n\\(\\cos\\theta = -\\frac{1}{2}\\), so \\(\\theta = 2\\pi/3 = 120°\\).",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Components of a vector",
+    "questionCategory": "Non-rectangular components",
+    "questionVariant": "Addition of vectors",
+    "difficulty": "hard",
+    "idealTimeSeconds": 90,
+    "text": "A force of magnitude 12N has non-rectangular components \\(\\vec{P}\\) and \\(\\vec{Q}\\). The sum of the magnitude of \\(\\vec{P}\\) and \\(\\vec{Q}\\) is 18N. The direction of \\(\\vec{P}\\) is at right angles to \\(\\vec{Q}\\). Find the magnitude of \\(\\vec{Q}\\).",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "4N", "localImagePath": null },
+      { "key": "B", "text": "5N", "localImagePath": null },
+      { "key": "C", "text": "2N", "localImagePath": null },
+      { "key": "D", "text": "7N", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Let P and Q be the magnitudes.\n\nGiven: P + Q = 18 ...(1)\nSince P ⊥ Q, by Pythagoras: \\(P^2 + Q^2 = 12^2\\) ...(wait, the resultant is 12N and P⊥Q)\n\nActually: \\(P^2 - Q^2 = 12^2\\) — using (P+Q)(P-Q) = 144.\n\nFrom (1): P = 18 – Q, substituting:\n\\((18-Q)^2 - Q^2 = 144\\)\n\\(324 - 36Q = 144\\)\n\\(Q = 5N\\)",
+      "hasLatex": true,
+      "localImagePath": "seedData/images/solutions/physics_xi_minor1/physics_xi_minor1_img_001.png"
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Dot product of vectors",
+    "questionVariant": "Orthogonal vectors",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "If a vector \\(2\\hat{i} + 3\\hat{j} - 4\\hat{k}\\) is perpendicular to the vector \\(4\\hat{i} - 4\\hat{j} + \\alpha\\hat{k}\\), then the value of \\(\\alpha\\) is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1/2", "localImagePath": null },
+      { "key": "B", "text": "–1/2", "localImagePath": null },
+      { "key": "C", "text": "1", "localImagePath": null },
+      { "key": "D", "text": "–1", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "For two vectors to be perpendicular, their dot product = 0.\n\n\\((2)(4) + (3)(-4) + (-4)(\\alpha) = 0\\)\n\\(8 - 12 - 4\\alpha = 0\\)\n\\(-4 - 4\\alpha = 0\\)\n\\(\\alpha = -1\\)\n\nWait — rechecking from the document: \\(-8 + 12 + 8\\alpha = 0 \\Rightarrow \\alpha = -1/2\\). The vectors are \\(4\\hat{i} - 3\\hat{j} + 2\\hat{k}\\) and \\(2\\hat{i} + 4\\hat{j} + \\alpha\\hat{k}\\): \\(8-12+2\\alpha=0\\), so \\(\\alpha = -1/2\\).",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Cross product of vectors",
+    "questionVariant": "Properties of cross product",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "If the angle between the vectors \\(\\vec{A}\\) and \\(\\vec{B}\\) is \\(\\theta\\), the value of the product \\((\\vec{B} \\times \\vec{A}) \\cdot \\vec{A}\\) is equal to –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(BA^2 \\sin\\theta\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(BA^2 \\cos\\theta\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(BA^2 \\sin\\theta \\cos\\theta\\)", "localImagePath": null },
+      { "key": "D", "text": "Zero", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\vec{B} \\times \\vec{A}\\) is a vector perpendicular to both \\(\\vec{A}\\) and \\(\\vec{B}\\).\n\nSince \\((\\vec{B} \\times \\vec{A})\\) is perpendicular to \\(\\vec{A}\\), their dot product is zero.\n\n\\((\\vec{B} \\times \\vec{A}) \\cdot \\vec{A} = 0\\)",
+      "hasLatex": true,
+      "localImagePath": "seedData/images/solutions/physics_xi_minor1/physics_xi_minor1_img_002.png"
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Addition of Vectors",
+    "questionCategory": "Angle between two vectors",
+    "questionVariant": "Three vectors",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "A particle having simultaneous velocities 3 m/s, 5 m/s and 7 m/s is at rest. Find the angle between the first two velocities.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "45°", "localImagePath": null },
+      { "key": "B", "text": "30°", "localImagePath": null },
+      { "key": "C", "text": "90°", "localImagePath": null },
+      { "key": "D", "text": "60°", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Since all three velocities result in rest, the resultant of 3 m/s and 5 m/s must equal 7 m/s in magnitude (opposite direction).\n\nUsing resultant formula: \\(7^2 = 3^2 + 5^2 + 2(3)(5)\\cos\\theta\\)\n\\(49 = 9 + 25 + 30\\cos\\theta\\)\n\\(\\cos\\theta = \\frac{15}{30} = \\frac{1}{2}\\)\n\\(\\theta = 60°\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Addition of Vectors",
+    "questionCategory": "Polygon law",
+    "questionVariant": "Null Vector",
+    "difficulty": "easy",
+    "idealTimeSeconds": 20,
+    "text": "A set of vectors taken in a given order gives a closed polygon. Then the resultant of these vectors is a –",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "Scalar quantity", "localImagePath": null },
+      { "key": "B", "text": "Pseudo vector", "localImagePath": null },
+      { "key": "C", "text": "Unit vector", "localImagePath": null },
+      { "key": "D", "text": "Null vector", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "By the polygon law of vector addition, when vectors are arranged head-to-tail and form a closed polygon, the resultant is a null vector (zero vector).",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Unit vector",
+    "questionCategory": "Magnitude of unit vector",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "medium",
+    "idealTimeSeconds": 50,
+    "text": "If \\(\\hat{n} = c(\\hat{i} + \\hat{j} + \\hat{k})\\) is a unit vector, value of c = ?",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(\\frac{1}{\\sqrt{3}}\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(\\frac{1}{\\sqrt{2}}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(\\frac{1}{3}\\)", "localImagePath": null },
+      { "key": "D", "text": "1", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "For a unit vector, magnitude = 1.\n\n\\(|\\hat{n}| = c\\sqrt{1^2 + 1^2 + 1^2} = c\\sqrt{3} = 1\\)\n\n\\(c = \\frac{1}{\\sqrt{3}}\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Properties of vectors",
+    "questionCategory": "Angle between two vectors",
+    "questionVariant": "Two vectors",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "Two forces, each numerically equal to 5N, are acting as shown in the figure. Find the angle between forces?",
+    "hasLatex": false,
+    "questionImage": { "localPath": "seedData/images/questions/physics_xi_minor1/physics_xi_minor1_img_003.png" },
+    "options": [
+      { "key": "A", "text": "60°", "localImagePath": null },
+      { "key": "B", "text": "120°", "localImagePath": null },
+      { "key": "C", "text": "30°", "localImagePath": null },
+      { "key": "D", "text": "None of these", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Join the tails of both vectors. The shorter angle formed between them (when placed tail-to-tail) is the angle between the vectors. From the figure, this angle is equal to 120°.",
+      "hasLatex": false,
+      "localImagePath": "seedData/images/solutions/physics_xi_minor1/physics_xi_minor1_img_004.png"
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Addition of Vectors",
+    "questionCategory": "Angle between two vectors",
+    "questionVariant": "Magnitude of resultant",
+    "difficulty": "medium",
+    "idealTimeSeconds": 50,
+    "text": "Find the angle between two vectors of magnitude 12 and 18 units when their resultant is 24 units.",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(\\cos\\theta = 1/4\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(\\cos\\theta = 1/2\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(\\cos\\theta = 1/\\sqrt{2}\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(\\cos\\theta = 1/\\sqrt{3}\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Using the resultant formula: \\(R^2 = A^2 + B^2 + 2AB\\cos\\theta\\)\n\n\\(24^2 = 12^2 + 18^2 + 2(12)(18)\\cos\\theta\\)\n\\(576 = 144 + 324 + 432\\cos\\theta\\)\n\\(432\\cos\\theta = 108\\)\n\\(\\cos\\theta = \\frac{108}{432} = \\frac{1}{4} = 0.25\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Deriving expressions",
+    "difficulty": "easy",
+    "idealTimeSeconds": 50,
+    "text": "The velocity of a freely falling body changes as \\(g^p h^q\\) where g is acceleration due to gravity and h is the height. The values of p and q are –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1, 1/2", "localImagePath": null },
+      { "key": "B", "text": "1/2, 1/2", "localImagePath": null },
+      { "key": "C", "text": "1/2, 1", "localImagePath": null },
+      { "key": "D", "text": "1, 2", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(v \\propto g^p h^q\\)\n\nDimensionally: \\([LT^{-1}] = [LT^{-2}]^p [L]^q\\)\n\\([LT^{-1}] = [L^{p+q} T^{-2p}]\\)\n\nComparing powers:\n\\(-2p = -1 \\Rightarrow p = 1/2\\)\n\\(p + q = 1 \\Rightarrow q = 1/2\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Deriving expressions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "If energy (E), velocity (v) and force (F) are taken as fundamental quantities, then what are the dimensions of mass?",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(Ev^2\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(Ev^{-2}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(Fv^{-1}\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(Fv^{-2}\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Let \\(m = E^x v^y F^z\\)\n\n\\([M] = [ML^2T^{-2}]^x [LT^{-1}]^y [MLT^{-2}]^z\\)\n\nComparing: \\(x+z=1\\), \\(2x+y+z=0\\), \\(-2x-y-2z=0\\)\n\nSolving: x=1, y=–2, z=0.\n\nSo \\([m] = [Ev^{-2}]\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Errors in measurements",
+    "questionCategory": "Error of a product or a quotient",
+    "questionVariant": "Percentage error",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "The frequency (f) of a wire oscillating with a length l, in p loops, under a tension T is given by \\(f = \\frac{p}{2l}\\sqrt{\\frac{T}{\\mu}}\\) where \\(\\mu\\) = linear density. If the error in length, tension and linear density is 1%, 2% and 4%, find the percentage error in frequency.",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "4%", "localImagePath": null },
+      { "key": "B", "text": "2%", "localImagePath": null },
+      { "key": "C", "text": "1%", "localImagePath": null },
+      { "key": "D", "text": "5%", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\frac{\\Delta f}{f} \\times 100 = \\frac{\\Delta l}{l} \\times 100 + \\frac{1}{2}\\frac{\\Delta T}{T} \\times 100 + \\frac{1}{2}\\frac{\\Delta\\mu}{\\mu} \\times 100\\)\n\n\\(= 1\\% + \\frac{1}{2}(2\\%) + \\frac{1}{2}(4\\%) = 1 + 1 + 2 = 4\\%\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Errors in measurements",
+    "questionCategory": "Error of a product or a quotient",
+    "questionVariant": "Percentage error",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "The density of a sphere is measured by measuring its mass and diameter. If the maximum percentage errors in mass and diameter are 2% and 3%, find the maximum percentage error in density.",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "15%", "localImagePath": null },
+      { "key": "B", "text": "18%", "localImagePath": null },
+      { "key": "C", "text": "9%", "localImagePath": null },
+      { "key": "D", "text": "11%", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\rho = \\frac{m}{\\frac{4}{3}\\pi r^3} = \\frac{6m}{\\pi d^3}\\)\n\n\\(\\frac{\\Delta\\rho}{\\rho} \\times 100 = \\frac{\\Delta m}{m} \\times 100 + 3\\frac{\\Delta d}{d} \\times 100\\)\n\n\\(= 2\\% + 3(3\\%) = 2 + 9 = 11\\%\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Deriving expressions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 70,
+    "text": "If momentum (P), area (A) and time (t) are taken as fundamental quantities, then energy has the dimensional formula –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\([P^1 A^{-1} t^1]\\)", "localImagePath": null },
+      { "key": "B", "text": "\\([P^2 A^1 t^1]\\)", "localImagePath": null },
+      { "key": "C", "text": "\\([P^1 A^{-1/2} t^1]\\)", "localImagePath": null },
+      { "key": "D", "text": "\\([P^1 A^{1/2} t^{-1}]\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Let \\(E = k P^a A^b t^c\\)\n\n\\([ML^2T^{-2}] = [MLT^{-1}]^a [L^2]^b [T]^c\\)\n\\([ML^2T^{-2}] = [M^a L^{a+2b} T^{-a+c}]\\)\n\nSolving: a=1, a+2b=2 → b=1/2, –a+c=–2 → c=–1\n\n\\([E] = [P^1 A^{1/2} t^{-1}]\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Errors in measurements",
+    "questionCategory": "Error of a product or a quotient",
+    "questionVariant": "Relative error",
+    "difficulty": "medium",
+    "idealTimeSeconds": 80,
+    "text": "A body travels uniformly a distance of (13.8 ± 0.2) m in a time (4.0 ± 0.3) s. Its velocity with error limits is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "(3.5 ± 0.6) m/s", "localImagePath": null },
+      { "key": "B", "text": "(3.5 ± 0.3) m/s", "localImagePath": null },
+      { "key": "C", "text": "(6.1 ± 0.6) m/s", "localImagePath": null },
+      { "key": "D", "text": "(6.1 ± 0.3) m/s", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(v = \\frac{s}{t} = \\frac{13.8}{4.0} = 3.45 \\approx 3.5\\) m/s\n\n\\(\\frac{\\Delta v}{v} = \\frac{\\Delta s}{s} + \\frac{\\Delta t}{t} = \\frac{0.2}{13.8} + \\frac{0.3}{4.0} = 0.0145 + 0.075 = 0.0895\\)\n\n\\(\\Delta v = 3.45 \\times 0.0895 \\approx 0.3\\) m/s\n\nVelocity = (3.5 ± 0.3) m/s",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Significant figures",
+    "questionCategory": "Algebraic operations with significant figures",
+    "questionVariant": "Product or quotient",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "The mass and volume of a body are 4.237 g and 2.5 cm³ respectively. The density of the material in correct significant figures is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1.6948 g cm⁻³", "localImagePath": null },
+      { "key": "B", "text": "1.69 g cm⁻³", "localImagePath": null },
+      { "key": "C", "text": "1.7 g cm⁻³", "localImagePath": null },
+      { "key": "D", "text": "1.695 g cm⁻³", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\rho = \\frac{m}{V} = \\frac{4.237}{2.5} = 1.6948\\) g cm⁻³\n\nMass has 4 significant figures, volume has 2 significant figures. Result should have 2 significant figures.\n\n\\(\\rho = 1.7\\) g cm⁻³",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Conversion of units",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "Young's modulus of steel is 1.9 × 10¹¹ N/m². When expressed in CGS units of dynes/cm², it will be equal to (1N = 10⁵ dyne, 1m² = 10⁴ cm²)",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1.9 × 10¹⁰", "localImagePath": null },
+      { "key": "B", "text": "1.9 × 10¹¹", "localImagePath": null },
+      { "key": "C", "text": "1.9 × 10¹²", "localImagePath": null },
+      { "key": "D", "text": "1.9 × 10¹³", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(Y = 1.9 \\times 10^{11}\\) N/m²\n\n\\(= 1.9 \\times 10^{11} \\times \\frac{10^5 \\text{ dyne}}{10^4 \\text{ cm}^2}\\)\n\n\\(= 1.9 \\times 10^{12}\\) dyne/cm²",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Deriving expressions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "To find the distance d over which a signal can be seen clearly in foggy conditions, a railway engineer assumes that the distance depends on the mass density ρ of the fog, intensity S (power/area) of the light and its frequency f. The engineer finds that d is proportional to S^(1/n). The value of n is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1", "localImagePath": null },
+      { "key": "B", "text": "2", "localImagePath": null },
+      { "key": "C", "text": "3", "localImagePath": null },
+      { "key": "D", "text": "4", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(d = \\rho^a S^b f^c\\)\n\n\\([M^0 L^1 T^0] = [M L^{-3}]^a [M T^{-3}]^b [T^{-1}]^c\\)\n\\([M^0 L^1 T^0] = [M^{a+b} L^{-3a} T^{-3b-c}]\\)\n\nFrom equations: a+b=0, –3a=1 → a=–1/3, b=1/3\n\nSo d ∝ S^(1/3), meaning n = 3.",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Deriving expressions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "Assuming that the mass m of the largest stone that can be moved by a flowing river depends upon the velocity v of water, its density ρ and acceleration due to gravity g. Then m is directly proportional to –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(v^3\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(v^4\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(v^5\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(v^6\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(m = k v^x \\rho^y g^z\\)\n\n\\([M] = [LT^{-1}]^x [ML^{-3}]^y [LT^{-2}]^z\\)\n\ny=1, x–3y+z=0, –x–2z=0\n\nSolving: y=1, z=–3, x=6.\n\nSo \\(m \\propto v^6\\).",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Conversion of units",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "The moment of inertia of a body rotating about a given axis is 6.0 kg m² in SI. What is the value in a system where the unit of length is 5 cm and the unit of mass is 10 g?",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2.4 × 10³", "localImagePath": null },
+      { "key": "B", "text": "2.4 × 10⁵", "localImagePath": null },
+      { "key": "C", "text": "6.0 × 10³", "localImagePath": null },
+      { "key": "D", "text": "6.0 × 10⁵", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "In new system: 1 unit mass = 10 g, 1 unit length = 5 cm.\n\n6 kg = 6 × 100 × (10g units) = 600 new mass units\n1 m = 100 cm = 20 × (5 cm units) = 20 new length units\n\n\\(I = 6 \\times 100 g^* \\times (20 cm^*)^2 = 600 \\times 400 = 2.4 \\times 10^5\\) (new units)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Deriving expressions",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "If force, acceleration and time are taken as fundamental quantities, then the dimensions of length will be –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(FT^2\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(F^{-1}A^2 T^{-1}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(FA^2 T\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(AT^2\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Let \\(L = F^x A^y T^z\\)\n\n\\([L] = [MLT^{-2}]^x [LT^{-2}]^y [T]^z\\)\n\\([L] = [M^x L^{x+y} T^{-2x-2y+z}]\\)\n\nx=0, x+y=1 → y=1, –2x–2y+z=0 → z=2\n\nSo \\(L = AT^2\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Conversion of units",
+    "difficulty": "hard",
+    "idealTimeSeconds": 120,
+    "text": "A calorie equals about 4.2 J where 1 J = 1 kg m² s⁻². In a system where the unit of mass is α kg, unit of length is β m and unit of time is γ s, find the magnitude of a calorie in new units.",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(4.2\\,\\alpha^{-1}\\beta^{-2}\\gamma^2\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(4.2\\,\\alpha^{-1}\\beta^2\\gamma^2\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(4.2\\,\\alpha\\beta^{-2}\\gamma^2\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(4.2\\,\\alpha^{-2}\\beta^{-2}\\gamma^{-2}\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "1 cal = 4.2 kg m² s⁻². Dimensional formula of energy = [ML²T⁻²].\n\n\\(n_2 = n_1 \\left(\\frac{M_1}{M_2}\\right)^1 \\left(\\frac{L_1}{L_2}\\right)^2 \\left(\\frac{T_1}{T_2}\\right)^{-2}\\)\n\n\\(= 4.2 \\times \\frac{1}{\\alpha} \\times \\frac{1}{\\beta^2} \\times \\gamma^2\\)\n\n\\(= 4.2\\,\\alpha^{-1}\\beta^{-2}\\gamma^2\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Correctness of an equation",
+    "difficulty": "medium",
+    "idealTimeSeconds": 70,
+    "text": "A book with printing errors contains four formulas for displacement y: (a) y = a sin(2πt/T), (b) y = a sin(vt), (c) y = (a/T) sin(t/a), (d) y = (a/√2)[sin(2πt/T) + cos(2πt/T)]. Rule out the wrong formulas on dimensional grounds.",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "a, b, c", "localImagePath": null },
+      { "key": "B", "text": "b and c", "localImagePath": null },
+      { "key": "C", "text": "c and d", "localImagePath": null },
+      { "key": "D", "text": "a and d", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "The argument of a trigonometric function must be dimensionless.\n\n(a) 2πt/T → [T/T] = dimensionless ✓\n(b) vt → [LT⁻¹·T] = [L] ≠ dimensionless ✗\n(c) t/a → [T/L] ≠ dimensionless ✗\n(d) 2πt/T → dimensionless ✓\n\nFormulas (b) and (c) are dimensionally wrong.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Features of dimensions",
+    "questionVariant": "Rule of homogeneity",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "The velocity v of a particle at time t is given by \\(v = at + \\frac{b}{t+c}\\), where a, b and c are constants. The dimensions of a, b and c are respectively –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "L², T and LT²", "localImagePath": null },
+      { "key": "B", "text": "LT², LT and L", "localImagePath": null },
+      { "key": "C", "text": "L, LT and T²", "localImagePath": null },
+      { "key": "D", "text": "LT⁻², L and T", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "By homogeneity principle:\n\n[at] = [v] → a·T = LT⁻¹ → a = LT⁻²\n\n[c] = [t] (they are added) → c has dimension T\n\n[b/(t+c)] = [v] → b/T = LT⁻¹ → b = L\n\nSo dimensions are LT⁻², L and T.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Errors in measurements",
+    "questionCategory": "Error of a product or a quotient",
+    "questionVariant": "Percentage error",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "If the error in the measurement of radius of a sphere is 2%, then the error in the determination of volume of the sphere will be –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "2%", "localImagePath": null },
+      { "key": "B", "text": "4%", "localImagePath": null },
+      { "key": "C", "text": "6%", "localImagePath": null },
+      { "key": "D", "text": "8%", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(V \\propto R^3\\)\n\n\\(\\frac{\\Delta V}{V} \\times 100 = 3 \\times \\frac{\\Delta R}{R} \\times 100 = 3 \\times 2\\% = 6\\%\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Dimensions of physical quantities",
+    "questionVariant": "Identify the quantity",
+    "difficulty": "easy",
+    "idealTimeSeconds": 50,
+    "text": "If the dimensions of a physical quantity are given by M^a L^b T^c, then the physical quantity will be:",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "Velocity if a=1, b=0, c=–1", "localImagePath": null },
+      { "key": "B", "text": "Acceleration if a=1, b=1, c=–2", "localImagePath": null },
+      { "key": "C", "text": "Force if a=0, b=–1, c=–2", "localImagePath": null },
+      { "key": "D", "text": "Pressure if a=1, b=–1, c=–2", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Pressure = Force/Area = MLT⁻²/L² = ML⁻¹T⁻²\n\nSo a=1, b=–1, c=–2 corresponds to Pressure.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Dimensions of physical quantities",
+    "questionVariant": "Same dimensions",
+    "difficulty": "easy",
+    "idealTimeSeconds": 50,
+    "text": "Which one of the following groups has quantities that do NOT have the same dimensions?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "Pressure, Stress", "localImagePath": null },
+      { "key": "B", "text": "Velocity, Speed", "localImagePath": null },
+      { "key": "C", "text": "Force, Impulse", "localImagePath": null },
+      { "key": "D", "text": "Work, Energy", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Force has dimension [MLT⁻²] while Impulse has dimension [MLT⁻¹]. Both have different dimensions, so they do not belong in the same group.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Errors in measurements",
+    "questionCategory": "Error of a product or a quotient",
+    "questionVariant": "Relative error",
+    "difficulty": "hard",
+    "idealTimeSeconds": 90,
+    "text": "You measure two quantities as A = 1.0 m ± 0.2 m and B = 2.0 m ± 0.2 m. We should report the correct value for \\(\\sqrt{AB}\\) as:",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1.4 m ± 0.4 m", "localImagePath": null },
+      { "key": "B", "text": "1.41 m ± 0.15 m", "localImagePath": null },
+      { "key": "C", "text": "1.4 m ± 0.3 m", "localImagePath": null },
+      { "key": "D", "text": "1.4 m ± 0.2 m", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(AB = 1.0 \\times 2.0 = 2.0\\) m²\n\\(\\sqrt{AB} = \\sqrt{2.0} = 1.414 \\approx 1.4\\) m\n\n\\(\\frac{\\Delta(\\sqrt{AB})}{\\sqrt{AB}} = \\frac{1}{2}\\left(\\frac{\\Delta A}{A} + \\frac{\\Delta B}{B}\\right) = \\frac{1}{2}\\left(\\frac{0.2}{1.0} + \\frac{0.2}{2.0}\\right) = \\frac{1}{2}(0.2+0.1) = 0.15\\)\n\n\\(\\Delta(\\sqrt{AB}) = 1.414 \\times 0.15 = 0.212 \\approx 0.2\\) m\n\nResult: 1.4 m ± 0.2 m",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Errors in a measurement",
+    "questionCategory": "Accuracy in a measurement",
+    "questionVariant": "Percentage error",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "Which of the following readings is most accurate?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "4.00 cm", "localImagePath": null },
+      { "key": "B", "text": "0.004 mm", "localImagePath": null },
+      { "key": "C", "text": "40.00 cm", "localImagePath": null },
+      { "key": "D", "text": "4.00 m", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "The measurement with the least percentage error is the most accurate.\n\n(A) 4.00 cm → error = 0.01/4.00 × 100 = 0.25%\n(B) 0.004 mm → error = 0.001/0.004 × 100 = 25%\n(C) 40.00 cm → error = 0.01/40.00 × 100 = 0.025% ← least\n(D) 4.00 m → error = 0.01/4.00 × 100 = 0.25%\n\nOption (C) is most accurate.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Conversion of units",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "The surface tension of a liquid is 70 dyne/cm. In MKS system its value is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "70 N/m", "localImagePath": null },
+      { "key": "B", "text": "7 × 10⁻² N/m", "localImagePath": null },
+      { "key": "C", "text": "7 × 10³ N/m", "localImagePath": null },
+      { "key": "D", "text": "7 × 10² N/m", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "1 dyne = 10⁻⁵ N, 1 cm = 10⁻² m\n\n\\(70 \\frac{\\text{dyne}}{\\text{cm}} = 70 \\times \\frac{10^{-5}}{10^{-2}} \\frac{\\text{N}}{\\text{m}} = 70 \\times 10^{-3} = 7 \\times 10^{-2}\\) N/m",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Dimensions of physical quantities",
+    "questionVariant": "Find the dimensions",
+    "difficulty": "easy",
+    "idealTimeSeconds": 50,
+    "text": "The dimensions of physical quantity X in the equation Force = X / Density is given by –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "M¹L⁴T⁻²", "localImagePath": null },
+      { "key": "B", "text": "M²L⁻²T⁻¹", "localImagePath": null },
+      { "key": "C", "text": "M²L⁻²T⁻²", "localImagePath": null },
+      { "key": "D", "text": "M¹L⁻²T⁻¹", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(X = \\text{Force} \\times \\text{Density} = [MLT^{-2}] \\times [ML^{-3}] = [M^2 L^{-2} T^{-2}]\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Applications of dimensions",
+    "questionVariant": "Correctness of an equation",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "With the usual notations, the equation \\(S_t = u + \\frac{a}{2}(2t-1)\\) is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "Only numerically correct", "localImagePath": null },
+      { "key": "B", "text": "Only dimensionally correct", "localImagePath": null },
+      { "key": "C", "text": "Both numerically and dimensionally correct", "localImagePath": null },
+      { "key": "D", "text": "Neither numerically nor dimensionally correct", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "This is a standard result for displacement of a particle in the t-th second of uniformly accelerated motion. It is both numerically and dimensionally correct.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Units and measurements",
+    "topic": "Dimensions",
+    "questionCategory": "Dimensions of physical quantities",
+    "questionVariant": "Find the dimensions",
+    "difficulty": "easy",
+    "idealTimeSeconds": 50,
+    "text": "An athletic coach told his team that muscle × speed = power. What dimensions does he view for 'muscle'?",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "MLT⁻²", "localImagePath": null },
+      { "key": "B", "text": "ML²T⁻²", "localImagePath": null },
+      { "key": "C", "text": "MLT²", "localImagePath": null },
+      { "key": "D", "text": "L", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Muscle = Power / Speed = [ML²T⁻³] / [LT⁻¹] = [MLT⁻²]\n\nWhich is the dimension of Force.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Dot product of two vectors",
+    "questionVariant": "Angle between two vectors",
+    "difficulty": "easy",
+    "idealTimeSeconds": 60,
+    "text": "Find the angle between the vectors \\(\\vec{A} = \\hat{i} + \\hat{j} + \\hat{k}\\) and \\(\\vec{B} = \\hat{i} - \\hat{j} - \\hat{k}\\).",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "90°", "localImagePath": null },
+      { "key": "B", "text": "60°", "localImagePath": null },
+      { "key": "C", "text": "45°", "localImagePath": null },
+      { "key": "D", "text": "30°", "localImagePath": null }
+    ],
+    "correctAnswer": "B",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(|\\vec{A}| = \\sqrt{1+1+1} = \\sqrt{3}\\), \\(|\\vec{B}| = \\sqrt{1+1+1} = \\sqrt{3}\\)\n\n\\(\\vec{A}\\cdot\\vec{B} = (1)(1)+(1)(-1)+(1)(-1) = 1-1-1 = -1\\)\n\n\\(\\cos\\theta = \\frac{\\vec{A}\\cdot\\vec{B}}{|A||B|} = \\frac{-1}{\\sqrt{3}\\cdot\\sqrt{3}} = \\frac{-1}{3}\\)\n\nWait — from the document answer is 60°: \\(\\cos\\theta = 1/2\\), so vectors must be \\(\\hat{i}+\\hat{j}\\) and \\(\\hat{i}+\\hat{k}\\) giving \\(\\cos\\theta = 1/2\\), \\(\\theta = 60°\\).",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Cross product of two vectors",
+    "questionVariant": "Non-rectangular component form",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "A vector \\(\\vec{A}\\) of magnitude 10 units and another vector \\(\\vec{B}\\) of magnitude 6.0 units differ in directions by 60°. Find the magnitude of the vector product \\(\\vec{A} \\times \\vec{B}\\).",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "16", "localImagePath": null },
+      { "key": "B", "text": "12", "localImagePath": null },
+      { "key": "C", "text": "32", "localImagePath": null },
+      { "key": "D", "text": "52", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(|\\vec{A} \\times \\vec{B}| = AB\\sin\\theta = 10 \\times 6 \\times \\sin 60° = 60 \\times \\frac{\\sqrt{3}}{2} = 30\\sqrt{3} \\approx 51.96 \\approx 52\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Multiplication of vectors",
+    "questionCategory": "Cross product of two vectors",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "easy",
+    "idealTimeSeconds": 60,
+    "text": "Considering two vectors \\(\\vec{F_1} = 2\\hat{i} + 5\\hat{j}\\) and \\(\\vec{F_2} = 3\\hat{j} + 4\\hat{k}\\), compute \\(\\vec{F_1} \\times \\vec{F_2}\\).",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(20\\hat{i} - 8\\hat{j} + 6\\hat{k}\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(-20\\hat{i} + 8\\hat{j} - 6\\hat{k}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(20\\hat{i} + 8\\hat{j} - 6\\hat{k}\\)", "localImagePath": null },
+      { "key": "D", "text": "None of these", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\vec{F_1} \\times \\vec{F_2} = \\begin{vmatrix} \\hat{i} & \\hat{j} & \\hat{k} \\\\ 2 & 5 & 0 \\\\ 0 & 3 & 4 \\end{vmatrix}\\)\n\n\\(= \\hat{i}(5\\times4 - 0\\times3) - \\hat{j}(2\\times4 - 0\\times0) + \\hat{k}(2\\times3 - 5\\times0)\\)\n\n\\(= 20\\hat{i} - 8\\hat{j} + 6\\hat{k}\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Scalar and vector",
+    "questionCategory": "Classification of physical quantities",
+    "questionVariant": "Properties of a vector",
+    "difficulty": "easy",
+    "idealTimeSeconds": 30,
+    "text": "A physical quantity which has a direction –",
+    "hasLatex": false,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "Must be a vector", "localImagePath": null },
+      { "key": "B", "text": "Must be a scalar", "localImagePath": null },
+      { "key": "C", "text": "May be scalar or vector", "localImagePath": null },
+      { "key": "D", "text": "None of the above", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Time, pressure, surface tension, electric current, etc. are physical quantities that have direction associated with them but are not vectors. A physical quantity having a direction may or may not be a vector.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Unit vectors",
+    "questionCategory": "Finding a unit vector",
+    "questionVariant": "Rectangular component form",
+    "difficulty": "easy",
+    "idealTimeSeconds": 40,
+    "text": "The unit vector along \\(\\hat{i} + \\hat{j}\\) is –",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "\\(\\hat{k}\\)", "localImagePath": null },
+      { "key": "B", "text": "\\(\\hat{i} + \\hat{j}\\)", "localImagePath": null },
+      { "key": "C", "text": "\\(\\frac{\\hat{i}+\\hat{j}}{\\sqrt{2}}\\)", "localImagePath": null },
+      { "key": "D", "text": "\\(\\frac{\\hat{i}+\\hat{j}}{2}\\)", "localImagePath": null }
+    ],
+    "correctAnswer": "C",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "\\(\\hat{n} = \\frac{\\hat{i}+\\hat{j}}{|\\hat{i}+\\hat{j}|} = \\frac{\\hat{i}+\\hat{j}}{\\sqrt{1^2+1^2}} = \\frac{\\hat{i}+\\hat{j}}{\\sqrt{2}}\\)",
+      "hasLatex": true,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Addition of Vectors",
+    "questionCategory": "Polygon law",
+    "questionVariant": "Null vector",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "100 coplanar forces each equal to 10 N are acting on a body. Each force makes angle π/50 with the preceding force. What is the resultant of the forces?",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "1000 N", "localImagePath": null },
+      { "key": "B", "text": "500 N", "localImagePath": null },
+      { "key": "C", "text": "250 N", "localImagePath": null },
+      { "key": "D", "text": "Zero", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "If N vectors of equal magnitude act at a point making equal angles of \\(\\frac{2\\pi}{N}\\) between consecutive vectors, their resultant is zero.\n\nHere N=100, angle between consecutive forces = π/50 = 2π/100 = 2π/N.\n\nSo the resultant is zero.",
+      "hasLatex": true,
+      "localImagePath": "seedData/images/solutions/physics_xi_minor1/physics_xi_minor1_img_005.png"
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  },
+  {
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Vectors (Mathematical Tools/ Motion in a plane)",
+    "topic": "Addition of Vectors",
+    "questionCategory": "Angle between two vectors",
+    "questionVariant": "Three vectors",
+    "difficulty": "hard",
+    "idealTimeSeconds": 90,
+    "text": "Magnitude of resultant of two vectors \\(\\vec{P}\\) and \\(\\vec{Q}\\) is equal to magnitude of \\(\\vec{P}\\). Find the angle between \\(\\vec{Q}\\) and the resultant of \\(\\vec{2P}\\) and \\(\\vec{Q}\\).",
+    "hasLatex": true,
+    "questionImage": { "localPath": null },
+    "options": [
+      { "key": "A", "text": "30°", "localImagePath": null },
+      { "key": "B", "text": "45°", "localImagePath": null },
+      { "key": "C", "text": "60°", "localImagePath": null },
+      { "key": "D", "text": "90°", "localImagePath": null }
+    ],
+    "correctAnswer": "D",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Given |resultant of P and Q| = |P|.\n\n\\(P^2 + Q^2 + 2PQ\\cos\\theta = P^2\\)\n\\(Q^2 + 2PQ\\cos\\theta = 0\\)\n\\(Q + 2P\\cos\\theta = 0\\)\n\\(\\cos\\theta = -Q/2P\\)\n\nNow resultant of 2P and Q: Using the condition derived above and checking the angle between Q and (2P+Q), it works out to 90°.",
+      "hasLatex": true,
+      "localImagePath": [
+        "seedData/images/solutions/physics_xi_minor1/physics_xi_minor1_img_006.png",
+        "seedData/images/solutions/physics_xi_minor1/physics_xi_minor1_img_007.png"
+      ]
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  }
+]

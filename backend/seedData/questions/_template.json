@@ -1,0 +1,39 @@
+[
+  {
+    "_comment": "INSTRUCTIONS — delete this object before seeding.",
+    "_comment2": "correctAnswer must be A/B/C/D (not 1/2/3/4).",
+    "_comment3": "difficulty must be lowercase: easy | medium | hard.",
+    "_comment4": "classLevel must be: XI | XII.",
+    "_comment5": "localImagePath: relative path from backend/ folder, or null.",
+    "_comment6": "sourceRef: human label of the paper — same value for all Qs in one file.",
+
+    "subject": "physics",
+    "classLevel": "XI",
+    "chapter": "Chapter Name Here",
+    "topic": "Concept / Topic Name",
+    "questionCategory": "Question type from paper",
+    "questionVariant": "Variant from paper",
+    "difficulty": "medium",
+    "idealTimeSeconds": 60,
+    "text": "Full question text here. Use plain text; LaTeX in \\( \\) delimiters if needed.",
+    "hasLatex": false,
+    "questionImage": {
+      "localPath": null
+    },
+    "options": [
+      { "key": "A", "text": "Option 1 text", "localImagePath": null },
+      { "key": "B", "text": "Option 2 text", "localImagePath": null },
+      { "key": "C", "text": "Option 3 text", "localImagePath": null },
+      { "key": "D", "text": "Option 4 text", "localImagePath": null }
+    ],
+    "correctAnswer": "A",
+    "marks": 4,
+    "negativeMarks": 1,
+    "solution": {
+      "text": "Full step-by-step solution text here.",
+      "hasLatex": false,
+      "localImagePath": null
+    },
+    "sourceRef": "Minor 1 Physics XI 2024"
+  }
+]

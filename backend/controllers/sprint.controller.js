@@ -155,3 +155,42 @@ exports.getSlotStats = asyncHandler(async (req, res, next) => {
     slots: stats,
   });
 });
+
+// ─── Delete Sprint ────────────────────────────────────────────────────────────
+// Only DRAFT sprints can be deleted. Active/completed sprints may have exams
+// referencing them — deletion would break exam/attempt/analytics data integrity.
+
+exports.deleteSprint = asyncHandler(async (req, res, next) => {
+  const Exam = require("../models/Exam.model");
+
+  const sprint = await Sprint.findById(req.params.id);
+  if (!sprint) return next(new AppError("Sprint not found.", 404));
+
+  if (sprint.status !== SPRINT_STATUS.DRAFT) {
+    return next(
+      new AppError(
+        `Cannot delete a ${sprint.status} sprint. Only DRAFT sprints can be deleted. ` +
+        `Update status to "draft" first if it has no exams.`,
+        400
+      )
+    );
+  }
+
+  // Block if any exams reference this sprint
+  const examCount = await Exam.countDocuments({ sprint: sprint._id });
+  if (examCount > 0) {
+    return next(
+      new AppError(
+        `Cannot delete sprint — it has ${examCount} associated exam(s). ` +
+        `Delete all exams in this sprint before deleting the sprint.`,
+        409
+      )
+    );
+  }
+
+  await sprint.deleteOne();
+
+  return sendSuccess(res, 200, "Sprint deleted successfully.", {
+    deletedSprintId: sprint._id,
+  });
+});

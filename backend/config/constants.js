@@ -8,6 +8,19 @@ const ROLES = Object.freeze({
   SUPER_ADMIN: "super_admin",
 });
 
+const CLASS_LEVELS = Object.freeze({
+  XI:      "XI",
+  XII:     "XII",
+  DROPPER: "dropper",
+});
+
+// Program types map to which class-level bucket each batch runs
+const PROGRAM_TYPES = Object.freeze({
+  CLASS_XI:       "class_xi",
+  CLASS_XII:      "class_xii",
+  DROPPER:        "dropper",
+});
+
 const DIFFICULTY = Object.freeze({
   EASY:   "easy",
   MEDIUM: "medium",
@@ -120,8 +133,18 @@ const ADMIN_ACTIONS = Object.freeze({
   BATCH_DELETED:       "batch_deleted",
 });
 
+// Test types: minor (chapter test), semi-major (half-sprint), major (full syllabus)
+const EXAM_TYPE = Object.freeze({
+  MINOR:      "minor",
+  SEMI_MAJOR: "semi_major",
+  MAJOR:      "major",
+});
+
 module.exports = {
   ROLES,
+  CLASS_LEVELS,
+  PROGRAM_TYPES,
+  EXAM_TYPE,
   DIFFICULTY,
   QUESTION_TYPE,
   SUBJECTS,

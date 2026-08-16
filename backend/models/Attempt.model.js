@@ -20,7 +20,10 @@ const responseSchema = new mongoose.Schema(
     difficulty: { type: String, required: true },
     marks: { type: Number, required: true },
     negativeMarks: { type: Number, default: 0 },
-    correctAnswer: { type: String, required: true },
+    // correctAnswer is intentionally NOT required here — it is omitted at attempt
+    // creation time (startAttempt) for security, and populated only after submission
+    // scoring. Analytics services read it from Exam.questions instead.
+    correctAnswer: { type: String, default: null },
 
     selectedAnswer: {
       type: String,
