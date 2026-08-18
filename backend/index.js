@@ -24,6 +24,10 @@ const REQUIRED_ENV_VARS = [
   "BREVO_SMTP_PASS",
   "EMAIL_FROM_ADDRESS",
   "CLIENT_URL",
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+  "NODE_ENV",
 ];
 
 const missingVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
@@ -31,6 +35,14 @@ if (missingVars.length > 0) {
   console.error(
     `[Startup] FATAL: Missing required environment variables:\n  ${missingVars.join("\n  ")}\n` +
     `Check your .env file against .env.example`
+  );
+  process.exit(1);
+}
+
+// Validate NODE_ENV is a recognised value — prevents silent dev-mode leaks in prod
+if (!["development", "production", "test"].includes(process.env.NODE_ENV)) {
+  console.error(
+    `[Startup] FATAL: NODE_ENV must be "development", "production", or "test". Got: "${process.env.NODE_ENV}"`
   );
   process.exit(1);
 }
@@ -46,8 +58,17 @@ if (!process.env.QUESTION_BANK_MONGO_URI) {
 const app = express();
 
 // ─── Trust Proxy (required for Render deployment) ─────────────────────────────
+// Render (and most cloud platforms) sit behind a reverse proxy.
+// Without this, req.ip will be the proxy IP, breaking rate limiting and audit logs.
+// Set TRUST_PROXY=true in your Render/production environment variables.
 if (process.env.TRUST_PROXY === "true") {
   app.set("trust proxy", 1);
+} else if (process.env.NODE_ENV === "production") {
+  console.warn(
+    "[Startup] WARNING: TRUST_PROXY is not set to 'true'. " +
+    "Rate limiting and IP-based audit logs may not work correctly behind a reverse proxy. " +
+    "Set TRUST_PROXY=true in your production environment."
+  );
 }
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
@@ -107,7 +128,6 @@ app.get("/health", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Exam Neeti API is running.",
-    environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
   });
 });

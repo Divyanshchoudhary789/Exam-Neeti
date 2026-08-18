@@ -165,6 +165,44 @@ const updateSyllabusProgress = async (studentId, sprintId, attemptId, responses)
  * Used by analytics and dashboard controllers.
  */
 const getCoverageMetrics = async (studentId, sprintId) => {
+  if (!sprintId || sprintId === "all" || sprintId === "overall") {
+    const allProgress = await SyllabusProgress.find({ student: studentId }).lean();
+    if (!allProgress.length) {
+      return {
+        syllabusCoverage:  0,
+        conceptCoverage:   0,
+        weightedCoverage:  0,
+        revisionCoverage:  0,
+        coveredTopics:     0,
+        revisedTopics:     0,
+        totalTopics:       0,
+        coveredChapters:   0,
+        topicDetails:      [],
+        lastUpdatedAt:     null,
+      };
+    }
+    const allTopics = allProgress.flatMap((p) => p.topics || []);
+    const coveredTopics = allTopics.filter((t) => t.isCovered).length;
+    const revisedTopics = allTopics.filter((t) => t.isRevised).length;
+    const totalTopics   = allTopics.length;
+    const coveredChapters = new Set(
+      allTopics.filter((t) => t.isCovered).map((t) => `${t.subject}__${t.chapter}`)
+    ).size;
+    const coveragePercentage = totalTopics > 0 ? Math.round((coveredTopics / totalTopics) * 100) : 0;
+    return {
+      syllabusCoverage:  coveragePercentage,
+      conceptCoverage:   coveragePercentage,
+      weightedCoverage:  coveragePercentage,
+      revisionCoverage:  totalTopics > 0 ? Math.round((revisedTopics / totalTopics) * 100) : 0,
+      coveredTopics,
+      totalTopics,
+      revisedTopics,
+      coveredChapters,
+      topicDetails:      allTopics,
+      lastUpdatedAt:     null,
+    };
+  }
+
   const progress = await SyllabusProgress.findOne({
     student: studentId,
     sprint:  sprintId,
@@ -178,6 +216,7 @@ const getCoverageMetrics = async (studentId, sprintId) => {
       revisionCoverage:  0,
       coveredTopics:     0,
       revisedTopics:     0,
+      totalTopics:       0,
       coveredChapters:   0,
       topicDetails:      [],
       lastUpdatedAt:     null,

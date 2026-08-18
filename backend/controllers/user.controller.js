@@ -5,10 +5,12 @@ const AnalyticsResult = require("../models/AnalyticsResult.model");
 const StudentProbability = require("../models/StudentProbability.model");
 const SyllabusProgress = require("../models/SyllabusProgress.model");
 const Report = require("../models/Report.model");
+const NotificationLog = require("../models/NotificationLog.model");
 const AdminAuditLog = require("../models/AdminAuditLog.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
+const { sendPaginated } = require("../utils/response");
 const { sendEmail, templates } = require("../services/email.service");
 const { NOTIFICATION_TRIGGER, ROLES, ADMIN_ACTIONS } = require("../config/constants");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
@@ -20,9 +22,10 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // ─── Admin: Create a single student ──────────────────────────────────────────
 
 exports.createStudent = asyncHandler(async (req, res, next) => {
-  const { name, email, phone, batchId, password: providedPassword } = req.body;
+  const { name, email, phone, password: providedPassword } = req.body;
+  const targetBatchId = req.body.batchId || req.body.batch;
 
-  const batch = await Batch.findById(batchId);
+  const batch = await Batch.findById(targetBatchId);
   if (!batch) return next(new AppError("Batch not found.", 404));
 
   // Auto-generate password if not provided
@@ -35,7 +38,7 @@ exports.createStudent = asyncHandler(async (req, res, next) => {
     phone,
     password: plainPassword,
     role: ROLES.STUDENT,
-    batch: batchId,
+    batch: targetBatchId,
   });
 
   await sendEmail({
@@ -190,12 +193,11 @@ exports.listStudents = asyncHandler(async (req, res, next) => {
     User.countDocuments(filter),
   ]);
 
-  return res.status(200).json({
-    success: true,
-    message: "Students fetched successfully.",
-    data: { students },
-    pagination: buildPaginationMeta(total, page, limit),
-  });
+  return sendPaginated(
+    res, 200, "Students fetched successfully.",
+    { students },
+    buildPaginationMeta(total, page, limit)
+  );
 });
 
 // ─── Admin: Get single student ────────────────────────────────────────────────
@@ -339,6 +341,7 @@ exports.deleteStudent = asyncHandler(async (req, res, next) => {
     StudentProbability.deleteMany({ student: student._id }),
     SyllabusProgress.deleteMany({ student: student._id }),
     Report.deleteMany({ owner: student._id }),
+    NotificationLog.deleteMany({ recipient: student._id }),
   ]);
 
   // Delete the user document last, after all related data is gone

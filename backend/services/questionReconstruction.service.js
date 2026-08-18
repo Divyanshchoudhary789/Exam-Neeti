@@ -1,39 +1,97 @@
-﻿/**
+/**
  * Question Reconstruction Service
  *
  * Selects one question per pattern-slot for a new exam.
  *
  * ELIGIBILITY STRATEGY (attribute-based, no sprint tagging required):
- *   A question is eligible for a slot when its stored attributes satisfy every
- *   constraint defined on the slot:
- *     - subject       must match exactly
- *     - questionType  must match exactly
- *     - difficulty    must match if the slot specifies one  (null/omitted = any)
- *     - chapter       must match if the slot specifies one  (null/omitted = any)
- *     - topic         must match if the slot specifies one  (null/omitted = any)
+ *   A question is eligible for a slot when its stored attributes satisfy the
+ *   constraints defined on the slot:
+ *     - subject       must match (case-insensitive)
+ *     - questionType  must match (default: "mcq")
+ *     - difficulty    matches if available, or falls back to adjacent difficulties
+ *     - chapter       matches exactly or via flexible string normalization/overlap
+ *     - topic         matches if specified, or falls back if omitted/unmatched
  *     - isActive      must be true
  *
- *   patternSlotTags on a question are treated as an OPTIONAL whitelist.
- *   If a question has patternSlotTags and NONE of them match this sprint+slot,
- *   the question is excluded (it has been explicitly reserved for other sprints).
- *   If a question has NO patternSlotTags at all, it is eligible for any sprint
- *   — which is the default state of every newly seeded question.
+ * PROGRESSIVE MULTI-TIERED FALLBACK:
+ *   To guarantee zero 422 failures during exam generation in production, the engine
+ *   evaluates questions through 7 priority tiers:
+ *     Tier 1: Exact/Normalized Chapter + Topic + Difficulty + Unselected + Tag Eligible
+ *     Tier 2: Flexible Chapter & Topic + Strict Difficulty + Tag Eligible
+ *     Tier 3: Flexible Chapter + Relax Topic + Strict Difficulty + Tag Eligible
+ *     Tier 4: Flexible Chapter + Relax Difficulty + Tag Eligible
+ *     Tier 5: Subject Level Fallback (Any Chapter/Difficulty, Tag Eligible, Unselected)
+ *     Tier 6: Relax Tag Restrictions (Any Tag, Unselected)
+ *     Tier 7: Subject Pool Reuse (if DB total subject questions < sprint slots)
  *
  * SELECTION WITHIN ELIGIBLE POOL:
- *   1. Prefer questions never used in this sprint (unused pool).
+ *   1. Prefer questions never used in this sprint & slot (unused pool).
  *   2. If the entire pool has been used at least once, fall back to the
  *      Least-Recently-Used question (LRU cycle) so variety is maximised.
  *   3. Within the unused pool selection is random.
- *
- * PERFORMANCE:
- *   FIX: Instead of one DB query per slot (N+1), we batch all unique slot
- *   filter combinations into a single $or query per subject, reducing DB
- *   round-trips from O(slots) to O(unique subjects).
  */
 
 const AppError = require("../utils/AppError");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Normalizes string for fuzzy/robust matching:
+ * - Lowercase
+ * - Replace '&' with 'and'
+ * - Remove non-alphanumeric punctuation
+ * - Collapse multiple spaces and trim
+ */
+function normalizeStr(str) {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Returns true if qText matches targetText under flexible normalization & word overlap.
+ */
+function isFlexibleMatch(qText, targetText) {
+  if (!targetText) return true;
+  if (!qText) return false;
+
+  const nQ = normalizeStr(qText);
+  const nTarget = normalizeStr(targetText);
+
+  // 1. Exact or normalized equality
+  if (nQ === nTarget) return true;
+
+  // 2. Substring containment
+  if (nQ.includes(nTarget) || nTarget.includes(nQ)) return true;
+
+  // 3. Word overlap matching (excluding common stop words)
+  const stopWords = new Set(["and", "or", "of", "in", "the", "a", "to", "for", "with", "on", "at"]);
+  const targetWords = nTarget.split(" ").filter((w) => w.length > 2 && !stopWords.has(w));
+  const qWords = new Set(nQ.split(" ").filter((w) => w.length > 2 && !stopWords.has(w)));
+
+  if (targetWords.length === 0) return true;
+
+  let matchCount = 0;
+  for (const tw of targetWords) {
+    // Exact word or stem match (e.g. "measurement" vs "measurements")
+    let found = false;
+    for (const qw of qWords) {
+      if (qw === tw || qw.startsWith(tw) || tw.startsWith(qw)) {
+        found = true;
+        break;
+      }
+    }
+    if (found) matchCount++;
+  }
+
+  // If at least 50% of target non-stop words match (or >= 1 word if target has 1-2 key words)
+  const threshold = Math.ceil(targetWords.length * 0.5);
+  return matchCount >= Math.min(threshold, targetWords.length);
+}
 
 /**
  * Returns true if the question is eligible for this sprint + slot position.
@@ -50,16 +108,81 @@ function isTagEligible(question, sprintId, slotPosition) {
 }
 
 /**
- * Returns true if the question matches all constraints of the given slot.
- * Used for in-memory filtering after the bulk DB fetch.
+ * Finds candidate pool for a pattern slot using progressive tier fallback.
  */
-function matchesSlot(question, slot) {
-  if (question.subject      !== slot.subject)            return false;
-  if (question.questionType !== (slot.questionType || "mcq")) return false;
-  if (slot.difficulty && question.difficulty !== slot.difficulty) return false;
-  if (slot.chapter   && question.chapter    !== slot.chapter)    return false;
-  if (slot.topic     && question.topic      !== slot.topic)      return false;
-  return true;
+function getSlotCandidatePool(candidates, slot, sprintId, selectedIds) {
+  const { position, subject, chapter, topic, difficulty, questionType } = slot;
+  const targetType = (questionType || "mcq").toLowerCase();
+
+  // Filter out questions not matching subject or questionType (case-insensitive)
+  const subjectCandidates = candidates.filter((q) => {
+    if (q.subject.toLowerCase() !== subject.toLowerCase()) return false;
+    const qType = (q.questionType || "mcq").toLowerCase();
+    if (qType !== targetType) return false;
+    return true;
+  });
+
+  if (subjectCandidates.length === 0) return [];
+
+  // Helper for checking slot constraints per tier
+  const filterByTier = (useFuzzyChapter, useFuzzyTopic, checkDifficulty, checkTags, allowSelected) => {
+    return subjectCandidates.filter((q) => {
+      if (!allowSelected && selectedIds.has(q._id.toString())) return false;
+      if (checkTags && !isTagEligible(q, sprintId, position)) return false;
+
+      // Difficulty check
+      if (checkDifficulty && difficulty) {
+        if (q.difficulty !== difficulty) return false;
+      }
+
+      // Chapter check
+      if (chapter) {
+        if (useFuzzyChapter) {
+          if (!isFlexibleMatch(q.chapter, chapter)) return false;
+        } else {
+          if (q.chapter !== chapter) return false;
+        }
+      }
+
+      // Topic check
+      if (topic) {
+        if (useFuzzyTopic) {
+          if (!isFlexibleMatch(q.topic, topic)) return false;
+        } else {
+          if (q.topic !== topic) return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // Tier 1: Strict/Exact Match + Unselected + Tag Eligible
+  let pool = filterByTier(false, false, true, true, false);
+  if (pool.length > 0) return pool;
+
+  // Tier 2: Flexible Chapter & Topic Match + Strict Difficulty + Tag Eligible
+  pool = filterByTier(true, true, true, true, false);
+  if (pool.length > 0) return pool;
+
+  // Tier 3: Flexible Chapter + Relax Topic + Strict Difficulty + Tag Eligible
+  pool = filterByTier(true, false, true, true, false);
+  if (pool.length > 0) return pool;
+
+  // Tier 4: Flexible Chapter + Relax Difficulty + Tag Eligible
+  pool = filterByTier(true, false, false, true, false);
+  if (pool.length > 0) return pool;
+
+  // Tier 5: Subject Level Fallback (Any Chapter, Any Difficulty, Tag Eligible, Unselected)
+  pool = filterByTier(false, false, false, true, false);
+  if (pool.length > 0) return pool;
+
+  // Tier 6: Relax Tag Restrictions (Any Tag, Unselected)
+  pool = filterByTier(false, false, false, false, false);
+  if (pool.length > 0) return pool;
+
+  // Tier 7: Reuse questions in exam if subject candidate pool is smaller than slots
+  return subjectCandidates;
 }
 
 // ─── reconstructExamQuestions ─────────────────────────────────────────────────
@@ -75,50 +198,42 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
   const sprintIdStr   = sprint._id.toString();
   const slots         = sprint.patternSlots;
 
-  // FIX: Batch fetch — build one $or query covering all slot subject constraints
-  // instead of one DB query per slot. Groups slots by subject to build minimal filters.
-  const subjectSet = new Set(slots.map((s) => s.subject));
+  // Bulk fetch all active questions
   const allCandidates = await QuestionModel.find({
     isActive: true,
-    subject:  { $in: [...subjectSet] },
   }).lean();
 
-  // Index candidates by subject for fast per-slot filtering
+  // Index candidates by subject (lowercase) for fast lookup
   const bySubject = {};
   for (const q of allCandidates) {
-    if (!bySubject[q.subject]) bySubject[q.subject] = [];
-    bySubject[q.subject].push(q);
+    const subjKey = q.subject.toLowerCase();
+    if (!bySubject[subjKey]) bySubject[subjKey] = [];
+    bySubject[subjKey].push(q);
   }
 
-  // Track which question IDs we've already selected in this run (no slot can reuse same question)
+  // Track question IDs selected in this exam run (prevent duplicates per exam)
   const selectedIds = new Set();
 
   for (const slot of slots) {
     const { position } = slot;
+    const subjKey = slot.subject.toLowerCase();
+    const candidateList = bySubject[subjKey] || [];
 
-    // In-memory filter: match slot constraints + tag eligibility + not already selected
-    const allEligible = (bySubject[slot.subject] || []).filter(
-      (q) =>
-        matchesSlot(q, slot) &&
-        isTagEligible(q, sprint._id, position) &&
-        !selectedIds.has(q._id.toString())
-    );
+    const eligiblePool = getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
 
-    if (allEligible.length === 0) {
+    if (eligiblePool.length === 0) {
       throw new AppError(
-        `No eligible questions found for sprint "${sprint.name}", ` +
-        `slot ${position} (subject: ${slot.subject}, ` +
-        `chapter: ${slot.chapter || "any"}, ` +
-        `difficulty: ${slot.difficulty || "any"}).`,
+        `No active questions found in the Question Bank for subject "${slot.subject}". ` +
+        `Please seed or add questions for ${slot.subject}.`,
         422
       );
     }
 
-    // Classify into unused vs. used (within this sprint)
+    // Classify into unused vs. used (within this sprint & slot position)
     const unused = [];
     const used   = [];
 
-    for (const q of allEligible) {
+    for (const q of eligiblePool) {
       const relevantUsage = (q.usageLog || []).filter(
         (log) =>
           log.sprintId.toString() === sprintIdStr &&
@@ -167,32 +282,30 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
 
 /**
  * Returns per-slot pool stats for the Admin's question bank view.
- * FIX: Single bulk DB fetch instead of one query per slot.
  */
 const getSlotPoolStats = async (QuestionModel, sprint) => {
   const stats       = [];
   const sprintIdStr = sprint._id.toString();
   const slots       = sprint.patternSlots;
 
-  // Single bulk fetch for all relevant subjects
-  const subjectSet = new Set(slots.map((s) => s.subject));
   const allCandidates = await QuestionModel.find({
     isActive: true,
-    subject:  { $in: [...subjectSet] },
   }).lean();
 
   const bySubject = {};
   for (const q of allCandidates) {
-    if (!bySubject[q.subject]) bySubject[q.subject] = [];
-    bySubject[q.subject].push(q);
+    const subjKey = q.subject.toLowerCase();
+    if (!bySubject[subjKey]) bySubject[subjKey] = [];
+    bySubject[subjKey].push(q);
   }
 
   for (const slot of slots) {
     const { position } = slot;
+    const subjKey = slot.subject.toLowerCase();
+    const candidateList = bySubject[subjKey] || [];
 
-    const allEligible = (bySubject[slot.subject] || []).filter(
-      (q) => matchesSlot(q, slot) && isTagEligible(q, sprint._id, position)
-    );
+    const selectedIds = new Set();
+    const allEligible = getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
 
     let usedCount = 0;
     for (const q of allEligible) {
@@ -225,4 +338,5 @@ const getSlotPoolStats = async (QuestionModel, sprint) => {
 };
 
 module.exports = { reconstructExamQuestions, getSlotPoolStats };
+
 

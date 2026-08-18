@@ -120,6 +120,10 @@ router.delete("/:id", questionController.deleteQuestion);
 function parseJsonFields(req, res, next) {
   const b = req.body;
 
+  // Case normalisation for subject & difficulty
+  if (typeof b.subject === "string") b.subject = b.subject.toLowerCase();
+  if (typeof b.difficulty === "string") b.difficulty = b.difficulty.toLowerCase();
+
   // JSON fields (objects / arrays)
   for (const field of ["options", "solution"]) {
     if (b[field] && typeof b[field] === "string") {

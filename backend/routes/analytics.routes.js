@@ -20,6 +20,7 @@ router.get("/attempts/:attemptId/order-quality", analyticsController.getAttemptO
 
 // Student: own sprint summary — controller uses req.user.id
 router.get("/sprint/:sprintId/me", analyticsController.getStudentSprintSummary);
+router.get("/sprints/me", analyticsController.getStudentAttemptedSprints);
 
 // ── Mixed-role routes (route-level authorize) ─────────────────────────────────
 

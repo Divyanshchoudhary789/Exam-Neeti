@@ -22,6 +22,7 @@ const patternSlotSchema = Joi.object({
 const createSprintSchema = Joi.object({
   name: Joi.string().trim().min(2).max(150).required(),
   description: Joi.string().trim().allow("").default(""),
+  status: Joi.string().valid(...Object.values(SPRINT_STATUS)).default(SPRINT_STATUS.DRAFT),
   totalQuestions: Joi.number().integer().min(1).required(),
   patternSlots: Joi.array().items(patternSlotSchema).min(1).required(),
   startDate: Joi.date().allow(null).default(null),

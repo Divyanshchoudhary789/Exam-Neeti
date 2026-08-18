@@ -5,10 +5,12 @@ const AnalyticsResult = require("../models/AnalyticsResult.model");
 const StudentProbability = require("../models/StudentProbability.model");
 const SyllabusProgress = require("../models/SyllabusProgress.model");
 const Report = require("../models/Report.model");
+const NotificationLog = require("../models/NotificationLog.model");
 const AdminAuditLog = require("../models/AdminAuditLog.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
+const { sendPaginated } = require("../utils/response");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 const { ROLES, ADMIN_ACTIONS } = require("../config/constants");
 
@@ -46,12 +48,11 @@ exports.listBatches = asyncHandler(async (req, res, next) => {
     Batch.countDocuments(filter),
   ]);
 
-  return res.status(200).json({
-    success: true,
-    message: "Batches fetched successfully.",
-    data: { batches },
-    pagination: buildPaginationMeta(total, page, limit),
-  });
+  return sendPaginated(
+    res, 200, "Batches fetched successfully.",
+    { batches },
+    buildPaginationMeta(total, page, limit)
+  );
 });
 
 exports.getBatch = asyncHandler(async (req, res, next) => {
@@ -199,6 +200,7 @@ exports.deleteBatch = asyncHandler(async (req, res, next) => {
       StudentProbability.deleteMany({ student: { $in: studentIds } }),
       SyllabusProgress.deleteMany({ student: { $in: studentIds } }),
       Report.deleteMany({ owner: { $in: studentIds } }),
+      NotificationLog.deleteMany({ recipient: { $in: studentIds } }),
     ]);
   }
 

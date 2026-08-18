@@ -11,6 +11,7 @@
  */
 
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const User = require("../models/User.model");
 const AdminAuditLog = require("../models/AdminAuditLog.model");
 const Batch = require("../models/Batch.model");
@@ -19,6 +20,7 @@ const Attempt = require("../models/Attempt.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
+const { sendPaginated } = require("../utils/response");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 const { sendEmail, templates } = require("../services/email.service");
 const { NOTIFICATION_TRIGGER, ROLES, ATTEMPT_STATUS, ADMIN_ACTIONS } = require("../config/constants");
@@ -420,18 +422,39 @@ exports.getAuditLogs = asyncHandler(async (req, res) => {
 
   const filter = {};
 
-  if (adminId) {
-    // Show logs where this admin was the actor OR the target
-    filter.$or = [{ actor: adminId }, { target: adminId }];
+  if (adminId && adminId.trim()) {
+    const cleanSearch = adminId.trim();
+    if (mongoose.Types.ObjectId.isValid(cleanSearch)) {
+      filter.$or = [{ actor: cleanSearch }, { target: cleanSearch }];
+    } else {
+      const regex = new RegExp(escapeRegex(cleanSearch), "i");
+      const matchingUsers = await User.find({
+        $or: [{ name: regex }, { email: regex }],
+      })
+        .select("_id")
+        .lean();
+
+      const userIds = matchingUsers.map((u) => u._id);
+      filter.$or = [
+        { actor: { $in: userIds } },
+        { target: { $in: userIds } },
+        { targetEmail: regex },
+      ];
+    }
   }
 
-  if (action) filter.action = action;
+  if (action && action.trim()) {
+    filter.action = new RegExp(escapeRegex(action.trim()), "i");
+  }
 
   if (startDate || endDate) {
     filter.createdAt = {};
-    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
+    }
     if (endDate) {
-      // Include the full end day
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
       filter.createdAt.$lte = end;

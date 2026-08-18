@@ -2,7 +2,7 @@ const StudentProbability = require("../models/StudentProbability.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
-const { setQuestionnaireLevel, getProbabilityMap } = require("../services/probability.service");
+const { setQuestionnaireLevel, getProbabilityMap, formatDocWithReadiness } = require("../services/probability.service");
 
 // Student: Submit questionnaire for initial probability
 exports.submitQuestionnaire = asyncHandler(async (req, res, next) => {
@@ -34,7 +34,7 @@ exports.getMyProbability = asyncHandler(async (req, res, next) => {
     });
   }
 
-  return sendSuccess(res, 200, "Probability data fetched.", { probability: doc });
+  return sendSuccess(res, 200, "Probability data fetched.", { probability: formatDocWithReadiness(doc) });
 });
 
 // Admin: Get student probability
@@ -52,5 +52,5 @@ exports.getStudentProbability = asyncHandler(async (req, res, next) => {
     return next(new AppError("No probability data found for this student.", 404));
   }
 
-  return sendSuccess(res, 200, "Student probability fetched.", { probability: doc });
+  return sendSuccess(res, 200, "Student probability fetched.", { probability: formatDocWithReadiness(doc) });
 });

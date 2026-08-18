@@ -8,7 +8,9 @@ const { sendSuccess } = require("../utils/response");
 const { computeAnalytics, computeCompleteAnalytics } = require("../services/analytics.service");
 const { computeAdvancedAnalytics } = require("../services/advancedAnalytics.service");
 const { getCoverageMetrics } = require("../services/coverage.service");
-const { ROLES, ATTEMPT_STATUS } = require("../config/constants");
+const { ROLES, ATTEMPT_STATUS, SPRINT_STATUS } = require("../config/constants");
+const Sprint = require("../models/Sprint.model");
+const mongoose = require("mongoose");
 
 // ─── Get analytics for a specific attempt ────────────────────────────────────
 
@@ -286,3 +288,91 @@ exports.listFormulaConfigs = asyncHandler(async (req, res, next) => {
 
   return sendSuccess(res, 200, "Formula configs fetched.", { configs });
 });
+
+// ─── Get all sprints attempted by student (plus active sprint) ────────────────
+
+exports.getStudentAttemptedSprints = asyncHandler(async (req, res, next) => {
+  const studentId = req.user.id;
+
+  // 1. Group attempts by sprint for this student to get attempt counts & latest attempt timestamp
+  const attemptStats = await Attempt.aggregate([
+    {
+      $match: {
+        student: new mongoose.Types.ObjectId(studentId),
+        status: ATTEMPT_STATUS.SUBMITTED,
+      },
+    },
+    {
+      $group: {
+        _id: "$sprint",
+        attemptCount: { $sum: 1 },
+        lastAttemptedAt: { $max: "$submittedAt" },
+      },
+    },
+  ]);
+
+  const sprintStatMap = new Map();
+  const attemptedSprintIds = [];
+
+  attemptStats.forEach((stat) => {
+    if (stat._id) {
+      const idStr = stat._id.toString();
+      sprintStatMap.set(idStr, {
+        attemptCount: stat.attemptCount,
+        lastAttemptedAt: stat.lastAttemptedAt,
+      });
+      attemptedSprintIds.push(stat._id);
+    }
+  });
+
+  // 2. Fetch Sprint docs for attempted sprints + active sprint
+  const activeSprint = await Sprint.findOne({ status: SPRINT_STATUS.ACTIVE })
+    .select("-patternSlots -createdBy")
+    .lean();
+
+  const queryIds = [...attemptedSprintIds];
+  if (activeSprint && !sprintStatMap.has(activeSprint._id.toString())) {
+    queryIds.push(activeSprint._id);
+  }
+
+  const sprints = await Sprint.find({ _id: { $in: queryIds } })
+    .select("-patternSlots -createdBy")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // 3. Format response with attempt metadata and active status flag
+  const formattedSprints = sprints.map((sp) => {
+    const spIdStr = sp._id.toString();
+    const stat = sprintStatMap.get(spIdStr);
+    const isActive = Boolean(activeSprint && activeSprint._id.toString() === spIdStr);
+
+    return {
+      _id: sp._id,
+      id: sp._id,
+      name: sp.name,
+      description: sp.description,
+      status: sp.status,
+      totalQuestions: sp.totalQuestions,
+      startDate: sp.startDate,
+      endDate: sp.endDate,
+      attemptCount: stat ? stat.attemptCount : 0,
+      lastAttemptedAt: stat ? stat.lastAttemptedAt : null,
+      isActive,
+    };
+  });
+
+  // Sort: Active first, then by lastAttemptedAt descending, then createdAt descending
+  formattedSprints.sort((a, b) => {
+    if (a.isActive && !b.isActive) return -1;
+    if (!a.isActive && b.isActive) return 1;
+    const timeA = a.lastAttemptedAt ? new Date(a.lastAttemptedAt).getTime() : 0;
+    const timeB = b.lastAttemptedAt ? new Date(b.lastAttemptedAt).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  return sendSuccess(res, 200, "Student attempted sprints fetched.", {
+    sprints: formattedSprints,
+    activeSprintId: activeSprint ? activeSprint._id : null,
+  });
+});
+

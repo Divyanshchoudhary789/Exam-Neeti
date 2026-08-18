@@ -27,6 +27,10 @@ router.get("/my-attempts", examController.getMyAttempts);
 // Student: get single attempt detail (controller scopes to req.user.id for students)
 router.get("/attempts/:attemptId", examController.getAttemptDetail);
 
+// Student: get attempt detail WITH full question text/options from Question Bank
+// Used by the analytics Solutions tab to show question content after submission
+router.get("/attempts/:attemptId/with-questions", examController.getAttemptWithQuestions);
+
 // Student: submit an in-progress attempt (controller verifies attempt.student === req.user.id)
 router.post(
   "/attempts/:attemptId/submit",

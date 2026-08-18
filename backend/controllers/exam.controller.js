@@ -5,7 +5,8 @@ const Batch = require("../models/Batch.model");
 const User = require("../models/User.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
-const { sendSuccess } = require("../utils/response");
+// Add sendPaginated import
+const { sendSuccess, sendPaginated } = require("../utils/response");
 const { reconstructExamQuestions } = require("../services/questionReconstruction.service");
 const { sendEmail, templates } = require("../services/email.service");
 const {
@@ -74,7 +75,9 @@ const hydrateQuestions = (examQuestions, questionBankData, stripAnswer = false) 
 // ─── Admin: Generate (create) a new exam for a batch ─────────────────────────
 
 exports.generateExam = asyncHandler(async (req, res, next) => {
-  const { sprintId, batchId, title, durationMinutes, scheduledAt, instructions } = req.body;
+  const sprintId = req.body.sprintId || req.body.sprint;
+  const batchId = req.body.batchId || req.body.batch;
+  const { title, durationMinutes, scheduledAt, instructions } = req.body;
 
   const [sprint, batch] = await Promise.all([
     Sprint.findById(sprintId),
@@ -197,12 +200,11 @@ exports.listExams = asyncHandler(async (req, res, next) => {
     Exam.countDocuments(filter),
   ]);
 
-  return res.status(200).json({
-    success: true,
-    message: "Exams fetched.",
-    data: { exams },
-    pagination: buildPaginationMeta(total, page, limit),
-  });
+  return sendPaginated(
+    res, 200, "Exams fetched.",
+    { exams },
+    buildPaginationMeta(total, page, limit)
+  );
 });
 
 // ─── Get exam details ─────────────────────────────────────────────────────────
@@ -341,9 +343,21 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
         return next(new AppError("You have already submitted this exam.", 409));
       }
       if (concurrent) {
+        // Hydrate questions for the resumed attempt
+        const QuestionModelRace = req.app.get("QuestionModel");
+        let raceQuestions = exam.questions;
+        if (QuestionModelRace && raceQuestions.length > 0) {
+          const qIds = raceQuestions.map((q) => q.questionId);
+          const qDocs = await QuestionModelRace.find({ _id: { $in: qIds } })
+            .select("text hasLatex questionImage options idealTimeSeconds")
+            .lean();
+          raceQuestions = hydrateQuestions(raceQuestions, qDocs, true);
+        } else {
+          raceQuestions = stripAnswers(raceQuestions);
+        }
         return sendSuccess(res, 200, "Resuming existing attempt.", {
           attempt: concurrent,
-          exam:    { ...exam, questions: examQuestions },
+          exam:    { ...exam, questions: raceQuestions },
         });
       }
     }
@@ -649,7 +663,7 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
     student: req.user.id,
     exam:    { $in: examIds },
   })
-    .select("exam status score percentage submittedAt startedAt")
+    .select("exam status score totalMarks percentage submittedAt startedAt")
     .lean();
 
   // Build a map for O(1) lookup per exam
@@ -667,6 +681,7 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
             _id:          attempt._id,
             status:       attempt.status,
             score:        attempt.score        ?? null,
+            totalMarks:   attempt.totalMarks   ?? exam.totalMarks ?? null,
             percentage:   attempt.percentage   ?? null,
             submittedAt:  attempt.submittedAt  ?? null,
             startedAt:    attempt.startedAt    ?? null,
@@ -729,6 +744,101 @@ exports.getAttemptDetail = asyncHandler(async (req, res, next) => {
   if (!attempt) return next(new AppError("Attempt not found.", 404));
 
   return sendSuccess(res, 200, "Attempt detail fetched.", { attempt });
+});
+
+// ─── Student: Get attempt detail WITH hydrated question content ───────────────
+// This endpoint enriches each response with full question text, options, and
+// solution from the Question Bank DB — needed for the analytics Solutions tab.
+// correctAnswer is included post-submission so students can review answers.
+
+exports.getAttemptWithQuestions = asyncHandler(async (req, res, next) => {
+  const query =
+    req.user.role === ROLES.STUDENT
+      ? { _id: req.params.attemptId, student: req.user.id }
+      : { _id: req.params.attemptId };
+
+  const attempt = await Attempt.findOne(query)
+    .populate("exam", "title examNumber durationMinutes totalMarks")
+    .populate("sprint", "name")
+    .lean();
+
+  if (!attempt) return next(new AppError("Attempt not found.", 404));
+
+  // Only enrich submitted attempts — in-progress attempts must not expose answers
+  if (attempt.status !== ATTEMPT_STATUS.SUBMITTED) {
+    return next(new AppError("Question details are only available after submission.", 403));
+  }
+
+  // Get QuestionModel from the question bank connection
+  const QuestionModel = req.app.get("QuestionModel");
+
+  if (!QuestionModel || !attempt.responses || attempt.responses.length === 0) {
+    // Graceful degradation: return attempt without enrichment
+    return sendSuccess(res, 200, "Attempt detail fetched (no question bank connection).", {
+      attempt,
+    });
+  }
+
+  // Batch-fetch all questions in one DB call
+  const questionIds = attempt.responses.map((r) => r.questionId).filter(Boolean);
+
+  const questionBankDocs = await QuestionModel.find({ _id: { $in: questionIds } })
+    .select("text hasLatex questionImage options solution subject chapter topic difficulty classLevel idealTimeSeconds")
+    .lean();
+
+  // Build a lookup map: questionId (string) → full question doc
+  const qbMap = {};
+  for (const q of questionBankDocs) {
+    qbMap[q._id.toString()] = q;
+  }
+
+  // Merge question content into each response
+  const enrichedResponses = attempt.responses.map((resp) => {
+    const qId  = resp.questionId ? resp.questionId.toString() : null;
+    const qDoc = qId ? qbMap[qId] : null;
+
+    if (!qDoc) {
+      // Question not found in bank — return as-is with slot metadata only
+      return {
+        ...resp,
+        questionData: {
+          text:          "Question content unavailable",
+          options:       [],
+          subject:       resp.subject  || "",
+          chapter:       resp.chapter  || "",
+          topic:         resp.topic    || "",
+          difficulty:    resp.difficulty || "",
+          hasLatex:      false,
+          questionImage: null,
+          solution:      null,
+        },
+      };
+    }
+
+    return {
+      ...resp,
+      questionData: {
+        text:          qDoc.text          || "",
+        hasLatex:      qDoc.hasLatex      || false,
+        questionImage: qDoc.questionImage || null,
+        options:       qDoc.options       || [],
+        solution:      qDoc.solution      || null,
+        subject:       qDoc.subject       || resp.subject  || "",
+        chapter:       qDoc.chapter       || resp.chapter  || "",
+        topic:         qDoc.topic         || resp.topic    || "",
+        difficulty:    qDoc.difficulty    || resp.difficulty || "",
+        classLevel:    qDoc.classLevel    || "",
+        idealTimeSeconds: qDoc.idealTimeSeconds || null,
+      },
+    };
+  });
+
+  return sendSuccess(res, 200, "Attempt detail with questions fetched.", {
+    attempt: {
+      ...attempt,
+      responses: enrichedResponses,
+    },
+  });
 });
 
 // ─── Admin: List all attempts for an exam ────────────────────────────────────

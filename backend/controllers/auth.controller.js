@@ -68,6 +68,7 @@ exports.login = asyncHandler(async (req, res, next) => {
     },
   };
 
+  // Only expose token in body in non-production for dev convenience
   if (process.env.NODE_ENV !== "production") {
     responseData.accessToken = accessToken;
   }
@@ -133,13 +134,12 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
   // Set new cookies
   setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });
 
-  // In non-production, also return new accessToken in body for localhost dev
-  const responseData = {};
-  if (process.env.NODE_ENV !== "production") {
-    responseData.accessToken = newAccessToken;
-  }
+  // Only expose token in body in non-production (httpOnly cookie is the source of truth in prod)
+  const responseData = process.env.NODE_ENV !== "production"
+    ? { accessToken: newAccessToken }
+    : {};
 
-  return sendSuccess(res, 200, "Token refreshed.", Object.keys(responseData).length ? responseData : undefined);
+  return sendSuccess(res, 200, "Token refreshed.", responseData);
 });
 
 // ─── Logout ───────────────────────────────────────────────────────────────────

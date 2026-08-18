@@ -129,19 +129,22 @@ exports.getBatchOverview = asyncHandler(async (req, res, next) => {
 
 exports.getStudentRankings = asyncHandler(async (req, res, next) => {
   const { sprintId } = req.params;
-  const { batchId } = req.query;
+  const { batchId, limit } = req.query;
 
-  const sprintOid = toObjectId(sprintId);
-  if (!sprintOid) return next(new AppError("Invalid sprint ID.", 400));
+  const matchStage = {};
+  if (sprintId && sprintId !== "all" && sprintId !== "overall") {
+    const sprintOid = toObjectId(sprintId);
+    if (!sprintOid) return next(new AppError("Invalid sprint ID.", 400));
+    matchStage.sprint = sprintOid;
+  }
 
-  const matchStage = { sprint: sprintOid };
   if (batchId) {
     const batchOid = toObjectId(batchId);
     if (!batchOid) return next(new AppError("Invalid batch ID.", 400));
     matchStage.batch = batchOid;
   }
 
-  const rankings = await AnalyticsResult.aggregate([
+  const pipeline = [
     { $match: matchStage },
     {
       $group: {
@@ -170,7 +173,14 @@ exports.getStudentRankings = asyncHandler(async (req, res, next) => {
         avgPercentage:{ $round: ["$avgPercentage", 2] },
       },
     },
-  ]);
+  ];
+
+  const limitNum = parseInt(limit, 10);
+  if (!isNaN(limitNum) && limitNum > 0) {
+    pipeline.push({ $limit: limitNum });
+  }
+
+  const rankings = await AnalyticsResult.aggregate(pipeline);
 
   return sendSuccess(res, 200, "Student rankings fetched.", {
     rankings: rankings.map((s, idx) => ({ rank: idx + 1, ...s })),
@@ -480,9 +490,10 @@ exports.getStudentAttemptStatus = asyncHandler(async (req, res, next) => {
 exports.getStudentAttemptHistory = asyncHandler(async (req, res, next) => {
   const { sprintId, studentId } = req.params;
 
-  const sprintOid  = toObjectId(sprintId);
+  const isAllSprints = !sprintId || sprintId === "all" || sprintId === "overall";
+  const sprintOid  = isAllSprints ? null : toObjectId(sprintId);
   const studentOid = toObjectId(studentId);
-  if (!sprintOid)  return next(new AppError("Invalid sprint ID.", 400));
+  if (!isAllSprints && !sprintOid) return next(new AppError("Invalid sprint ID.", 400));
   if (!studentOid) return next(new AppError("Invalid student ID.", 400));
 
   const student = await User.findOne({ _id: studentOid, role: ROLES.STUDENT })
@@ -492,13 +503,21 @@ exports.getStudentAttemptHistory = asyncHandler(async (req, res, next) => {
 
   if (!student) return next(new AppError("Student not found.", 404));
 
+  const attemptQuery = { student: studentOid, status: ATTEMPT_STATUS.SUBMITTED };
+  const analyticsQuery = { student: studentOid };
+  if (sprintOid) {
+    attemptQuery.sprint = sprintOid;
+    analyticsQuery.sprint = sprintOid;
+  }
+
   const [attempts, analytics] = await Promise.all([
-    Attempt.find({ student: studentOid, sprint: sprintOid, status: ATTEMPT_STATUS.SUBMITTED })
+    Attempt.find(attemptQuery)
       .populate("exam", "title examNumber totalMarks durationMinutes")
+      .populate("sprint", "name sprintNumber")
       .select("-responses")               // responses too heavy for list view
       .sort({ submittedAt: 1 })
       .lean(),
-    AnalyticsResult.find({ student: studentOid, sprint: sprintOid })
+    AnalyticsResult.find(analyticsQuery)
       .select("attempt score percentage overallAccuracy overallAttemptRate totalNegativeMarks recoverableMarks computedAt")
       .lean(),
   ]);

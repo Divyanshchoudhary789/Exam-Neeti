@@ -4,14 +4,16 @@ const createStudentSchema = Joi.object({
   name:     Joi.string().trim().min(2).max(100).required(),
   email:    Joi.string().email().lowercase().trim().required(),
   phone:    Joi.string().trim().allow(null, "").default(null),
-  batchId:  Joi.string().hex().length(24).required(),
+  batchId:  Joi.string().hex().length(24),
+  batch:    Joi.string().hex().length(24),
   password: Joi.string().min(8).max(72).allow(null, "").default(null),
-});
+}).or("batchId", "batch");
 
 const updateStudentSchema = Joi.object({
   name:     Joi.string().trim().min(2).max(100),
   phone:    Joi.string().trim().allow(null, ""),
   batch:    Joi.string().hex().length(24),
+  batchId:  Joi.string().hex().length(24),
   isActive: Joi.boolean(),
 }).min(1);
 

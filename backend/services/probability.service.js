@@ -30,52 +30,92 @@ const deriveProbabilities = (pEasy) => {
   };
 };
 
+const TOTAL_SYLLABUS_CHAPTERS = 86;
+
 /**
- * Initialise or update probability from questionnaire
+ * Formats probability doc to ensure readinessIndex is included
+ */
+const formatDocWithReadiness = (doc) => {
+  if (!doc) return null;
+  const plainDoc = typeof doc.toObject === "function" ? doc.toObject({ virtuals: true }) : { ...doc };
+  const chapters = plainDoc.chapters || [];
+  const assessedCount = chapters.length;
+  const sum = chapters.reduce((acc, c) => acc + (c.pEasy || 0), 0);
+
+  plainDoc.assessedCount = assessedCount;
+  plainDoc.totalSyllabusChapters = TOTAL_SYLLABUS_CHAPTERS;
+  plainDoc.assessedAverage = assessedCount > 0 ? Math.round((sum / assessedCount) * 100) : 0;
+  plainDoc.readinessIndex = Math.round((sum / TOTAL_SYLLABUS_CHAPTERS) * 100);
+
+  return plainDoc;
+};
+
+/**
+ * Initialise or update probability from questionnaire (merging chapter ratings)
  */
 const setQuestionnaireLevel = async (studentId, sprintId, chapterData) => {
   const QUESTIONNAIRE_PROBABILITY = StudentProbability.QUESTIONNAIRE_PROBABILITY;
-  const updated = chapterData.map(({ subject, chapter, level }) => {
+
+  let doc = await StudentProbability.findOne({ student: studentId, sprint: sprintId });
+  if (!doc) {
+    doc = new StudentProbability({
+      student: studentId,
+      sprint: sprintId,
+      chapters: [],
+    });
+  }
+
+  chapterData.forEach(({ subject, chapter, level }) => {
     const pEasy = QUESTIONNAIRE_PROBABILITY[level] || 0.55;
-    return {
-      subject,
-      chapter,
-      source: "questionnaire",
-      questionnaireLevel: level,
-      ...deriveProbabilities(pEasy),
-      updatedAt: new Date(),
-    };
+    const derived = deriveProbabilities(pEasy);
+    const existing = doc.chapters.find(
+      (c) => c.subject.toLowerCase() === subject.toLowerCase() && c.chapter.toLowerCase() === chapter.toLowerCase()
+    );
+
+    if (existing) {
+      existing.questionnaireLevel = level;
+      if (existing.source !== "objective") {
+        existing.source = "questionnaire";
+        Object.assign(existing, derived);
+      }
+      existing.updatedAt = new Date();
+    } else {
+      doc.chapters.push({
+        subject,
+        chapter,
+        source: "questionnaire",
+        questionnaireLevel: level,
+        ...derived,
+        updatedAt: new Date(),
+      });
+    }
   });
 
-  const doc = await StudentProbability.findOneAndUpdate(
-    { student: studentId, sprint: sprintId },
-    {
-      $set: {
-        student: studentId,
-        sprint: sprintId,
-        chapters: updated,
-      },
-    },
-    { upsert: true, new: true, runValidators: true }
-  );
-
-  return doc;
+  await doc.save();
+  return formatDocWithReadiness(doc);
 };
 
 /**
  * Update probability with objective data from an attempt
  */
 const updateObjectiveProbability = async (studentId, sprintId, attemptId, responses) => {
-  const doc = await StudentProbability.findOne({
+  let doc = await StudentProbability.findOne({
     student: studentId,
     sprint: sprintId,
   });
 
-  if (!doc) return null;
+  if (!doc) {
+    doc = new StudentProbability({
+      student: studentId,
+      sprint: sprintId,
+      chapters: [],
+    });
+  }
 
   // Group responses by chapter
   const chapterMap = {};
   responses.forEach((r) => {
+    if (!r.subject || !r.chapter) return;
     const key = `${r.subject}__${r.chapter}`;
     if (!chapterMap[key]) {
       chapterMap[key] = { subject: r.subject, chapter: r.chapter, correct: 0, total: 0 };
@@ -90,7 +130,7 @@ const updateObjectiveProbability = async (studentId, sprintId, attemptId, respon
     if (total === 0) continue;
 
     const existing = doc.chapters.find(
-      (c) => c.subject === subject && c.chapter === chapter
+      (c) => c.subject.toLowerCase() === subject.toLowerCase() && c.chapter.toLowerCase() === chapter.toLowerCase()
     );
 
     if (existing) {
@@ -120,7 +160,7 @@ const updateObjectiveProbability = async (studentId, sprintId, attemptId, respon
   }
 
   await doc.save();
-  return doc;
+  return formatDocWithReadiness(doc);
 };
 
 /**
@@ -148,4 +188,5 @@ module.exports = {
   updateObjectiveProbability,
   getProbabilityMap,
   deriveProbabilities,
+  formatDocWithReadiness,
 };

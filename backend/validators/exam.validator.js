@@ -2,13 +2,15 @@ const Joi = require("joi");
 const { EXAM_STATUS } = require("../config/constants");
 
 const createExamSchema = Joi.object({
-  sprintId:        Joi.string().hex().length(24).required(),
-  batchId:         Joi.string().hex().length(24).required(),
+  sprintId:        Joi.string().hex().length(24).optional(),
+  sprint:          Joi.string().hex().length(24).optional(),
+  batchId:         Joi.string().hex().length(24).optional(),
+  batch:           Joi.string().hex().length(24).optional(),
   title:           Joi.string().trim().allow("").default(""),
   durationMinutes: Joi.number().integer().min(1).required(),
-  scheduledAt:     Joi.date().allow(null).default(null),
+  scheduledAt:     Joi.date().allow(null, "").default(null),
   instructions:    Joi.string().trim().allow("").default(""),
-});
+}).or("sprintId", "sprint").or("batchId", "batch");
 
 const updateExamSchema = Joi.object({
   title:           Joi.string().trim().allow(""),

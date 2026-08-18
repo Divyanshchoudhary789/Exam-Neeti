@@ -267,21 +267,26 @@ exports.listQuestions = asyncHandler(async (req, res) => {
   const q                     = req.query;
 
   const filter = {};
-  if (q.subject)          filter.subject          = q.subject;
-  if (q.classLevel)       filter.classLevel       = q.classLevel;
-  if (q.difficulty)       filter.difficulty       = q.difficulty;
-  if (q.questionCategory) filter.questionCategory = new RegExp(q.questionCategory.trim(), "i");
-  if (q.questionVariant)  filter.questionVariant  = new RegExp(q.questionVariant.trim(),  "i");
-  if (q.sourceRef)        filter.sourceRef        = new RegExp(q.sourceRef.trim(),        "i");
-  if (q.chapter)          filter.chapter          = new RegExp(q.chapter.trim(),          "i");
-  if (q.topic)            filter.topic            = new RegExp(q.topic.trim(),            "i");
+  if (q.subject)          filter.subject          = new RegExp("^" + q.subject.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i");
+  if (q.classLevel)       filter.classLevel       = new RegExp("^" + q.classLevel.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i");
+  if (q.difficulty)       filter.difficulty       = new RegExp("^" + q.difficulty.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i");
+  if (q.questionCategory) filter.questionCategory = new RegExp(q.questionCategory.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  if (q.questionVariant)  filter.questionVariant  = new RegExp(q.questionVariant.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),  "i");
+  if (q.sourceRef)        filter.sourceRef        = new RegExp(q.sourceRef.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),        "i");
+  if (q.chapter)          filter.chapter          = new RegExp(q.chapter.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),          "i");
+  if (q.topic)            filter.topic            = new RegExp(q.topic.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),            "i");
 
   if (q.isActive !== undefined) filter.isActive = q.isActive === "true" || q.isActive === true;
   if (q.hasLatex !== undefined) filter.hasLatex = q.hasLatex === "true" || q.hasLatex === true;
 
-  if (q.search) {
-    const escaped   = q.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    filter.text     = new RegExp(escaped, "i");
+  if (q.search && q.search.trim()) {
+    const escaped = q.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = new RegExp(escaped, "i");
+    filter.$or = [
+      { text: rx },
+      { chapter: rx },
+      { topic: rx },
+    ];
   }
 
   const sortField = q.sortBy    || "createdAt";

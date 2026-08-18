@@ -81,8 +81,28 @@ const studentProbabilitySchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+const TOTAL_SYLLABUS_CHAPTERS = 86;
+
+studentProbabilitySchema.virtual("readinessIndex").get(function () {
+  if (!this.chapters || this.chapters.length === 0) return 0;
+  const sum = this.chapters.reduce((acc, c) => acc + (c.pEasy || 0), 0);
+  return Math.round((sum / TOTAL_SYLLABUS_CHAPTERS) * 100);
+});
+
+studentProbabilitySchema.virtual("assessedCount").get(function () {
+  return this.chapters ? this.chapters.length : 0;
+});
+
+studentProbabilitySchema.virtual("assessedAverage").get(function () {
+  if (!this.chapters || this.chapters.length === 0) return 0;
+  const sum = this.chapters.reduce((acc, c) => acc + (c.pEasy || 0), 0);
+  return Math.round((sum / this.chapters.length) * 100);
+});
 
 studentProbabilitySchema.index({ student: 1, sprint: 1 }, { unique: true });
 

@@ -2,6 +2,7 @@ const Sprint = require("../models/Sprint.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
+const { sendPaginated } = require("../utils/response");
 const { getSlotPoolStats } = require("../services/questionReconstruction.service");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 const { SPRINT_STATUS, ROLES } = require("../config/constants");
@@ -17,6 +18,7 @@ exports.createSprint = asyncHandler(async (req, res, next) => {
   const {
     name,
     description,
+    status,
     totalQuestions,
     patternSlots,
     startDate,
@@ -36,6 +38,7 @@ exports.createSprint = asyncHandler(async (req, res, next) => {
   const sprint = await Sprint.create({
     name,
     description,
+    status: status || SPRINT_STATUS.DRAFT,
     totalQuestions,
     patternSlots,
     startDate,
@@ -66,12 +69,11 @@ exports.listSprints = asyncHandler(async (req, res, next) => {
     Sprint.countDocuments(filter),
   ]);
 
-  return res.status(200).json({
-    success: true,
-    message: "Sprints fetched.",
-    data: { sprints },
-    pagination: buildPaginationMeta(total, page, limit),
-  });
+  return sendPaginated(
+    res, 200, "Sprints fetched.",
+    { sprints },
+    buildPaginationMeta(total, page, limit)
+  );
 });
 
 // ─── Get Single Sprint ────────────────────────────────────────────────────────
