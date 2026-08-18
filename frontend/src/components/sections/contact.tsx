@@ -25,8 +25,8 @@ export function Contact() {
   };
 
   return (
-    <section id="footer" className="relative bg-slate-50 border-t border-slate-200 py-20 px-4 sm:px-6 lg:px-8 text-left text-slate-600 w-full">
-      <div className="absolute right-[-10%] bottom-0 w-[400px] h-[400px] bg-indigo-500/[0.01] rounded-full blur-[100px] pointer-events-none" />
+    <section id="footer" className="relative bg-slate-50 border-t border-slate-200 py-20 px-4 sm:px-6 lg:px-8 text-left text-slate-600 w-full max-w-full overflow-hidden">
+      <div className="absolute right-0 bottom-0 w-[350px] h-[350px] bg-indigo-500/[0.01] rounded-full blur-[100px] pointer-events-none translate-x-1/4" />
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
           

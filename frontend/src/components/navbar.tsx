@@ -55,7 +55,7 @@ export function Navbar({ onOpenAuth, currentView = "home", onViewChange }: Navba
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md transition-all duration-300 shadow-sm">
+    <header className="sticky top-0 z-40 w-full max-w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md transition-all duration-300 shadow-sm overflow-hidden">
       <div className="mx-auto flex w-full items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         
         {/* Left Side: Logo & Website Name */}

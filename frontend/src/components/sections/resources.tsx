@@ -31,7 +31,7 @@ export function Resources({ onOpenAuth }: ResourcesProps) {
   ];
 
   return (
-    <section id="resources" className="relative bg-white text-slate-800 w-full">
+    <section id="resources" className="relative bg-white text-slate-800 w-full max-w-full overflow-hidden">
       <div className="relative bg-white py-10 px-4 sm:px-6 lg:px-8 border-t border-slate-200" id="resources-hero">
         <div className="mx-auto max-w-7xl">
           <div className="bg-slate-50 border border-slate-200 rounded-[2rem] md:rounded-[2.5rem] p-8 sm:p-12 lg:p-14 shadow-sm max-w-6xl mx-auto min-h-[500px] flex items-center">

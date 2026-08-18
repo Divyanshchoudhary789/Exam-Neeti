@@ -122,7 +122,8 @@ export function Telemetry() {
   const areaData = `${pathData} L ${points[points.length - 1].x} ${chartHeight - paddingYBottom} L ${points[0].x} ${chartHeight - paddingYBottom} Z`;
 
   return (
-    <section id="telemetry" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 text-slate-800 w-full text-left bg-white">
+    <section id="telemetry" className="w-full overflow-hidden bg-white text-slate-800 text-left">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
         
         {/* Core Analytics Card */}
@@ -361,6 +362,7 @@ export function Telemetry() {
           </div>
         </div>
 
+        </div>
       </div>
 
       {/* Engine Formulas Modal */}

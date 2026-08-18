@@ -33,31 +33,33 @@ export function Stats() {
   ];
 
   return (
-    <div className="relative z-10 -mt-12 sm:-mt-16 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-12 w-full text-left bg-white">
-      <div className="rounded-[2.5rem] border border-slate-200 bg-slate-50 p-8 sm:p-10 shadow-lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:divide-x lg:divide-slate-200">
-          {stats.map((s, idx) => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.id}
-                className={`flex items-center gap-4 ${idx > 0 ? "lg:pl-8" : ""} group transition-all duration-300`}
-                id={`stat-${s.id}`}
-              >
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${s.bgColorClass} ${s.colorClass} transition-all duration-300 group-hover:scale-105`}>
-                  <Icon />
+    <div className="relative z-10 -mt-12 sm:-mt-16 w-full max-w-full overflow-hidden bg-white px-4 sm:px-6 lg:px-8 pb-12 text-left">
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-[2.5rem] border border-slate-200 bg-slate-50 p-8 sm:p-10 shadow-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:divide-x lg:divide-slate-200">
+            {stats.map((s, idx) => {
+              const Icon = s.icon;
+              return (
+                <div
+                  key={s.id}
+                  className={`flex items-center gap-4 ${idx > 0 ? "lg:pl-8" : ""} group transition-all duration-300`}
+                  id={`stat-${s.id}`}
+                >
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${s.bgColorClass} ${s.colorClass} transition-all duration-300 group-hover:scale-105`}>
+                    <Icon />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-none">
+                      {s.value}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 mt-1.5 leading-tight">
+                      {s.label}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col text-left">
-                  <span className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-none">
-                    {s.value}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500 mt-1.5 leading-tight">
-                    {s.label}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

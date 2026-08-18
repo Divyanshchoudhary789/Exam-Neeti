@@ -18,7 +18,7 @@ export function Testimonials() {
   ];
 
   return (
-    <section id="testimonials" className="bg-white pt-12 pb-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200 w-full text-center">
+    <section id="testimonials" className="bg-white pt-12 pb-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200 w-full max-w-full overflow-hidden text-center">
       <div className="mx-auto max-w-7xl">
         <h2 className="font-display text-3xl sm:text-4xl lg:text-[40px] font-extrabold tracking-tight text-slate-900 mb-10">
           Real <span className="text-indigo-600">Aspirants.</span> Real Results.

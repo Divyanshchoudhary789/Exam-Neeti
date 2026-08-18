@@ -20,7 +20,7 @@ export default function Home() {
   const [authModal, setAuthModal] = useState<"login" | "join" | null>(null);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans select-none antialiased">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans select-none antialiased overflow-x-hidden w-full max-w-full">
       {/* Navigation */}
       <Navbar
         onOpenAuth={setAuthModal}

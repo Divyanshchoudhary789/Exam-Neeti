@@ -146,9 +146,9 @@ export function Diagnostics({ onOpenAuth }: DiagnosticsProps) {
   ];
 
   return (
-    <section id="diagnostics" className="relative bg-white py-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200/60 overflow-hidden w-full">
-      <div className="absolute right-[-10%] top-0 w-[450px] h-[450px] bg-indigo-500/[0.01] rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute left-[-5%] bottom-0 w-[350px] h-[350px] bg-blue-500/[0.01] rounded-full blur-[100px] pointer-events-none" />
+    <section id="diagnostics" className="relative bg-white py-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200/60 overflow-hidden w-full max-w-full">
+      <div className="absolute right-0 top-0 w-[400px] h-[400px] bg-indigo-500/[0.01] rounded-full blur-[120px] pointer-events-none translate-x-1/4" />
+      <div className="absolute left-0 bottom-0 w-[300px] h-[300px] bg-blue-500/[0.01] rounded-full blur-[100px] pointer-events-none -translate-x-1/4" />
       
       <div className="relative mx-auto max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">

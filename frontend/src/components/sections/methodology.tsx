@@ -5,7 +5,7 @@ import { Telemetry } from "./telemetry";
 
 export function Methodology() {
   return (
-    <div id="methodology" className="w-full bg-slate-950">
+    <div id="methodology" className="w-full max-w-full bg-slate-950 overflow-hidden">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-16 pb-2 text-center">
         <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">
           OUR METHODOLOGY

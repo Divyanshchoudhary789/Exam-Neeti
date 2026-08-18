@@ -25,7 +25,7 @@ export function Footer() {
   };
 
   return (
-    <footer id="footer" className="bg-slate-950 border-t border-slate-900 py-16 px-4 sm:px-6 lg:px-8 text-left text-slate-400">
+    <footer id="footer" className="bg-slate-950 border-t border-slate-900 py-16 px-4 sm:px-6 lg:px-8 text-left text-slate-400 w-full max-w-full overflow-hidden">
       <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
         
         <div className="lg:col-span-4 space-y-6">

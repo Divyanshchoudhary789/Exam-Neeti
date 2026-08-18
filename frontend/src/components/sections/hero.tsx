@@ -71,11 +71,11 @@ export function Hero({ onOpenAuth }: HeroProps) {
   return (
     <section
       id="home"
-      className="relative text-slate-900 overflow-hidden border-b border-white/[0.04] h-[545px] sm:h-[585px] lg:h-[625px] flex flex-col justify-stretch pt-[75.6px] transition-colors duration-500 w-full"
+      className="relative text-slate-900 overflow-hidden border-b border-white/[0.04] h-[545px] sm:h-[585px] lg:h-[625px] flex flex-col justify-stretch pt-[75.6px] transition-colors duration-500 w-full max-w-full"
       style={{ marginTop: "-75.6px", backgroundColor: slides[activeSlide].bg }}
     >
-      <div className="absolute right-[-15%] top-1/2 -translate-y-1/2 w-[600px] lg:w-[800px] h-[600px] lg:h-[800px] bg-indigo-50/70 rounded-full blur-[140px] pointer-events-none z-0" />
-      <div className="absolute left-[-10%] top-[-10%] w-[400px] h-[400px] bg-blue-50/40 rounded-full blur-[100px] pointer-events-none z-0" />
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] lg:w-[700px] h-[500px] lg:h-[700px] bg-indigo-50/70 rounded-full blur-[140px] pointer-events-none z-0 translate-x-1/4" />
+      <div className="absolute left-0 top-0 w-[350px] h-[350px] bg-blue-50/40 rounded-full blur-[100px] pointer-events-none z-0 -translate-x-1/4 -translate-y-1/4" />
 
       {slides.map((s, idx) => (
         s.bgImage ? (

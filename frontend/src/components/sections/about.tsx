@@ -2,8 +2,8 @@
 
 export function About() {
   return (
-    <section id="about" className="relative bg-white py-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200/60 overflow-hidden w-full text-left">
-      <div className="absolute left-[-10%] top-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/[0.02] rounded-full blur-[130px] pointer-events-none" />
+    <section id="about" className="relative bg-white py-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200/60 overflow-hidden w-full max-w-full text-left">
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/3 w-[500px] h-[500px] bg-indigo-500/[0.02] rounded-full blur-[130px] pointer-events-none" />
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
           
