@@ -42,17 +42,21 @@ exports.createStudent = asyncHandler(async (req, res, next) => {
     batch: targetBatchId,
   });
 
-  await sendEmail({
-    to: student.email,
-    subject: "Welcome to Exam Neeti — Your Account is Ready",
-    html: templates.accountCreated({
-      name: student.name,
-      email: student.email,
-      password: plainPassword,
-    }),
-    trigger: NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
-    recipientId: student._id,
-    contextRef: student._id,
+  // FIX: was `await`ed on the request path — an SMTP hiccup would hold the
+  // "create student" request open. Fire-and-forget, matching bulkImportStudents.
+  setImmediate(() => {
+    sendEmail({
+      to: student.email,
+      subject: "Welcome to Exam Neeti — Your Account is Ready",
+      html: templates.accountCreated({
+        name: student.name,
+        email: student.email,
+        password: plainPassword,
+      }),
+      trigger: NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
+      recipientId: student._id,
+      contextRef: student._id,
+    }).catch((err) => console.error("[User] Welcome email failed:", err.message));
   });
 
   const response = {

@@ -152,20 +152,23 @@ exports.createAdmin = asyncHandler(async (req, res, next) => {
     isActive: true,
   });
 
-  // Send welcome/invite email — non-blocking
-  await sendEmail({
-    to:          admin.email,
-    subject:     "You have been added to Exam Neeti Admin Team",
-    html:        templates.adminInvited({
-      name,
-      email,
-      password:   plainPassword,
-      role:       admin.role,
-      invitedBy:  req.user.email,
-    }),
-    trigger:     NOTIFICATION_TRIGGER.ADMIN_INVITED,
-    recipientId: admin._id,
-    contextRef:  admin._id,
+  // FIX: this was `await`ed despite the "non-blocking" comment — an SMTP
+  // hiccup would hold the "create admin" request open. Genuinely fire-and-forget now.
+  setImmediate(() => {
+    sendEmail({
+      to:          admin.email,
+      subject:     "You have been added to Exam Neeti Admin Team",
+      html:        templates.adminInvited({
+        name,
+        email,
+        password:   plainPassword,
+        role:       admin.role,
+        invitedBy:  req.user.email,
+      }),
+      trigger:     NOTIFICATION_TRIGGER.ADMIN_INVITED,
+      recipientId: admin._id,
+      contextRef:  admin._id,
+    }).catch((err) => console.error("[AdminTeam] Invite email failed:", err.message));
   });
 
   // Write audit log
@@ -186,7 +189,7 @@ exports.createAdmin = asyncHandler(async (req, res, next) => {
     createdAt: admin.createdAt,
   };
 
-  return sendSuccess(res, 201, "Admin created and invite email sent.", {
+  return sendSuccess(res, 201, "Admin created. Invite email is being sent.", {
     admin: response,
   });
 });

@@ -154,27 +154,44 @@ exports.generateExam = asyncHandler(async (req, res, next) => {
   exam.generatedAt = new Date();
   await exam.save();
 
-  // Notify all students in the batch (non-blocking batch)
-  const students = await User.find({ batch: batchId, role: ROLES.STUDENT, isActive: true }).lean();
+  // FIX: Notifying the batch was previously `await`ed before responding —
+  // despite the old comment claiming "non-blocking", Promise.allSettled still
+  // blocks until every email attempt settles. For a batch of any real size
+  // (or a slow/rate-limited SMTP provider), this held the HTTP response open
+  // for tens of seconds to minutes — the exam was already saved above, but the
+  // admin's browser kept spinning on "Reconstructing Questions..." waiting for
+  // a response that hadn't been sent yet, sometimes long enough to look hung.
+  // Fire-and-forget in the background instead, mirroring the same pattern
+  // submitAttempt() below already uses for its post-submission pipeline.
+  const examId       = exam._id;
+  const examTitle    = exam.title;
+  // `examNumber` is already in scope from earlier in this function.
   const dashboardUrl = `${process.env.CLIENT_URL}/dashboard`;
 
-  await Promise.allSettled(
-    students.map((student) =>
-      sendEmail({
-        to:          student.email,
-        subject:     `New Exam Available — ${exam.title}`,
-        html:        templates.examAvailable({
-          name:        student.name,
-          examTitle:   exam.title,
-          examNumber:  exam.examNumber,
-          dashboardUrl,
-        }),
-        trigger:     NOTIFICATION_TRIGGER.EXAM_AVAILABLE,
-        recipientId: student._id,
-        contextRef:  exam._id,
-      })
-    )
-  );
+  setImmediate(async () => {
+    try {
+      const students = await User.find({ batch: batchId, role: ROLES.STUDENT, isActive: true }).lean();
+      await Promise.allSettled(
+        students.map((student) =>
+          sendEmail({
+            to:          student.email,
+            subject:     `New Exam Available — ${examTitle}`,
+            html:        templates.examAvailable({
+              name:        student.name,
+              examTitle,
+              examNumber,
+              dashboardUrl,
+            }),
+            trigger:     NOTIFICATION_TRIGGER.EXAM_AVAILABLE,
+            recipientId: student._id,
+            contextRef:  examId,
+          })
+        )
+      );
+    } catch (err) {
+      console.error("[Exam] Batch notification pipeline failed:", err.message);
+    }
+  });
 
   return sendSuccess(res, 201, "Exam generated and published successfully.", { exam });
 });
@@ -561,21 +578,15 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
     throw err;
   }
 
-  // Submission confirmation email — fetch student outside setImmediate so req is not needed later
+  // Fetch student outside setImmediate so req is not needed later
   const studentDoc = await User.findById(req.user.id).select("name email").lean();
 
-  await sendEmail({
-    to:          studentDoc.email,
-    subject:     `Submission Confirmed — ${exam.title}`,
-    html:        templates.examSubmitted({
-      name:       studentDoc.name,
-      examTitle:  exam.title,
-      examNumber: exam.examNumber,
-    }),
-    trigger:     NOTIFICATION_TRIGGER.EXAM_SUBMITTED,
-    recipientId: studentDoc._id,
-    contextRef:  attempt._id,
-  });
+  // FIX: The submission-confirmation email used to be `await`ed here, on the
+  // student's exam-submit request path — the single most time-sensitive
+  // action in the app. Any SMTP latency/hiccup would hold the "exam submitted"
+  // response open, exactly the failure mode already fixed for exam generation
+  // below. Moved into the same non-blocking setImmediate pipeline as every
+  // other post-submission email.
 
   // ── Capture all values we need BEFORE setImmediate (req/res may be GC'd) ─────
   const attemptSnapshot = {
@@ -597,6 +608,19 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
   // ── Async analytics pipeline — does not block the HTTP response ───────────────
   setImmediate(async () => {
     try {
+      await sendEmail({
+        to:          studentSnapshot.email,
+        subject:     `Submission Confirmed — ${attemptSnapshot.examTitle}`,
+        html:        templates.examSubmitted({
+          name:       studentSnapshot.name,
+          examTitle:  attemptSnapshot.examTitle,
+          examNumber: attemptSnapshot.examNumber,
+        }),
+        trigger:     NOTIFICATION_TRIGGER.EXAM_SUBMITTED,
+        recipientId: studentSnapshot._id,
+        contextRef:  attemptSnapshot._id,
+      });
+
       const populatedAttempt = await Attempt.findById(attemptSnapshot._id).lean();
       const { computeCompleteAnalytics } = require("../services/analytics.service");
       await computeCompleteAnalytics(populatedAttempt);

@@ -213,6 +213,12 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
 
   // Track question IDs selected in this exam run (prevent duplicates per exam)
   const selectedIds = new Set();
+  // Usage-log writes are batched into one bulkWrite after the loop instead of
+  // one `await` per slot — for a full NEET-sized sprint (150-200 slots) that
+  // was 150-200 sequential DB round trips serialized inside the admin's
+  // "generate exam" request, adding real latency on top of an already
+  // multi-step operation.
+  const usageLogOps = [];
 
   for (const slot of slots) {
     const { position } = slot;
@@ -259,19 +265,28 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
 
     selectedIds.add(selectedQuestion._id.toString());
 
-    // Record usage on the question document
-    await QuestionModel.findByIdAndUpdate(selectedQuestion._id, {
-      $push: {
-        usageLog: {
-          sprintId:     sprint._id,
-          slotPosition: position,
-          examId,
-          usedAt:       new Date(),
+    // Queue the usage-log write instead of awaiting it here.
+    usageLogOps.push({
+      updateOne: {
+        filter: { _id: selectedQuestion._id },
+        update: {
+          $push: {
+            usageLog: {
+              sprintId:     sprint._id,
+              slotPosition: position,
+              examId,
+              usedAt:       new Date(),
+            },
+          },
         },
       },
     });
 
     selectedSlots.push({ slotPosition: position, question: selectedQuestion });
+  }
+
+  if (usageLogOps.length > 0) {
+    await QuestionModel.bulkWrite(usageLogOps);
   }
 
   selectedSlots.sort((a, b) => a.slotPosition - b.slotPosition);
