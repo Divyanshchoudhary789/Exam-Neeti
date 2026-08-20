@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { RadialMeter } from "./Charts";
 
 // ==========================================
 // CLEAN SVG ICON COMPONENTS (STRICTLY NO EMOJIS)
@@ -392,6 +393,15 @@ export function CommonModal({
     };
   }, [isOpen]);
 
+  // Close on Escape — every admin/superadmin/student modal is built on this
+  // component, so without this none of them were keyboard-dismissible.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -744,12 +754,15 @@ export function MiniStatCard({
   subtitle,
   icon: Icon,
   trend,
+  ringValue,
 }: {
   title: string;
   value: string | number;
   subtitle?: string;
   icon?: React.ComponentType<{ className?: string }>;
   trend?: string;
+  /** When set (a 0-100 number), a small progress ring replaces the plain icon badge — for percentage-type stats (coverage, readiness, accuracy). */
+  ringValue?: number;
 }) {
   return (
     <div className="p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-white border border-slate-200/80 shadow-md relative overflow-hidden group hover:shadow-xl hover:border-indigo-300 hover:-translate-y-0.5 transition-all duration-300">
@@ -760,11 +773,15 @@ export function MiniStatCard({
           <h4 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">{value}</h4>
           {subtitle && <p className="text-[10px] sm:text-[11px] text-slate-500 font-semibold mt-0.5 line-clamp-1">{subtitle}</p>}
         </div>
-        {Icon && (
+        {ringValue !== undefined ? (
+          <div className="shrink-0 group-hover:scale-110 transition-transform">
+            <RadialMeter value={ringValue} size={44} strokeWidth={4.5} />
+          </div>
+        ) : Icon ? (
           <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 group-hover:scale-110 transition-transform shrink-0">
             <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-        )}
+        ) : null}
       </div>
       {trend && (
         <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-slate-100 flex items-center text-[10px] sm:text-[11px] font-bold text-emerald-600">

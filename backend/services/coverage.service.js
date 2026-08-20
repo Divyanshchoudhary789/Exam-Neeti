@@ -67,6 +67,28 @@ const updateSyllabusProgress = async (studentId, sprintId, attemptId, responses)
 
   const now = new Date();
 
+  // FIX: Batch-fetch topic weights in a single query instead of one findOne()
+  // per touched topic inside the loop below — this runs on every exam
+  // submission, so an N+1 here adds real latency/DB load under exam-day traffic.
+  const touchedTopics = Object.values(attemptTopicMap);
+  const weightEntries = touchedTopics.length
+    ? await SyllabusConfig.find({
+        isActive: true,
+        $or: touchedTopics.map((t) => ({
+          subject: t.subject,
+          chapter: t.chapter,
+          topic:   t.topic,
+        })),
+      })
+        .select("subject chapter topic weight")
+        .lean()
+    : [];
+  const weightKey = (s, c, t) => `${s}|${c}|${t}`;
+  const weightMap = {};
+  for (const entry of weightEntries) {
+    weightMap[weightKey(entry.subject, entry.chapter, entry.topic)] = entry.weight;
+  }
+
   // ── 3. Merge attempt data into per-topic progress ────────────────────────────
   for (const [, data] of Object.entries(attemptTopicMap)) {
     const existing = progress.topics.find(
@@ -74,13 +96,7 @@ const updateSyllabusProgress = async (studentId, sprintId, attemptId, responses)
     );
 
     // Get topic weight from SyllabusConfig (defaults to 1.0 if not seeded yet)
-    const syllabusEntry = await SyllabusConfig.findOne({
-      subject:   data.subject,
-      chapter:   data.chapter,
-      topic:     data.topic,
-      isActive:  true,
-    }).lean();
-    const weight = syllabusEntry?.weight ?? 1.0;
+    const weight = weightMap[weightKey(data.subject, data.chapter, data.topic)] ?? 1.0;
 
     if (existing) {
       existing.timesAttempted += data.timesAttempted;

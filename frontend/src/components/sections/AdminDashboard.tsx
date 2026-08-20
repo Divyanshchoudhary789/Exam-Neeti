@@ -12,6 +12,7 @@ import {
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
+import { RadialMeter, HBarChart } from "../common/Charts";
 import { CreateSprintModal } from "../admin/CreateSprintModal";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
@@ -59,6 +60,10 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState<boolean>(false);
   const [selectedStudentForAnalytics, setSelectedStudentForAnalytics] = useState<UserProfile & { studentId?: string; studentName?: string; studentEmail?: string; batchName?: string; rank?: number; totalScore?: number } | null>(null);
   const [showStudentAnalyticsModal, setShowStudentAnalyticsModal] = useState<boolean>(false);
+  // Sprint context for the analytics modal — set to whichever scope was active
+  // at the trigger site (Students tab uses selectedSprintId, Leaderboard uses
+  // leaderboardScope) so a single modal instance serves both entry points.
+  const [analyticsModalSprintId, setAnalyticsModalSprintId] = useState<string>("");
   const [examPerf, setExamPerf] = useState<Record<string,unknown>[]>([]);
   const [chapterBreakdown, setChapterBreakdown] = useState<Record<string,unknown>|null>(null);
   const [studentStatusList, setStudentStatusList] = useState<Record<string,unknown>[]>([]);
@@ -155,6 +160,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [userSearch, setUserSearch] = useState("");
   const [userPage, setUserPage] = useState(1);
   const [userTotalPages, setUserTotalPages] = useState(1);
+  const [userTotalItems, setUserTotalItems] = useState(0);
   const [usersLoading, setUsersLoading] = useState(false);
 
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -280,7 +286,10 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       const rawQ = val?.data?.questions || val?.questions || val?.data || val || [];
       setQuestionsList(Array.isArray(rawQ) ? rawQ : []);
       setQTotalPages(val?.data?.pagination?.totalPages || val?.pagination?.totalPages || 1);
-      setQTotalItems(val?.data?.pagination?.totalItems || val?.pagination?.totalItems || (rawQ as unknown[]).length);
+      // FIX: backend's buildPaginationMeta returns `total`, not `totalItems` — the old
+      // totalItems lookup was always undefined and silently fell back to the
+      // current page's array length, under-reporting the true count.
+      setQTotalItems(val?.data?.pagination?.total ?? val?.pagination?.total ?? (rawQ as unknown[]).length);
     }
     if (stRes.status === "fulfilled") {
       const s = stRes.value?.data?.stats || stRes.value?.stats || stRes.value?.data || stRes.value;
@@ -300,6 +309,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     const rawU = uRes?.data?.users || uRes?.data?.students || uRes?.users || uRes?.data || uRes || [];
     setUsersList(Array.isArray(rawU) ? rawU : []);
     setUserTotalPages(uRes?.data?.pagination?.totalPages || uRes?.pagination?.totalPages || 1);
+    setUserTotalItems(uRes?.data?.pagination?.total ?? uRes?.pagination?.total ?? (Array.isArray(rawU) ? rawU.length : 0));
     setUsersLoading(false);
   }, [userRoleFilter, userBatchFilter, userSearch, userPage]);
 
@@ -775,7 +785,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ DASHBOARD TAB ════════════════════════════ */}
         {activeTab === "dashboard" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             {/* Sprint selector & Formula Tuning action */}
             <div className="relative bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 z-20">
               {isDashboardLoading && (
@@ -838,15 +848,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold">Cohort accuracy &lt; 50%</span>
                     </div>
-                    {Array.isArray(chapterBreakdown.weakestChapters) && (chapterBreakdown.weakestChapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
-                      <div className="space-y-2">
-                        {(chapterBreakdown.weakestChapters as Array<{chapter?:string;accuracy?:number}>).slice(0,5).map((wc,idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-red-50/50 border border-red-100 text-xs">
-                            <span className="font-bold text-slate-800">{String(wc.chapter||"Chapter")}</span>
-                            <span className="font-extrabold text-red-600">{Number(wc.accuracy || 0).toFixed(1)}% acc</span>
-                          </div>
-                        ))}
-                      </div>
+                    {Array.isArray(chapterBreakdown.chapters) && (chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
+                      /* Backend returns `chapters` pre-sorted weakest-first (no separate weakestChapters key) */
+                      <HBarChart
+                        color="#dc2626"
+                        data={(chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).slice(0,5).map((wc) => ({
+                          label: String(wc.chapter || "Chapter"),
+                          value: Number(wc.accuracy || 0),
+                        }))}
+                      />
                     ) : (
                       <p className="text-xs text-slate-400 py-3 text-center">No weak chapter anomalies detected.</p>
                     )}
@@ -860,15 +870,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold">Cohort accuracy &gt; 70%</span>
                     </div>
-                    {Array.isArray(chapterBreakdown.strongestChapters) && (chapterBreakdown.strongestChapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
-                      <div className="space-y-2">
-                        {(chapterBreakdown.strongestChapters as Array<{chapter?:string;accuracy?:number}>).slice(0,5).map((sc,idx) => (
-                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-100 text-xs">
-                            <span className="font-bold text-slate-800">{String(sc.chapter||"Chapter")}</span>
-                            <span className="font-extrabold text-emerald-600">{Number(sc.accuracy || 0).toFixed(1)}% acc</span>
-                          </div>
-                        ))}
-                      </div>
+                    {Array.isArray(chapterBreakdown.chapters) && (chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
+                      /* Backend returns a single `chapters` array sorted weakest-first — take the tail and reverse for strongest-first */
+                      <HBarChart
+                        color="#059669"
+                        data={(chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).slice(-5).reverse().map((sc) => ({
+                          label: String(sc.chapter || "Chapter"),
+                          value: Number(sc.accuracy || 0),
+                        }))}
+                      />
                     ) : (
                       <p className="text-xs text-slate-400 py-3 text-center">No high accuracy data yet.</p>
                     )}
@@ -1054,6 +1064,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                               totalScore: score,
                               role: "student",
                             });
+                            setAnalyticsModalSprintId(leaderboardScope);
                             setShowStudentAnalyticsModal(true);
                           }}
                           className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-100 hover:border-indigo-200 transition-all cursor-pointer group gap-2.5 sm:gap-3"
@@ -1114,7 +1125,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ SPRINTS TAB ══════════════════════════════ */}
         {activeTab === "sprints" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black text-slate-900">Sprint Cycles & Blueprints</h2>
@@ -1182,7 +1193,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ BATCHES TAB ══════════════════════════════ */}
         {activeTab === "batches" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black text-slate-900">Batches & Academic Programs</h2>
@@ -1267,13 +1278,17 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                           </button>
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteBatch(bId, bName)}
-                          className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors"
-                          title="Delete Batch"
-                        >
-                          <IconTrash className="w-4 h-4" />
-                        </button>
+                        {/* Hard delete is super_admin-only on the backend (DELETE /batches/:id) —
+                            hide it for regular admins instead of showing a control that always 403s. */}
+                        {user?.role === "super_admin" && (
+                          <button
+                            onClick={() => handleDeleteBatch(bId, bName)}
+                            className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors"
+                            title="Delete Batch"
+                          >
+                            <IconTrash className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1285,7 +1300,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ EXAMS TAB ════════════════════════════════ */}
         {activeTab === "exams" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h2 className="text-xl font-black text-slate-900">Test Series & Exams</h2>
               <button onClick={() => setShowCreateExamModal(true)} className="self-start flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">
@@ -1345,7 +1360,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ QUESTIONS TAB ════════════════════════════ */}
         {activeTab === "questions" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             {/* Question Stats Bar (Parsed properly from backend) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <MiniStatCard title="Total Questions" value={qTotalCount} icon={IconFilter} />
@@ -1460,7 +1475,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ SYLLABUS TAB ═════════════════════════════ */}
         {activeTab === "syllabus" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">NEET Syllabus Taxonomy & Topic Weighting</h2>
@@ -1501,17 +1516,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 )}
 
                 {batchCoverageData && (
-                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between gap-3 hover:shadow-md transition-shadow">
                     <div>
                       <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">Cohort Blueprint Coverage</h3>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">Overall blueprint syllabus completion rate across active cohorts</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-36 h-3 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-600 rounded-full transition-all" style={{ width: `${Math.min(Math.round(Number(batchCoverageData.coveragePercentage || 0)), 100)}%` }} />
-                      </div>
-                      <span className="text-sm font-black text-indigo-600">{Math.round(Number(batchCoverageData.coveragePercentage || 0))}%</span>
-                    </div>
+                    <RadialMeter value={Number(batchCoverageData.avgSyllabusCoverage || 0)} size={64} strokeWidth={6.5} />
                   </div>
                 )}
 
@@ -1735,7 +1745,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ STUDENTS TAB ═════════════════════════════ */}
         {activeTab === "students" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h2 className="text-xl font-black text-slate-900">Student Roster</h2>
               <div className="flex flex-wrap gap-2">
@@ -1803,6 +1813,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             <button
                               onClick={() => {
                                 setSelectedStudentForAnalytics(u);
+                                setAnalyticsModalSprintId(selectedSprintId);
                                 setShowStudentAnalyticsModal(true);
                               }}
                               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold cursor-pointer transition-colors border border-indigo-200"
@@ -1829,7 +1840,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     })}
                   </div>
                 </div>
-                <PaginationControls currentPage={userPage} totalPages={userTotalPages} totalItems={usersList.length} onPageChange={p=>setUserPage(p)} />
+                <PaginationControls currentPage={userPage} totalPages={userTotalPages} totalItems={userTotalItems} onPageChange={p=>setUserPage(p)} />
               </>
             )}
           </div>
@@ -1837,7 +1848,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ REPORTS TAB ══════════════════════════════ */}
         {activeTab === "reports" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             <h2 className="text-xl font-black text-slate-900">Report Generation</h2>
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
               <h3 className="text-sm font-black text-slate-900">Generate New Report</h3>
@@ -1942,7 +1953,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         {/* ══════════════════════════ SETTINGS TAB ═════════════════════════════ */}
         {activeTab === "settings" && (
-          <div className="max-w-md space-y-5">
+          <div className="max-w-md space-y-5 animate-in fade-in duration-300">
             <h2 className="text-xl font-black text-slate-900">Account Settings</h2>
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
               <h3 className="text-sm font-black text-slate-900 mb-5">Change Password</h3>
@@ -2170,11 +2181,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         showToast={showToast}
       />
 
-      {/* Student Analytics Inspector */}
+      {/* Student Analytics Inspector — single instance, serves both the Students
+          tab and Leaderboard entry points via analyticsModalSprintId */}
       <StudentAnalyticsModal
         isOpen={showStudentAnalyticsModal}
         student={selectedStudentForAnalytics}
-        sprintId={selectedSprintId}
+        sprintId={analyticsModalSprintId}
         onClose={() => setShowStudentAnalyticsModal(false)}
         showToast={showToast}
       />
@@ -2283,15 +2295,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           loadSyllabus();
         }}
         topicData={selectedTopicToEdit}
-      />
-
-      {/* Student Performance Profile Modal */}
-      <StudentAnalyticsModal
-        isOpen={showStudentAnalyticsModal}
-        onClose={() => setShowStudentAnalyticsModal(false)}
-        student={selectedStudentForAnalytics}
-        sprintId={leaderboardScope}
-        showToast={showToast}
       />
 
     </div>// end outer wrapper

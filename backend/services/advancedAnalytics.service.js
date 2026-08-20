@@ -270,12 +270,18 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
   });
 
   const attempted = responses.filter((r) => r.isAttempted).length;
+  const wrongCount = responses.filter((r) => r.isAttempted && !r.isCorrect).length;
 
   return {
     sillyMistakes: sillyMistakes.length,
-    sillyMistakeRate: roundTo(safeDiv(sillyMistakes.length, attempted) * 100),
+    // Spec formula: Silly Mistake Rate = silly mistakes / wrong (category 3)
+    sillyMistakeRate: roundTo(safeDiv(sillyMistakes.length, wrongCount) * 100),
+    // Spec formula: Careless Error Rate = careless mistakes / total attempted (category 1) —
+    // same underlying classification, different denominator per the framework.
+    carelessErrorRate: roundTo(safeDiv(sillyMistakes.length, attempted) * 100),
     conceptErrors: conceptErrors.length,
-    conceptErrorRate: roundTo(safeDiv(conceptErrors.length, attempted) * 100),
+    // Spec formula: Conceptual Error Rate = conceptual errors / wrong (category 3)
+    conceptErrorRate: roundTo(safeDiv(conceptErrors.length, wrongCount) * 100),
     guesses: guesses.length,
     guessRate: roundTo(safeDiv(guesses.length, attempted) * 100),
     sillyMistakeQuestions: sillyMistakes,
@@ -315,6 +321,10 @@ const computeROIMetrics = (responses, params, historicalProbability = {}) => {
 
   const highROICoverage = roundTo(safeDiv(highROI.filter((r) => r.isAttempted).length, highROI.length) * 100);
   const lowROIAttempts = roundTo(safeDiv(lowROI.filter((r) => r.isAttempted).length, lowROI.length) * 100);
+  // Genuine accuracy among high-ROI questions (distinct from highROICoverage, which is
+  // attempt-coverage, not correctness) — used by computeMetricsFramework below.
+  const highROIAttempted = highROI.filter((r) => r.isAttempted);
+  const highROIAccuracy = roundTo(safeDiv(highROIAttempted.filter((r) => r.isCorrect).length, highROIAttempted.length) * 100);
 
   // Score Opportunity Index
   const sillyMistakesLoss = responses.filter((r) => r.isAttempted && !r.isCorrect && r.difficulty === "easy").length * params.silly_mistake_reward;
@@ -327,6 +337,7 @@ const computeROIMetrics = (responses, params, historicalProbability = {}) => {
   return {
     highROICoverage,
     lowROIAttempts,
+    highROIAccuracy,
     scoreOpportunityIndex,
     soiBreakdown: {
       sillyMistakesLoss: roundTo(sillyMistakesLoss),
@@ -334,6 +345,11 @@ const computeROIMetrics = (responses, params, historicalProbability = {}) => {
       lowROIAttemptedLoss: roundTo(lowROIAttemptedLoss),
       guessingLoss: roundTo(guessingLoss),
     },
+    // Not persisted to the strict roiMetrics schema field (only the fields above
+    // are declared there) — kept in-memory so computeMetricsFramework (Mixed
+    // schema) can derive confidenceCollapse and other per-question ROI insights.
+    highROIQuestions: highROI,
+    lowROIQuestions: lowROI,
   };
 };
 
@@ -729,7 +745,9 @@ const computeMetricsFramework = (
   fatigueCurve,
   streakMetrics,
   reattemptMetrics,
-  attemptOrderQuality
+  attemptOrderQuality,
+  seenQuestionIds = new Set(),
+  priorWrongQuestionIds = new Set()
 ) => {
   const totalQuestions = responses.length;
   const attempted = responses.filter((r) => r.isAttempted);
@@ -745,6 +763,19 @@ const computeMetricsFramework = (
   );
 
   const firstN = sortedByAttempt.slice(0, Math.min(10, sortedByAttempt.length));
+
+  // Spec formula: First Attempt Accuracy % = Correct on 1st attempt / Total 1st
+  // attempts — i.e. was the FIRST answer given (before any reattempt/answer-change)
+  // correct, across every attempted question. `initialAnswer` is captured by the
+  // frontend the moment a question is first answered, whether or not it was
+  // later changed. This is distinct from "First-N Accuracy" (category 10), which
+  // is scoped to the first N questions by exam sequence, not first-click accuracy.
+  const firstAttemptCorrectCount = attempted.filter((r) => {
+    const firstAns = r.initialAnswer ?? r.selectedAnswer;
+    return firstAns != null && r.correctAnswer != null && firstAns === r.correctAnswer;
+  }).length;
+  const firstAttemptAccuracyPercent = pct(firstAttemptCorrectCount, attempted.length);
+
   const firstAnswerTimes = attempted
     .map((r) => r.firstAnswerTimeSeconds)
     .filter((v) => Number.isFinite(v));
@@ -857,9 +888,9 @@ const computeMetricsFramework = (
       wrongQuestions: foundation.incorrect,
       unattemptedQuestions: foundation.unattempted,
       guessRatePercent: errorClassification.guessRate,
-      carelessErrorRatePercent: errorClassification.sillyMistakeRate,
+      carelessErrorRatePercent: errorClassification.carelessErrorRate,
       sillyMistakeCount: errorClassification.sillyMistakes,
-      firstAttemptAccuracyPercent: accuracyFor(firstN),
+      firstAttemptAccuracyPercent,
       reattemptAccuracyPercent: reattemptMetrics.reattemptAccuracy,
     },
     timeSpeed: {
@@ -887,16 +918,35 @@ const computeMetricsFramework = (
       errorRatePercent: pct(wrong.length, attempted.length),
       sillyMistakeRatePercent: errorClassification.sillyMistakeRate,
       conceptualErrorRatePercent: errorClassification.conceptErrorRate,
-      calculationErrorRatePercent: pct(
-        wrong.filter((r) => (r.subject || "").toLowerCase() === "physics" || (r.subject || "").toLowerCase() === "chemistry").length,
-        wrong.length
-      ),
+      // Heuristic proxy: a true conceptual-vs-calculation split needs question-level
+      // error-type tagging, which doesn't exist in the content model. Instead of the
+      // old subject-stereotype proxy (any wrong Physics/Chemistry answer counted as
+      // "calculation"), this uses real per-response signals already captured: wrong
+      // answers on numeric/integer-type questions where the student spent at least
+      // half the average wrong-answer time (i.e. they worked the problem rather than
+      // guessed) are classified as likely calculation slips.
+      calculationErrorRatePercent: (() => {
+        const avgWrongTime = safeDiv(wrong.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), wrong.length);
+        const calcErrors = wrong.filter((r) => {
+          const qType = String(r.questionType || "").toLowerCase();
+          const isNumericType = qType.includes("numeric") || qType.includes("integer");
+          return isNumericType && (r.timeSpentSeconds || 0) >= avgWrongTime * 0.5;
+        });
+        return pct(calcErrors.length, wrong.length);
+      })(),
       confidenceAccuracyGapPercent: roundTo(
-        safeDiv(attempted.reduce((s, r) => s + (r.confidence || 50), 0), attempted.length) - foundation.accuracy
+        Math.abs(safeDiv(attempted.reduce((s, r) => s + (r.confidence || 50), 0), attempted.length) - foundation.accuracy)
       ),
-      confidenceCollapseCount: wrong.filter((r) => (r.confidence || 0) >= params.silly_mistake_confidence_threshold).length,
-      highROIAccuracyPercent: roiMetrics.highROICoverage,
-      knownQuestionAccuracyPercent: accuracyFor(responses.filter((r) => r.wasPreviouslySeen || r.wasReattempted || r.answerChanges > 0)),
+      // Spec: wrong despite high confidence, specifically in high-ROI (high-weightage) subjects.
+      confidenceCollapseCount: (roiMetrics.highROIQuestions || []).filter(
+        (r) => r.isAttempted && !r.isCorrect && (r.confidence || 0) >= params.silly_mistake_confidence_threshold
+      ).length,
+      // Genuine accuracy among high-ROI questions — distinct from highROICoverage
+      // (content.highROIQuestions.coveragePercent below), which is attempt-coverage.
+      highROIAccuracyPercent: roiMetrics.highROIAccuracy,
+      // "Known" = a question this student has answered in any prior submitted attempt
+      // (tracked via seenQuestionIds, built from attempt history — see computeAdvancedAnalytics).
+      knownQuestionAccuracyPercent: accuracyFor(responses.filter((r) => seenQuestionIds.has(String(r.questionId)))),
     },
     content: {
       questionsAttempted: foundation.attempted,
@@ -909,11 +959,14 @@ const computeMetricsFramework = (
         coveragePercent: roiMetrics.highROICoverage,
         scoreOpportunityIndex: roiMetrics.scoreOpportunityIndex,
       },
+      // "Repeated" = a question the student has seen in a prior submitted attempt
+      // (cross-exam), not a within-this-attempt reattempt (that's a different
+      // concept, covered under reattemptBehavior below).
       newVsRepeated: {
-        repeatedAttempted: reattempted.length,
-        repeatedAccuracyPercent: accuracyFor(reattempted),
-        newAttempted: attempted.length - reattempted.length,
-        newAccuracyPercent: accuracyFor(attempted.filter((r) => !r.wasReattempted)),
+        repeatedAttempted: attempted.filter((r) => seenQuestionIds.has(String(r.questionId))).length,
+        repeatedAccuracyPercent: accuracyFor(attempted.filter((r) => seenQuestionIds.has(String(r.questionId)))),
+        newAttempted: attempted.filter((r) => !seenQuestionIds.has(String(r.questionId))).length,
+        newAccuracyPercent: accuracyFor(attempted.filter((r) => !seenQuestionIds.has(String(r.questionId)))),
       },
       assertionAccuracy: typeAccuracy((r) => String(r.questionType || "").toLowerCase().includes("assertion")),
       numericAccuracy: typeAccuracy((r) => String(r.questionType || "").toLowerCase().includes("numeric") || String(r.questionType || "").toLowerCase().includes("integer")),
@@ -936,7 +989,17 @@ const computeMetricsFramework = (
     },
     reattemptBehavior: {
       ...reattemptMetrics,
-      timeChangeOnReattemptSeconds: roundTo(safeDiv(reattemptDelays.reduce((s, v) => s + v, 0), reattemptDelays.length)),
+      // Distinct from reattemptDelaySeconds below: this is how much MORE time was
+      // spent finalizing the answer after the first click (lastAnswerTime minus
+      // firstAnswerTime), not the gap before reattempting.
+      timeChangeOnReattemptSeconds: (() => {
+        const changes = reattempted
+          .map((r) => (Number.isFinite(r.lastAnswerTimeSeconds) && Number.isFinite(r.firstAnswerTimeSeconds))
+            ? r.lastAnswerTimeSeconds - r.firstAnswerTimeSeconds
+            : null)
+          .filter((v) => v !== null);
+        return roundTo(safeDiv(changes.reduce((s, v) => s + v, 0), changes.length));
+      })(),
       reattemptDelaySeconds: roundTo(safeDiv(reattemptDelays.reduce((s, v) => s + v, 0), reattemptDelays.length)),
       smartVsBlind: {
         consideredReattempts,
@@ -944,7 +1007,11 @@ const computeMetricsFramework = (
         smartRatePercent: pct(consideredReattempts, reattempted.length),
       },
       reattemptEfficiencyPercent: reattemptMetrics.productiveReattemptRate,
+      // Within this single attempt: wrong on first try, still wrong after reattempting.
       repeatedWrongQuestions: reattemptMetrics.wrongToWrong,
+      // Across exams: wrong this time on a question also gotten wrong in a prior
+      // submitted attempt (needs cross-attempt history — see priorWrongQuestionIds).
+      repeatedWrongQuestionsCrossTest: wrong.filter((r) => priorWrongQuestionIds.has(String(r.questionId))).length,
       overthinkingIndex: overthinkingItems.length,
     },
     subjectTopic: {
@@ -958,7 +1025,10 @@ const computeMetricsFramework = (
       weakTopics: weakTopics.slice(0, 20),
       strongTopics: strongTopics.slice(0, 20),
       topicROI: topicROI.slice(0, 20),
-      topicProgression: topicROI.slice(0, 20),
+      // NOTE: true cross-test Topic Progression (a topic's accuracy trend across
+      // multiple exams over time) cannot be computed from a single attempt — it's
+      // implemented at the sprint level instead, see getStudentSprintSummary's
+      // `topicProgression` field in analytics.controller.js.
     },
     streakPattern: {
       ...streakMetrics,
@@ -967,6 +1037,22 @@ const computeMetricsFramework = (
         consecutiveWrongMax: streakMetrics.badStreakLength,
         alternationRatePercent: pct(alternations, Math.max(sortedByAttempt.length - 1, 0)),
       },
+      // Most common exam-position quartile where a correct-answer streak breaks.
+      streakBreakPoint: (() => {
+        if (!sortedByAttempt.length || !streakMetrics.goodStreaks?.length) return null;
+        const total = sortedByAttempt.length;
+        const quartileCounts = [0, 0, 0, 0];
+        streakMetrics.goodStreaks.forEach((s) => {
+          const breakIdx = s.end + 1;
+          const q = Math.min(3, Math.floor((breakIdx / total) * 4));
+          quartileCounts[q]++;
+        });
+        const maxCount = Math.max(...quartileCounts);
+        if (maxCount === 0) return null;
+        const modalQuartile = quartileCounts.indexOf(maxCount);
+        const labels = ["Q1 (early)", "Q2 (early-mid)", "Q3 (mid-late)", "Q4 (late)"];
+        return { quartile: modalQuartile + 1, label: labels[modalQuartile], breakCount: maxCount, distributionByQuartile: quartileCounts };
+      })(),
     },
     fatigueRecovery: {
       ...fatigueCurve,
@@ -983,13 +1069,50 @@ const computeMetricsFramework = (
           dropPercent: Math.max(0, roundTo(accuracyFor(ordered.slice(0, split)) - accuracyFor(ordered.slice(split)))),
         };
       }),
-      topicFatigue: topicDetails.filter((t) => t.accuracy < 50).slice(0, 20),
+      // Genuine within-exam fatigue signal: accuracy decline from the first half
+      // to the second half of a topic's questions (needs >=2 attempted questions
+      // to be meaningful) — distinct from "weak topics" (a flat accuracy<threshold
+      // classification with no time dimension).
+      topicFatigue: topicDetails
+        .filter((t) => t.attempted >= 2)
+        .map((t) => {
+          const items = topicMap[`${t.subject}__${t.chapter}__${t.topic}`] || [];
+          const ordered = [...items].sort((a, b) => (a.slotPosition || 0) - (b.slotPosition || 0));
+          const split = Math.ceil(ordered.length / 2);
+          const firstHalfAccuracy = accuracyFor(ordered.slice(0, split));
+          const secondHalfAccuracy = accuracyFor(ordered.slice(split));
+          return {
+            subject: t.subject,
+            chapter: t.chapter,
+            topic: t.topic,
+            firstHalfAccuracy,
+            secondHalfAccuracy,
+            dropPercent: Math.max(0, roundTo(firstHalfAccuracy - secondHalfAccuracy)),
+          };
+        })
+        .filter((t) => t.dropPercent > 0)
+        .sort((a, b) => b.dropPercent - a.dropPercent)
+        .slice(0, 20),
     },
     foundationTimeSpeedDetail: {
       foundationTimeSeconds: firstAttemptTime,
       firstNAccuracyPercent: accuracyFor(firstN),
       earlySpeedSeconds: roundTo(safeDiv(firstN.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), firstN.length)),
-      earlyAccuracyStabilitySeconds: stdDev(firstN.map((r) => r.timeSpentSeconds || 0)),
+      // Real "Early Accuracy Stability" per spec: how much accuracy fluctuates
+      // within the first N questions, via small rolling-window accuracy stdDev
+      // (lower = more stable). Previously this field held a TIME-spread stdDev
+      // under an "accuracy stability" name — kept below as earlyTimeSpreadSeconds
+      // (honestly named) instead of silently dropped, since it's still a useful figure.
+      earlyAccuracyStabilityPercent: (() => {
+        const windowSize = Math.min(3, firstN.length);
+        if (windowSize < 2) return 0;
+        const rollingAcc = [];
+        for (let i = 0; i <= firstN.length - windowSize; i++) {
+          rollingAcc.push(accuracyFor(firstN.slice(i, i + windowSize)));
+        }
+        return stdDev(rollingAcc);
+      })(),
+      earlyTimeSpreadSeconds: stdDev(firstN.map((r) => r.timeSpentSeconds || 0)),
       momentumScore: roundTo((accuracyFor(firstN) * Math.max(firstN.length, 1)) / Math.max(safeDiv(firstN.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), 60), 1)),
     },
     attemptOrderQuality,
@@ -1003,6 +1126,47 @@ const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
   const { getProbabilityMap } = require("./probability.service");
   const probabilityMap = await getProbabilityMap(attempt.student, attempt.sprint);
 
+  // Cross-attempt history — needed for "known question" / "repeated question"
+  // metrics, which require knowing what this student has seen/gotten wrong in
+  // PRIOR submitted attempts (any sprint, since the question bank can reuse
+  // questions across exams). Bounded to the most recent 50 attempts and a
+  // narrow projection to keep this cheap — it only runs once per submission,
+  // in the async post-submit pipeline, not on the request/response path.
+  const Attempt = require("../models/Attempt.model");
+  const { ATTEMPT_STATUS } = require("../config/constants");
+  const priorAttempts = await Attempt.find({
+    student: attempt.student,
+    status: ATTEMPT_STATUS.SUBMITTED,
+    _id: { $ne: attempt._id },
+  })
+    .select("responses.questionId responses.isAttempted responses.isCorrect")
+    .sort({ submittedAt: -1 })
+    .limit(50)
+    .lean();
+
+  const seenQuestionIds = new Set();
+  const priorWrongQuestionIds = new Set();
+  for (const pa of priorAttempts) {
+    for (const r of pa.responses || []) {
+      if (!r.questionId) continue;
+      const idStr = String(r.questionId);
+      seenQuestionIds.add(idStr);
+      if (r.isAttempted && !r.isCorrect) priorWrongQuestionIds.add(idStr);
+    }
+  }
+
+  // Historical per-topic accuracy for silly-mistake classification — chapter-level
+  // P(correct) from the probability engine is the best available "how good is
+  // this student normally at this area" signal (topic-level history isn't
+  // tracked separately anywhere in the data model).
+  const historicalAccuracy = {};
+  for (const r of responses) {
+    const topicKey = `${r.subject}_${r.chapter}_${r.topic}`;
+    if (historicalAccuracy[topicKey] !== undefined) continue;
+    const chapterProb = probabilityMap[`${r.subject}_${r.chapter}`];
+    historicalAccuracy[topicKey] = chapterProb ? roundTo(chapterProb.pEasy * 100) : 50;
+  }
+
   // 1. Foundation
   const foundation = computeFoundationMetrics(responses, params);
 
@@ -1013,7 +1177,7 @@ const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
   const difficultyMetrics = computeDifficultyMetrics(responses);
 
   // 4. Error Classification
-  const errorClassification = classifyErrors(responses, params);
+  const errorClassification = classifyErrors(responses, params, historicalAccuracy);
 
   // 5. ROI Metrics
   const roiMetrics = computeROIMetrics(responses, params, probabilityMap);
@@ -1041,7 +1205,9 @@ const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
     fatigueCurve,
     streakMetrics,
     reattemptMetrics,
-    attemptOrderQuality
+    attemptOrderQuality,
+    seenQuestionIds,
+    priorWrongQuestionIds
   );
 
   const result = await AdvancedAnalytics.findOneAndUpdate(

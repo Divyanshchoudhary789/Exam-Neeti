@@ -5,6 +5,7 @@ const reportController = require("../controllers/report.controller");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
 const validate = require("../middleware/validate");
+const { heavyOperationLimiter } = require("../middleware/rateLimiter");
 const { generateReportSchema } = require("../validators/report.validator");
 const { ROLES } = require("../config/constants");
 
@@ -19,12 +20,14 @@ router.get("/", reportController.listReports);
 // Student: generate own report types (STUDENT_*).
 // Admin-type reports (ADMIN_SPRINT, ADMIN_BATCH, etc.) are blocked for students
 // inside the generateReport controller via explicit role check — belt-and-suspenders.
-router.post("/", validate(generateReportSchema), reportController.generateReport);
+// Rate-limited: report generation does multiple DB aggregations per call.
+router.post("/", heavyOperationLimiter, validate(generateReportSchema), reportController.generateReport);
 
 // Status check: students see own, admins see any (scoped in controller)
 router.get("/:reportId/status", reportController.getReportStatus);
 
 // Download: students see own, admins can download any report (scoped in controller)
-router.get("/:reportId/download", reportController.downloadReport);
+// Rate-limited: renders a PDF/Excel file per call.
+router.get("/:reportId/download", heavyOperationLimiter, reportController.downloadReport);
 
 module.exports = router;

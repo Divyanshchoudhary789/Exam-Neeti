@@ -42,6 +42,13 @@ const createTopicSchema = Joi.object({
   isActive: Joi.boolean().default(true),
 });
 
+const bulkCreateTopicsSchema = Joi.object({
+  topics: Joi.array().items(createTopicSchema).min(1).required().messages({
+    "array.min":    "At least one topic is required.",
+    "any.required": "topics array is required.",
+  }),
+});
+
 const updateTopicSchema = Joi.object({
   subject: Joi.string().valid("physics", "chemistry", "biology", "Physics", "Chemistry", "Biology").optional(),
   classLevel: Joi.string().valid("XI", "XII", "dropper").optional(),
@@ -111,6 +118,7 @@ router.patch(
 router.post(
   "/topics/bulk",
   authorize(ROLES.ADMIN),
+  validate(bulkCreateTopicsSchema),
   syllabusController.bulkCreateTopics
 );
 

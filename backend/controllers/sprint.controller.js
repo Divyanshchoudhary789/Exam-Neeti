@@ -126,6 +126,26 @@ exports.updateSprint = asyncHandler(async (req, res, next) => {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   }
 
+  // FIX: Enforce a single-active-sprint invariant. Without this, activating a
+  // second sprint while one is already ACTIVE makes getActiveSprint()/
+  // generateExam() non-deterministic — students and exam generation could
+  // silently pick whichever sprint Mongo happens to return first.
+  if (updates.status === SPRINT_STATUS.ACTIVE) {
+    const otherActive = await Sprint.findOne({
+      _id: { $ne: req.params.id },
+      status: SPRINT_STATUS.ACTIVE,
+    }).select("name").lean();
+
+    if (otherActive) {
+      return next(
+        new AppError(
+          `Sprint "${otherActive.name}" is already active. Complete or deactivate it before activating another sprint.`,
+          409
+        )
+      );
+    }
+  }
+
   const sprint = await Sprint.findByIdAndUpdate(req.params.id, updates, {
     new: true,
     runValidators: true,

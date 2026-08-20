@@ -2,6 +2,7 @@ const User = require("../models/User.model");
 const Batch = require("../models/Batch.model");
 const Attempt = require("../models/Attempt.model");
 const AnalyticsResult = require("../models/AnalyticsResult.model");
+const AdvancedAnalytics = require("../models/AdvancedAnalytics.model");
 const StudentProbability = require("../models/StudentProbability.model");
 const SyllabusProgress = require("../models/SyllabusProgress.model");
 const Report = require("../models/Report.model");
@@ -338,6 +339,7 @@ exports.deleteStudent = asyncHandler(async (req, res, next) => {
   await Promise.all([
     Attempt.deleteMany({ student: student._id }),
     AnalyticsResult.deleteMany({ student: student._id }),
+    AdvancedAnalytics.deleteMany({ student: student._id }),
     StudentProbability.deleteMany({ student: student._id }),
     SyllabusProgress.deleteMany({ student: student._id }),
     Report.deleteMany({ owner: student._id }),

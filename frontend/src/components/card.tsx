@@ -30,7 +30,15 @@ export function Card({
   return (
     <div
       onClick={onClick}
-      className="group relative flex flex-col justify-between rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm hover:shadow-xl hover:shadow-indigo-500/[0.06] transition-all cursor-pointer hover:translate-y-[-2px]"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="group relative flex flex-col justify-between rounded-3xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm hover:shadow-xl hover:shadow-indigo-500/[0.06] transition-all cursor-pointer hover:translate-y-[-2px] focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/30"
       id={`module-card-${id}`}
     >
       <div className="h-[180px] bg-slate-200 flex items-center justify-center relative overflow-hidden">

@@ -212,17 +212,22 @@ const computeAnalytics = async (attempt) => {
     return {
       ...t,
       accuracy,
+      attemptRate: roundTo(safeDiv(t.attempted, t.totalQuestions) * 100),
       isWeak: t.attempted > 0 && accuracy < weakThreshold,
       isStrong: t.attempted > 0 && accuracy >= strongThreshold,
     };
   });
 
-  // Group by difficulty
+  // Group by difficulty × subject — matches difficultyBreakdownSchema's
+  // documented "subject dimension" (previously grouped by difficulty alone,
+  // leaving `subject`/`attemptRate`/`percentageOfTotal` permanently unset).
   const difficultyMap = {};
   for (const r of responses) {
-    if (!difficultyMap[r.difficulty]) {
-      difficultyMap[r.difficulty] = {
+    const key = `${r.difficulty}_${r.subject}`;
+    if (!difficultyMap[key]) {
+      difficultyMap[key] = {
         difficulty: r.difficulty,
+        subject: r.subject,
         totalQuestions: 0,
         attempted: 0,
         correct: 0,
@@ -231,7 +236,7 @@ const computeAnalytics = async (attempt) => {
         totalTimeSeconds: 0,
       };
     }
-    const d = difficultyMap[r.difficulty];
+    const d = difficultyMap[key];
     d.totalQuestions++;
     if (r.isAttempted) {
       d.attempted++;
@@ -243,10 +248,14 @@ const computeAnalytics = async (attempt) => {
     d.totalTimeSeconds += r.timeSpentSeconds || 0;
   }
 
+  const totalTimeAllResponses = responses.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0);
+
   const difficultyAccuracy = Object.values(difficultyMap).map((d) => ({
     ...d,
     accuracy: roundTo(safeDiv(d.correct, d.attempted) * 100),
+    attemptRate: roundTo(safeDiv(d.attempted, d.totalQuestions) * 100),
     avgTimeSeconds: roundTo(safeDiv(d.totalTimeSeconds, d.totalQuestions)),
+    percentageOfTotal: roundTo(safeDiv(d.totalTimeSeconds, totalTimeAllResponses) * 100),
   }));
 
   // ─── Section C: Negative Marking Analysis ────────────────────────────────

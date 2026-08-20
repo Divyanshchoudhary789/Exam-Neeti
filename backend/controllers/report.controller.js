@@ -474,12 +474,15 @@ exports.downloadReport = asyncHandler(async (req, res, next) => {
   if (!report) return next(new AppError("Report not found.", 404));
 
   try {
+    // FIX: use the report's owner, not the requesting admin — an admin
+    // downloading a student-owned report must get that student's analytics,
+    // not their own (which for STUDENT_* report types would be empty/wrong).
     const data = await buildReportData(
       report.type,
       report.scope,
       report.scopeRefId?.toString(),
       report.sprint?.toString(),
-      req.user.id
+      report.owner.toString()
     );
 
     const { buffer } = await generateReport(report, data);

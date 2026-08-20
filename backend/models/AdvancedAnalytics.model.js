@@ -10,6 +10,7 @@ const errorClassificationSchema = new mongoose.Schema(
   {
     sillyMistakes: Number,
     sillyMistakeRate: Number,
+    carelessErrorRate: Number,
     conceptErrors: Number,
     conceptErrorRate: Number,
     guesses: Number,
@@ -26,6 +27,7 @@ const roiMetricsSchema = new mongoose.Schema(
   {
     highROICoverage: Number,
     lowROIAttempts: Number,
+    highROIAccuracy: Number,
     scoreOpportunityIndex: Number,
     soiBreakdown: {
       sillyMistakesLoss: Number,

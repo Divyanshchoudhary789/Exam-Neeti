@@ -51,6 +51,7 @@ const topicBreakdownSchema = new mongoose.Schema(
     correct: Number,
     incorrect: Number,
     accuracy: Number,
+    attemptRate: Number,
     isWeak: Boolean,
     isStrong: Boolean,
   },

@@ -383,22 +383,27 @@ export function ProfileSettingsPanel({ onBack }: { onBack: () => void }) {
                   </div>
                 ))}
 
-                {/* Show/hide toggle */}
+                {/* Show/hide toggle — real checkbox input so it's keyboard-operable
+                    (Tab + Space) and announced correctly by screen readers; the
+                    styled span is purely decorative and driven by the same state. */}
                 <label className="flex items-center gap-2 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={showPasswords}
+                    onChange={() => setShowPasswords((p) => !p)}
+                    className="sr-only"
+                  />
                   <span
+                    aria-hidden="true"
                     className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
                       showPasswords
                         ? "bg-indigo-600 border-indigo-600"
                         : "border-slate-300 bg-white"
                     }`}
-                    onClick={() => setShowPasswords((p) => !p)}
                   >
                     {showPasswords && <IconCheck className="w-2.5 h-2.5 text-white" />}
                   </span>
-                  <span
-                    className="text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors select-none"
-                    onClick={() => setShowPasswords((p) => !p)}
-                  >
+                  <span className="text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors select-none">
                     Show passwords
                   </span>
                 </label>

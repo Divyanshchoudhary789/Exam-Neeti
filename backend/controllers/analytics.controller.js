@@ -5,7 +5,7 @@ const FormulaConfig = require("../models/FormulaConfig.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
-const { computeAnalytics, computeCompleteAnalytics } = require("../services/analytics.service");
+const { computeAnalytics } = require("../services/analytics.service");
 const { computeAdvancedAnalytics } = require("../services/advancedAnalytics.service");
 const { getCoverageMetrics } = require("../services/coverage.service");
 const { ROLES, ATTEMPT_STATUS, SPRINT_STATUS } = require("../config/constants");
@@ -178,10 +178,64 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
     return {
       ...t,
       accuracy,
+      attemptRate: parseFloat(((t.attempted / Math.max(t.totalQuestions, 1)) * 100).toFixed(2)),
       isWeak:   t.attempted > 0 && accuracy <  weakThreshold,
       isStrong: t.attempted > 0 && accuracy >= strongThreshold,
     };
   });
+
+  // Topic Progression — a topic's accuracy trend across this student's tests
+  // in this sprint over time. Only computable at the sprint level (a single
+  // attempt has no "over time" dimension). Only topics tested in 2+ exams
+  // show a meaningful trend.
+  const topicProgressionMap = {};
+  for (const ar of allAnalytics) {
+    for (const t of ar.topicAccuracy) {
+      const key = `${t.subject}__${t.chapter}__${t.topic}`;
+      if (!topicProgressionMap[key]) {
+        topicProgressionMap[key] = { subject: t.subject, chapter: t.chapter, topic: t.topic, series: [] };
+      }
+      if (t.attempted > 0) {
+        topicProgressionMap[key].series.push({
+          examId:      ar.exam?._id,
+          examTitle:   ar.exam?.title,
+          examNumber:  ar.exam?.examNumber,
+          attemptedAt: ar.computedAt,
+          accuracy:    t.accuracy,
+          attempted:   t.attempted,
+        });
+      }
+    }
+  }
+  const topicProgression = Object.values(topicProgressionMap)
+    .filter((tp) => tp.series.length >= 2)
+    .map((tp) => ({
+      ...tp,
+      // Positive = improving, negative = declining, from earliest to latest test.
+      trend: parseFloat((tp.series[tp.series.length - 1].accuracy - tp.series[0].accuracy).toFixed(2)),
+    }))
+    .sort((a, b) => a.trend - b.trend);
+
+  // Consistency Across Tests — how much score/accuracy varies test-to-test.
+  // Lower stdDev = more consistent performance.
+  const scoreMean = totalScore / totalTests;
+  const scoreStdDev = parseFloat(
+    Math.sqrt(scores.reduce((s, v) => s + Math.pow(v - scoreMean, 2), 0) / totalTests).toFixed(2)
+  );
+  const accuracyValues = allAnalytics.map((a) => a.overallAccuracy);
+  const accuracyMean = accuracyValues.reduce((s, v) => s + v, 0) / totalTests;
+  const accuracyStdDev = parseFloat(
+    Math.sqrt(accuracyValues.reduce((s, v) => s + Math.pow(v - accuracyMean, 2), 0) / totalTests).toFixed(2)
+  );
+  const consistencyAcrossTests = {
+    scoreStdDev,
+    accuracyStdDevPercent: accuracyStdDev,
+    interpretation:
+      totalTests < 2 ? "insufficient_data" :
+      accuracyStdDev <= 5  ? "very_consistent" :
+      accuracyStdDev <= 12 ? "consistent" :
+      accuracyStdDev <= 20 ? "variable" : "highly_variable",
+  };
 
   const timeline = allAnalytics.map((ar, idx) => ({
     examId:              ar.exam?._id,
@@ -203,7 +257,11 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
   const coverageMetrics = await getCoverageMetrics(studentId, sprintId);
 
   return sendSuccess(res, 200, "Student sprint summary fetched.", {
-    summary: { totalTests, totalScore, highestScore, averageScore, overallAccuracy, overallAttemptRate, overallPercentage },
+    summary: {
+      totalTests, totalScore, highestScore, averageScore,
+      overallAccuracy, overallAttemptRate, overallPercentage,
+      consistencyAcrossTests,
+    },
     subjectPerformance,
     chapterPerformance,
     topicPerformance: {
@@ -211,6 +269,7 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
       weak:   topicPerformance.filter((t) => t.isWeak),
       strong: topicPerformance.filter((t) => t.isStrong),
     },
+    topicProgression,
     coverageMetrics,
     timeline,
   });

@@ -8,19 +8,16 @@
 const mongoose = require("mongoose");
 const SyllabusConfig   = require("../models/SyllabusConfig.model");
 const TestBlueprint    = require("../models/TestBlueprint.model");
-const SyllabusProgress = require("../models/SyllabusProgress.model");
 const AppError         = require("../utils/AppError");
 const asyncHandler     = require("../utils/asyncHandler");
 const { sendSuccess }  = require("../utils/response");
 const { getCoverageMetrics, getBatchCoverageMetrics } = require("../services/coverage.service");
-const { ROLES, SUBJECTS, CLASS_LEVELS } = require("../config/constants");
+const { ROLES } = require("../config/constants");
 
 const toObjectId = (id) => {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
   return new mongoose.Types.ObjectId(id);
 };
-
-// ─── GET /syllabus — Full syllabus tree (subject → chapter → topics) ──────────
 
 // ─── GET /syllabus — Full syllabus tree (subject → chapter → topics) ──────────
 
@@ -91,8 +88,11 @@ exports.getSyllabus = asyncHandler(async (req, res) => {
 
 // ─── GET /syllabus/stats — Count of chapters and topics per subject ───────────
 
-exports.getSyllabusStats = asyncHandler(async (req, res) => {
-  const Question = require("../models/Question.model");
+exports.getSyllabusStats = asyncHandler(async (req, res, next) => {
+  const Question = req.app.get("QuestionModel");
+  if (!Question) {
+    return next(new AppError("Question bank connection is not available.", 503));
+  }
 
   const [breakdown, totalTaggedQuestions, uniqueSubjects, uniqueChapters] = await Promise.all([
     SyllabusConfig.aggregate([
@@ -365,7 +365,6 @@ exports.getStudentCoverage = asyncHandler(async (req, res, next) => {
 
   // Ensure the student actually exists
   const User = require("../models/User.model");
-  const { ROLES } = require("../config/constants");
   const student = await User.findOne({ _id: studentOid, role: ROLES.STUDENT }).select("_id").lean();
   if (!student) return next(new AppError("Student not found.", 404));
 

@@ -39,4 +39,24 @@ const authLimiter = rateLimit({
     process.env.DISABLE_RATE_LIMIT === "true",
 });
 
-module.exports = { apiLimiter, authLimiter };
+/**
+ * Stricter limiter for resource-intensive endpoints (report generation/download,
+ * exam start/submit) — these do multiple DB aggregations or PDF/Excel rendering
+ * per call, well beyond a typical CRUD request, so they need a tighter ceiling
+ * than the general apiLimiter to prevent abuse from burning CPU/memory.
+ */
+const heavyOperationLimiter = rateLimit({
+  windowMs:       parseInt(process.env.HEAVY_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
+  max:            parseInt(process.env.HEAVY_RATE_LIMIT_MAX,        10) || 30,
+  standardHeaders: true,
+  legacyHeaders:  false,
+  message: {
+    success: false,
+    message: "Too many requests to this endpoint. Please try again later.",
+  },
+  skip: () =>
+    process.env.NODE_ENV !== "production" &&
+    process.env.DISABLE_RATE_LIMIT === "true",
+});
+
+module.exports = { apiLimiter, authLimiter, heavyOperationLimiter };

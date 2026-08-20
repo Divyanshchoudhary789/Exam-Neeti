@@ -170,8 +170,8 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
   useEffect(() => { load(); }, [load]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const sylPct = Number(coverageData?.syllabusCoveragePercentage ?? 0).toFixed(0);
-  const conPct = Number(coverageData?.conceptCoveragePercentage ?? 0).toFixed(0);
+  const sylPct = Number(coverageData?.syllabusCoverage ?? 0).toFixed(0);
+  const conPct = Number(coverageData?.conceptCoverage ?? 0).toFixed(0);
   const probScore = Number(probabilityData?.readinessIndex ?? 0).toFixed(0);
   const submitted = attemptsList.filter(a => String(a.status || "").toLowerCase() === "submitted");
   const sprintId = String(activeSprint?._id || activeSprint?.id || "");
@@ -599,6 +599,7 @@ function HomeSection({
             value={probValStr}
             subtitle={probScore && probScore !== "0" ? "NEET Probability" : "Average Accuracy"}
             icon={IconChart}
+            ringValue={Number(probValStr.replace("%", "")) || 0}
             trend={
               probScore !== "0"
                 ? `${Number(probabilityData?.assessedCount || (probabilityData?.chapters as unknown[])?.length || 0)} of 86 chapters assessed`
@@ -610,6 +611,7 @@ function HomeSection({
             value={sylValStr}
             subtitle="Covered Chapters"
             icon={IconBook}
+            ringValue={Number(sylValStr.replace("%", "")) || 0}
           />
           <MiniStatCard
             title="Best Score"

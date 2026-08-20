@@ -6,6 +6,7 @@ import {
   IconChart, IconBook, IconCheck, IconClock,
   IconAlertTriangle, IconChevronLeft, IconRefresh, Spinner,
 } from "../common/UIComponents";
+import { AreaLineChart, RadialMeter } from "../common/Charts";
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,20 @@ interface TopicEntry {
   isStrong?: boolean;
 }
 
+interface ConsistencyAcrossTests {
+  scoreStdDev?: number;
+  accuracyStdDevPercent?: number;
+  interpretation?: string;
+}
+
+interface TopicProgressionEntry {
+  subject?: string;
+  chapter?: string;
+  topic?: string;
+  trend?: number;
+  series?: { examTitle?: string; examNumber?: number; accuracy?: number }[];
+}
+
 interface AnalyticsData {
   summary: {
     totalTests: number;
@@ -92,6 +107,7 @@ interface AnalyticsData {
     overallAccuracy: number;
     overallAttemptRate: number;
     overallPercentage: number;
+    consistencyAcrossTests?: ConsistencyAcrossTests;
   } | null;
   subjectPerformance: SubjectEntry[];
   chapterPerformance: ChapterEntry[];
@@ -100,10 +116,11 @@ interface AnalyticsData {
     weak: TopicEntry[];
     strong: TopicEntry[];
   } | null;
+  topicProgression: TopicProgressionEntry[];
   timeline: TimelineEntry[];
   coverageMetrics: {
-    syllabusCoveragePercentage?: number;
-    conceptCoveragePercentage?: number;
+    syllabusCoverage?: number;
+    conceptCoverage?: number;
   } | null;
 }
 
@@ -199,6 +216,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
         subjectPerformance: Array.isArray(payload?.subjectPerformance) ? payload.subjectPerformance : [],
         chapterPerformance: Array.isArray(payload?.chapterPerformance) ? payload.chapterPerformance : [],
         topicPerformance: payload?.topicPerformance ?? null,
+        topicProgression: Array.isArray(payload?.topicProgression) ? payload.topicProgression : [],
         timeline: Array.isArray(payload?.timeline) ? payload.timeline : [],
         coverageMetrics: payload?.coverageMetrics ?? null,
       };
@@ -209,7 +227,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       const msg = err?.response?.data?.message || err?.message || "Failed to load sprint analytics.";
       if ((e as { response?: { status?: number } })?.response?.status === 404) {
-        setData({ summary: null, subjectPerformance: [], chapterPerformance: [], topicPerformance: null, timeline: [], coverageMetrics: null });
+        setData({ summary: null, subjectPerformance: [], chapterPerformance: [], topicPerformance: null, topicProgression: [], timeline: [], coverageMetrics: null });
       } else {
         setError(msg);
       }
@@ -344,7 +362,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
 
   // ── Derived Analytics ──────────────────────────────────────────────────────
   const { summary, subjectPerformance: subjects, chapterPerformance: chapters,
-          topicPerformance: topicsObj, timeline, coverageMetrics } = data;
+          topicPerformance: topicsObj, topicProgression, timeline, coverageMetrics } = data;
 
   const chapSubjects  = ["all", ...Array.from(new Set(chapters.map(c => String(c.subject || ""))))];
   const filteredChaps = chapters
@@ -453,7 +471,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
 
         {/* ══ OVERVIEW ════════════════════════════════════════════════════ */}
         {tab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 animate-in fade-in duration-300">
 
             {/* Coverage */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
@@ -462,16 +480,16 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
               </h3>
               <div className="space-y-4">
                 {[
-                  { label: "Syllabus Coverage", pct: Number(coverageMetrics?.syllabusCoveragePercentage ?? 0), color: "bg-indigo-500" },
-                  { label: "Concept Mastery",   pct: Number(coverageMetrics?.conceptCoveragePercentage  ?? 0), color: "bg-teal-500" },
+                  { label: "Syllabus Coverage", pct: Number(coverageMetrics?.syllabusCoverage ?? 0), color: "bg-indigo-500" },
+                  { label: "Concept Mastery",   pct: Number(coverageMetrics?.conceptCoverage  ?? 0), color: "bg-teal-500" },
                 ].map(({ label, pct, color }) => (
-                  <div key={label} className="space-y-1.5">
+                  <div key={label} className="space-y-1.5 group">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-slate-700">{label}</span>
                       <span className="text-slate-500 tabular-nums">{pct.toFixed(0)}%</span>
                     </div>
                     <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                      <div className={`h-full rounded-full transition-all duration-700 group-hover:brightness-110 ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                     </div>
                   </div>
                 ))}
@@ -484,18 +502,29 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                 <IconChart className="w-4 h-4 text-violet-600 shrink-0" />Performance Summary
               </h3>
               {summary ? (
-                <div className="grid grid-cols-2 gap-2.5">
-                  {[
-                    { label: "Tests",        val: String(summary.totalTests),                                 color: "text-slate-900" },
-                    { label: "Best Score",   val: String(summary.highestScore),                               color: "text-emerald-600" },
-                    { label: "Avg Accuracy", val: `${Number(summary.overallAccuracy).toFixed(1)}%`,           color: "text-indigo-600" },
-                    { label: "Attempt Rate", val: `${Number(summary.overallAttemptRate).toFixed(1)}%`,        color: "text-amber-600" },
-                  ].map(({ label, val, color }) => (
-                    <div key={label} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
-                      <p className="text-[9px] font-extrabold uppercase text-slate-400">{label}</p>
-                      <p className={`text-lg font-black mt-0.5 ${color} tabular-nums`}>{val}</p>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-4">
+                  <RadialMeter value={Number(summary.overallAccuracy)} size={84} strokeWidth={8} label="Avg Accuracy" />
+                  <div className="grid grid-cols-2 gap-2.5 flex-1 min-w-0">
+                    {[
+                      { label: "Tests",        val: String(summary.totalTests),                                 color: "text-slate-900" },
+                      { label: "Best Score",   val: String(summary.highestScore),                               color: "text-emerald-600" },
+                      { label: "Attempt Rate", val: `${Number(summary.overallAttemptRate).toFixed(1)}%`,        color: "text-amber-600" },
+                      {
+                        label: "Consistency",
+                        val: summary.consistencyAcrossTests
+                          ? String(summary.consistencyAcrossTests.interpretation || "—").replace(/_/g, " ")
+                          : "—",
+                        color: "text-violet-600",
+                        sub: summary.consistencyAcrossTests ? `±${Number(summary.consistencyAcrossTests.accuracyStdDevPercent ?? 0).toFixed(1)}% accuracy` : undefined,
+                      },
+                    ].map(({ label, val, color, sub }) => (
+                      <div key={label} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                        <p className="text-[9px] font-extrabold uppercase text-slate-400">{label}</p>
+                        <p className={`text-base font-black mt-0.5 ${color} tabular-nums capitalize truncate`}>{val}</p>
+                        {sub && <p className="text-[9px] text-slate-400 font-semibold mt-0.5">{sub}</p>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <p className="text-xs text-slate-400 py-6 text-center font-medium">No data yet. Refresh after submitting a test.</p>
@@ -506,7 +535,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
 
         {/* ══ SUBJECTS ════════════════════════════════════════════════════ */}
         {tab === "subjects" && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
             <h3 className="text-sm font-black text-slate-900">Subject-wise Performance</h3>
             {subjects.length === 0 ? (
               <EmptyTab label="No subject data available yet." />
@@ -560,7 +589,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
 
         {/* ══ CHAPTERS ════════════════════════════════════════════════════ */}
         {tab === "chapters" && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
             <div className="flex flex-col gap-3">
               <h3 className="text-sm font-black text-slate-900">Chapter-wise Performance</h3>
               <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
@@ -615,7 +644,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
 
         {/* ══ TOPICS ══════════════════════════════════════════════════════ */}
         {tab === "topics" && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="text-sm font-black text-slate-900">Topic Analysis</h3>
               <div className="flex items-center gap-1.5">
@@ -683,12 +712,39 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                 })}
               </div>
             )}
+
+            {/* Topic Progression — accuracy trend across tests in this sprint (needs 2+ tests on a topic) */}
+            {topicProgression.length > 0 && (
+              <div className="pt-4 border-t border-slate-100 space-y-2.5">
+                <h4 className="text-xs font-black text-slate-800">Topic Progression Across Tests</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {topicProgression.slice(0, 8).map((tp, i) => {
+                    const trend = Number(tp.trend ?? 0);
+                    const improving = trend > 0;
+                    const flat = trend === 0;
+                    return (
+                      <div key={i} className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-bold text-slate-800 truncate">{String(tp.topic || "")}</p>
+                          <p className="text-[10px] text-slate-400 font-medium truncate">{String(tp.subject || "")} • {tp.series?.length ?? 0} tests</p>
+                        </div>
+                        <span className={`text-xs font-black tabular-nums shrink-0 px-2 py-1 rounded-lg ${
+                          flat ? "text-slate-500 bg-slate-100" : improving ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"
+                        }`}>
+                          {improving ? "+" : ""}{trend.toFixed(0)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ══ TIMELINE ════════════════════════════════════════════════════ */}
         {tab === "timeline" && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-5">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-5 animate-in fade-in duration-300">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-slate-900">Performance Timeline</h3>
               <span className="text-[10px] font-extrabold text-slate-400 tabular-nums">{timeline.length} test{timeline.length !== 1 ? "s" : ""}</span>
@@ -698,32 +754,19 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
               <EmptyTab label="No test attempts yet in this sprint." />
             ) : (
               <>
-                {/* Bar chart */}
+                {/* Score trend */}
                 <div className="space-y-2">
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Score Trend</p>
-                  <div className="flex items-end gap-2 overflow-x-auto pb-2 scrollbar-none" style={{ minHeight: "96px" }}>
-                    {timeline.map((t, i) => {
-                      const s   = Number(t.score ?? 0);
-                      const max = Number(t.totalMarks ?? 720);
-                      const pct = Math.min((s / Math.max(max, 1)) * 100, 100);
-                      const diff= Number(t.improvementFromPrev ?? 0);
-                      const barCls = pct >= 65 ? "bg-indigo-500" : pct >= 40 ? "bg-amber-500" : "bg-red-400";
-                      return (
-                        <div key={i} className="flex flex-col items-center gap-1 min-w-[44px] shrink-0">
-                          <span className="text-[9px] font-extrabold text-slate-600 tabular-nums">{s}</span>
-                          <div className="w-8 bg-slate-100 rounded-t-lg overflow-hidden flex items-end" style={{ height: "60px" }}>
-                            <div className={`w-full rounded-t-lg transition-all ${barCls}`} style={{ height: `${Math.max(pct, 5)}%` }} />
-                          </div>
-                          {i > 0 && diff !== 0 && (
-                            <span className={`text-[9px] font-black tabular-nums ${diff > 0 ? "text-emerald-500" : "text-red-500"}`}>
-                              {diff > 0 ? "+" : ""}{diff}
-                            </span>
-                          )}
-                          <span className="text-[9px] text-slate-400 font-bold">T{i + 1}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <AreaLineChart
+                    color="#4f46e5"
+                    valueSuffix=" pts"
+                    height={160}
+                    data={timeline.map((t, i) => ({
+                      label: `T${i + 1}`,
+                      value: Number(t.score ?? 0),
+                      detail: `${String(t.examTitle || `Test ${i + 1}`)} • ${t.attemptedAt ? new Date(String(t.attemptedAt)).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : ""}`,
+                    }))}
+                  />
                 </div>
 
                 {/* Table */}

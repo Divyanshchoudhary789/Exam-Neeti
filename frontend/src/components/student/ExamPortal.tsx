@@ -122,6 +122,30 @@ const formatTimer = (s: number) => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 };
 
+// ─── Local autosave — the exam has no server-side "save progress" endpoint,
+// so in-progress answers only ever lived in React state. A refresh, an
+// accidental back-navigation, or a network drop before final submit used to
+// wipe every answer with zero recovery. Persisting to localStorage per
+// attemptId means a reload restores exactly where the student left off.
+const AUTOSAVE_VERSION = 1;
+const getAutosaveKey = (attId: string) => `examneeti_attempt_progress_${attId}`;
+
+interface AutosavePayload {
+  v: number;
+  answers: Record<number, string>;
+  confidenceMap: Record<number, number>;
+  markedForReview: Record<number, boolean>;
+  timeSpentMap: Record<number, number>;
+  sequencePositions: Record<number, number>;
+  reattemptMap: Record<number, boolean>;
+  answerChangesMap: Record<number, number>;
+  initialAnswerMap: Record<number, string>;
+  firstAnswerTimeMap: Record<number, number>;
+  lastAnswerTimeMap: Record<number, number>;
+  reattemptDelayMap: Record<number, number>;
+  stepCount: number;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ExamPortal({
@@ -166,6 +190,8 @@ export function ExamPortal({
   const endTimeRef = useRef<number | null>(null);
   const submitCalledRef = useRef(false);
   const handleSubmitExamRef = useRef<() => void>(() => {});
+  const onExitRef = useRef(onExit);
+  useEffect(() => { onExitRef.current = onExit; }, [onExit]);
 
   // ── Init Attempt ──────────────────────────────────────────────────────────
   const initAttempt = useCallback(async () => {
@@ -180,6 +206,34 @@ export function ExamPortal({
 
       const attId = String(att?._id || att?.id || data?.attemptId || "");
       setAttemptId(attId);
+
+      // Restore any locally-autosaved answers/telemetry for this exact attempt —
+      // covers refresh, accidental tab close, or a crash before final submit.
+      if (attId && typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem(getAutosaveKey(attId));
+          if (raw) {
+            const saved = JSON.parse(raw) as AutosavePayload;
+            if (saved && saved.v === AUTOSAVE_VERSION) {
+              setAnswers(saved.answers || {});
+              setConfidenceMap(saved.confidenceMap || {});
+              setMarkedForReview(saved.markedForReview || {});
+              setTimeSpentMap(saved.timeSpentMap || {});
+              setSequencePositions(saved.sequencePositions || {});
+              setReattemptMap(saved.reattemptMap || {});
+              setAnswerChangesMap(saved.answerChangesMap || {});
+              setInitialAnswerMap(saved.initialAnswerMap || {});
+              setFirstAnswerTimeMap(saved.firstAnswerTimeMap || {});
+              setLastAnswerTimeMap(saved.lastAnswerTimeMap || {});
+              setReattemptDelayMap(saved.reattemptDelayMap || {});
+              stepCountRef.current = saved.stepCount || 0;
+            }
+          }
+        } catch {
+          // Corrupt/unavailable autosave data — continue with a clean slate
+          // rather than blocking exam startup on it.
+        }
+      }
 
       const qList: Question[] = examData?.questions || att?.questions || data?.questions || [];
       setQuestions(qList);
@@ -254,6 +308,11 @@ export function ExamPortal({
       }));
 
       await studentService.submitExamAttempt(attemptId, responsesPayload, totalTimeSeconds);
+
+      if (typeof window !== "undefined") {
+        try { localStorage.removeItem(getAutosaveKey(attemptId)); } catch { /* non-fatal */ }
+      }
+
       onFinish(attemptId);
     } catch (err: unknown) {
       submitCalledRef.current = false;
@@ -330,6 +389,75 @@ export function ExamPortal({
     }, 1000);
     return () => clearInterval(perQuestionIv);
   }, [currentIndex, loading, questions.length]);
+
+  // ── Autosave answers/telemetry to localStorage on every change ───────────
+  useEffect(() => {
+    if (!attemptId || typeof window === "undefined") return;
+    try {
+      const payload: AutosavePayload = {
+        v: AUTOSAVE_VERSION,
+        answers,
+        confidenceMap,
+        markedForReview,
+        timeSpentMap,
+        sequencePositions,
+        reattemptMap,
+        answerChangesMap,
+        initialAnswerMap,
+        firstAnswerTimeMap,
+        lastAnswerTimeMap,
+        reattemptDelayMap,
+        stepCount: stepCountRef.current,
+      };
+      localStorage.setItem(getAutosaveKey(attemptId), JSON.stringify(payload));
+    } catch {
+      // localStorage full/unavailable (e.g. private browsing) — non-fatal,
+      // the exam still works, it just loses the refresh-recovery safety net.
+    }
+  }, [
+    attemptId,
+    answers,
+    confidenceMap,
+    markedForReview,
+    timeSpentMap,
+    sequencePositions,
+    reattemptMap,
+    answerChangesMap,
+    initialAnswerMap,
+    firstAnswerTimeMap,
+    lastAnswerTimeMap,
+    reattemptDelayMap,
+  ]);
+
+  // ── Warn before an accidental refresh/close/tab-navigate away ────────────
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (submitCalledRef.current) return; // already submitted — nothing to lose
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // ── Trap the browser back button ──────────────────────────────────────────
+  // The exam is an in-app view with no distinct URL, so a bare back-button
+  // press would otherwise unmount the whole page with no warning. Push a
+  // guard history entry and intercept popstate to confirm before exiting.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.history.pushState({ examGuard: true }, "");
+    const handlePopState = () => {
+      if (submitCalledRef.current) return;
+      window.history.pushState({ examGuard: true }, "");
+      const confirmExit = window.confirm(
+        "Your progress is autosaved, but the test timer keeps running in the background. Exit the test screen?"
+      );
+      if (confirmExit) onExitRef.current();
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // ── Option Handlers ───────────────────────────────────────────────────────
   const handleSelectOption = (optKey: string) => {

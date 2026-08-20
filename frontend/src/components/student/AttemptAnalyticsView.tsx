@@ -8,6 +8,7 @@ import {
   IconCheck, IconEye, Spinner,
   IconAlertTriangle, IconTarget, IconBook, IconRefresh,
 } from "../common/UIComponents";
+import { RadialMeter, AreaLineChart, HBarChart } from "../common/Charts";
 import { studentService } from "../../services/apiServices";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -238,6 +239,13 @@ export function AttemptAnalyticsView({
   const frameworkEarly = (metricsFramework.foundationTimeSpeedDetail as Record<string, unknown>) || {};
   const frameworkTime = (metricsFramework.timeSpeed as Record<string, unknown>) || {};
   const frameworkDifficulty = (metricsFramework.difficulty as Record<string, unknown>) || {};
+  const frameworkFoundation = (metricsFramework.foundation as Record<string, unknown>) || {};
+  const frameworkAccuracyErrors = (metricsFramework.accuracyErrors as Record<string, unknown>) || {};
+  const questionTypeCoverageArr = (frameworkContent.questionTypeCoverage as Record<string, unknown>[]) || [];
+  const avgQuestionTypeCoverage = questionTypeCoverageArr.length
+    ? questionTypeCoverageArr.reduce((s, t) => s + Number(t.coverage ?? 0), 0) / questionTypeCoverageArr.length
+    : 0;
+  const streakBreakPoint = (frameworkPattern.streakBreakPoint as Record<string, unknown>) || null;
   const difficultyAccuracy = (analytics.difficultyAccuracy as Record<string, unknown>[]) || [];
   const topicAccuracy = (analytics.topicAccuracy as Record<string, unknown>[]) || [];
   const recoverableMarks = (analytics.recoverableMarks as Record<string, unknown>) || {};
@@ -293,8 +301,8 @@ export function AttemptAnalyticsView({
       </div>
 
       {/* ── Stat cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-        {/* Score */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {/* Score — the hero figure for this view */}
         <div className="col-span-1 p-4 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white text-center shadow-lg flex flex-col justify-between">
           <p className="text-[10px] font-extrabold uppercase tracking-wide text-indigo-200">Score</p>
           <div className="my-1">
@@ -306,8 +314,11 @@ export function AttemptAnalyticsView({
           ) : <div className="h-3" />}
         </div>
 
-        {/* Accuracy */}
-        <StatCard label="Accuracy" value={`${accuracy}%`} sub="Target: 80%" color="text-emerald-600" />
+        {/* Accuracy — a ratio against an 80% target, so a radial meter is the honest form */}
+        <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center gap-1">
+          <RadialMeter value={Number(accuracy)} size={72} strokeWidth={7} />
+          <p className="text-[9px] text-slate-400 font-semibold">Target 80%</p>
+        </div>
 
         {/* Time */}
         <StatCard
@@ -363,7 +374,7 @@ export function AttemptAnalyticsView({
                 const pct     = Math.min(Math.round((marks / Math.max(total * 4, 1)) * 100), 100);
                 const barCls  = SUBJECT_COLORS[subj.toLowerCase()] || "bg-indigo-500";
                 return (
-                  <div key={i} className="space-y-1.5">
+                  <div key={i} className="space-y-1.5 group">
                     <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800">
                       <span className="capitalize">{subj}</span>
                       <div className="flex items-center gap-2 text-[10px] tabular-nums shrink-0">
@@ -373,7 +384,10 @@ export function AttemptAnalyticsView({
                       </div>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-700 ${barCls}`} style={{ width: `${pct}%` }} />
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ease-out group-hover:brightness-110 ${barCls}`}
+                        style={{ width: `${pct}%`, transitionDelay: `${i * 100}ms` }}
+                      />
                     </div>
                   </div>
                 );
@@ -423,6 +437,9 @@ export function AttemptAnalyticsView({
               <MetricTile label="Negative Marks" value={Number(analytics.totalNegativeMarks ?? 0).toFixed(1)} sub="Marks lost" danger />
               <MetricTile label="Guess Rate" value={`${Number(errorClassification.guessRate ?? 0).toFixed(1)}%`} sub={`${errorClassification.guesses ?? analytics.totalGuessAttempts ?? 0} guesses`} />
               <MetricTile label="Recoverable Marks" value={Number(recoverableMarks.totalRecoverable ?? 0).toFixed(1)} sub="Score opportunity" />
+              <MetricTile label="First Attempt Accuracy" value={`${Number(frameworkFoundation.firstAttemptAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct before any reattempt" />
+              <MetricTile label="Reattempt Accuracy" value={`${Number(frameworkFoundation.reattemptAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct on reattempted Qs" />
+              <MetricTile label="Careless Error Rate" value={`${Number(frameworkFoundation.carelessErrorRatePercent ?? 0).toFixed(1)}%`} sub="Careless mistakes / attempted" danger />
             </MetricPanel>
 
             <MetricPanel title="Time and Speed" icon={IconClock} tone="emerald">
@@ -432,14 +449,27 @@ export function AttemptAnalyticsView({
               <MetricTile label="Wrong Avg Time" value={`${Number(analytics.avgTimeOnIncorrect ?? timeVariance.avgTimeOnIncorrect ?? 0).toFixed(0)}s`} sub="Incorrect answers" danger />
               <MetricTile label="Speed Consistency" value={`${Number(analytics.timeStdDeviation ?? timeVariance.standardDeviation ?? 0).toFixed(0)}s`} sub="Std deviation" />
               <MetricTile label="Order Quality" value={String(orderQuality.spearmanRho ?? orderRho)} sub={String(orderQuality.interpretation || "strategy score")} />
+              <MetricTile label="Time / Unattempted" value={`${Number(frameworkTime.timePerUnattemptedSeconds ?? 0).toFixed(0)}s`} sub="Before skipping" />
+              <MetricTile label="First Attempt Time" value={`${Number(frameworkTime.firstAttemptTimeSeconds ?? 0).toFixed(0)}s`} sub="Time to first answer" />
+              <MetricTile label="Speed Index" value={Number(frameworkTime.speedIndex ?? 0).toFixed(2)} sub="Attempted / minute" />
+              <MetricTile
+                label="Slowdown Point"
+                value={frameworkTime.slowdownPoint ? `Q${(frameworkTime.slowdownPoint as Record<string, unknown>).attemptIndex}` : "None"}
+                sub={frameworkTime.slowdownPoint ? `${(frameworkTime.slowdownPoint as Record<string, unknown>).beforeAvgSeconds}s → ${(frameworkTime.slowdownPoint as Record<string, unknown>).afterAvgSeconds}s` : "No sharp slowdown detected"}
+              />
             </MetricPanel>
 
             <MetricPanel title="Accuracy and Errors" icon={IconAlertTriangle} tone="rose">
-              <MetricTile label="Silly Mistakes" value={String(errorClassification.sillyMistakes ?? 0)} sub={`${Number(errorClassification.sillyMistakeRate ?? 0).toFixed(1)}% rate`} danger />
-              <MetricTile label="Concept Errors" value={String(errorClassification.conceptErrors ?? 0)} sub={`${Number(errorClassification.conceptErrorRate ?? 0).toFixed(1)}% rate`} danger />
-              <MetricTile label="Confidence Gap" value={`${Math.abs(Number(errorClassification.sillyMistakeRate ?? 0) - Number(errorClassification.guessRate ?? 0)).toFixed(1)}%`} sub="Mistake vs guess spread" />
+              <MetricTile label="Silly Mistakes" value={String(errorClassification.sillyMistakes ?? 0)} sub={`${Number(errorClassification.sillyMistakeRate ?? 0).toFixed(1)}% of wrong`} danger />
+              <MetricTile label="Concept Errors" value={String(errorClassification.conceptErrors ?? 0)} sub={`${Number(errorClassification.conceptErrorRate ?? 0).toFixed(1)}% of wrong`} danger />
+              <MetricTile label="Calculation Error Rate" value={`${Number(frameworkAccuracyErrors.calculationErrorRatePercent ?? 0).toFixed(1)}%`} sub="Wrong numeric Qs, worked not guessed" danger />
+              <MetricTile label="Confidence Gap" value={`${Number(frameworkAccuracyErrors.confidenceAccuracyGapPercent ?? 0).toFixed(1)}%`} sub="|Avg confidence − accuracy|" />
+              <MetricTile label="Confidence Collapse" value={String(frameworkAccuracyErrors.confidenceCollapseCount ?? 0)} sub="Wrong despite high confidence, high-ROI" danger />
+              <MetricTile label="Error Rate" value={`${Number(frameworkAccuracyErrors.errorRatePercent ?? 0).toFixed(1)}%`} sub="Wrong / attempted" danger />
               <MetricTile label="High ROI Coverage" value={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}%`} sub="Priority questions attempted" />
+              <MetricTile label="High ROI Accuracy" value={`${Number(frameworkAccuracyErrors.highROIAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct among priority Qs" />
               <MetricTile label="Low ROI Attempts" value={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}%`} sub="Low value attempted" danger />
+              <MetricTile label="Known Question Accuracy" value={`${Number(frameworkAccuracyErrors.knownQuestionAccuracyPercent ?? 0).toFixed(1)}%`} sub="Seen in a prior attempt" />
               <MetricTile label="Opportunity Index" value={Number(roiMetrics.scoreOpportunityIndex ?? 0).toFixed(1)} sub="Avoidable loss estimate" />
             </MetricPanel>
 
@@ -453,22 +483,61 @@ export function AttemptAnalyticsView({
             </MetricPanel>
           </div>
 
-          <MetricPanel title="Difficulty Wise Performance" icon={IconBook} tone="slate">
+          <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <IconBook className="w-4 h-4 text-slate-600 shrink-0" />Difficulty Wise Performance
+            </h3>
             {difficultyAccuracy.length === 0 ? (
-              <p className="col-span-full py-6 text-center text-xs font-semibold text-slate-400">No difficulty data available yet.</p>
-            ) : difficultyAccuracy.map((d, i) => (
-              <MetricTile
-                key={`${String(d.difficulty)}-${i}`}
-                label={String(d.difficulty || "Difficulty")}
-                value={`${Number(d.accuracy ?? 0).toFixed(1)}%`}
-                sub={`${d.correct ?? 0}/${d.attempted ?? 0} correct, ${Number(d.avgTimeSeconds ?? 0).toFixed(0)}s avg`}
+              <p className="py-6 text-center text-xs font-semibold text-slate-400">No difficulty data available yet.</p>
+            ) : (
+              <HBarChart
+                data={(() => {
+                  // Ordinal ramp — one hue, darker with rising difficulty, since
+                  // difficulty is an ordered scale, not an unordered category set.
+                  const RAMP: Record<string, string> = { easy: "#a5b4fc", medium: "#6366f1", hard: "#4338ca" };
+                  const ORDER = ["easy", "medium", "hard"];
+
+                  // Backend rows are difficulty × subject (matches the schema's
+                  // documented subject dimension) — aggregate back to one row per
+                  // difficulty for this summary chart; the subject-level split is
+                  // already shown separately in Subject Performance above.
+                  const byDifficulty: Record<string, { correct: number; attempted: number; totalTime: number; totalQuestions: number }> = {};
+                  for (const d of difficultyAccuracy) {
+                    const key = String(d.difficulty || "unknown").toLowerCase();
+                    if (!byDifficulty[key]) byDifficulty[key] = { correct: 0, attempted: 0, totalTime: 0, totalQuestions: 0 };
+                    byDifficulty[key].correct += Number(d.correct ?? 0);
+                    byDifficulty[key].attempted += Number(d.attempted ?? 0);
+                    byDifficulty[key].totalQuestions += Number(d.totalQuestions ?? 0);
+                    byDifficulty[key].totalTime += Number(d.avgTimeSeconds ?? 0) * Number(d.totalQuestions ?? 0);
+                  }
+
+                  return Object.entries(byDifficulty)
+                    .sort(([a], [b]) => ORDER.indexOf(a) - ORDER.indexOf(b))
+                    .map(([difficulty, agg]) => {
+                      const scoreEntry = ((frameworkDifficulty.scoreContribution as Record<string, unknown>[]) || [])
+                        .find((s) => String(s.difficulty).toLowerCase() === difficulty);
+                      const accuracy = agg.attempted > 0 ? (agg.correct / agg.attempted) * 100 : 0;
+                      const avgTime = agg.totalQuestions > 0 ? agg.totalTime / agg.totalQuestions : 0;
+                      return {
+                        label: difficulty,
+                        value: accuracy,
+                        color: RAMP[difficulty] || "#6366f1",
+                        detail: `${agg.correct}/${agg.attempted} correct, ${avgTime.toFixed(0)}s avg, ${scoreEntry ? Number(scoreEntry.score ?? 0).toFixed(0) : "—"} marks`,
+                      };
+                    });
+                })()}
               />
-            ))}
-          </MetricPanel>
+            )}
+          </section>
 
           <MetricPanel title="Subject and Topic Analytics" icon={IconBook} tone="teal">
             <MetricTile label="Weak Topics" value={String(topicAccuracy.filter(t => t.isWeak).length)} sub="Below configured threshold" danger />
             <MetricTile label="Strong Topics" value={String(topicAccuracy.filter(t => t.isStrong).length)} sub="Above configured threshold" />
+            <MetricTile
+              label="Avg Topic Attempt Rate"
+              value={`${(topicAccuracy.length ? topicAccuracy.reduce((s, t) => s + Number(t.attemptRate ?? 0), 0) / topicAccuracy.length : 0).toFixed(1)}%`}
+              sub={`Across ${topicAccuracy.length} topics`}
+            />
             {subjectBreakdown.slice(0, 4).map((s, i) => (
               <MetricTile
                 key={i}
@@ -480,7 +549,8 @@ export function AttemptAnalyticsView({
           </MetricPanel>
 
           <MetricPanel title="Content and Coverage" icon={IconBook} tone="indigo">
-            <MetricTile label="Question Type Coverage" value={`${Number(frameworkContent.topicCoveragePercent ?? 0).toFixed(1)}%`} sub="Attempted topic coverage" />
+            <MetricTile label="Topic Coverage" value={`${Number(frameworkContent.topicCoveragePercent ?? 0).toFixed(1)}%`} sub="Attempted topic coverage" />
+            <MetricTile label="Question Type Coverage" value={`${avgQuestionTypeCoverage.toFixed(1)}%`} sub={`Across ${questionTypeCoverageArr.length} question types`} />
             <MetricTile label="Assertion Accuracy" value={`${Number((frameworkContent.assertionAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.assertionAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
             <MetricTile label="Numeric Accuracy" value={`${Number((frameworkContent.numericAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.numericAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
             <MetricTile label="Image Accuracy" value={`${Number((frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
@@ -491,11 +561,37 @@ export function AttemptAnalyticsView({
           <MetricPanel title="Reattempt and Behavior" icon={IconRefresh} tone="rose">
             <MetricTile label="Correct on Reattempt" value={String(frameworkBehavior.wrongToCorrect ?? 0)} sub="Wrong to correct switches" />
             <MetricTile label="Wrong Again" value={String(frameworkBehavior.wrongToWrong ?? 0)} sub="Repeated wrong answers" danger />
-            <MetricTile label="Avg Reattempt Delay" value={`${Number(frameworkBehavior.reattemptDelaySeconds ?? 0).toFixed(0)}s`} sub="Gap before change" />
+            <MetricTile label="Avg Reattempt Delay" value={`${Number(frameworkBehavior.reattemptDelaySeconds ?? 0).toFixed(0)}s`} sub="Gap before reattempting" />
+            <MetricTile label="Time Change on Reattempt" value={`${Number(frameworkBehavior.timeChangeOnReattemptSeconds ?? 0).toFixed(0)}s`} sub="Extra time to finalize answer" />
             <MetricTile label="Smart Reattempt Rate" value={`${Number((frameworkBehavior.smartVsBlind as Record<string, unknown>)?.smartRatePercent ?? 0).toFixed(1)}%`} sub="Considered vs immediate" />
             <MetricTile label="Overthinking Index" value={String(frameworkBehavior.overthinkingIndex ?? 0)} sub="High time plus wrong" danger />
             <MetricTile label="Efficiency" value={`${Number(frameworkBehavior.reattemptEfficiencyPercent ?? 0).toFixed(1)}%`} sub="Productive reattempt rate" />
+            <MetricTile label="Repeated Wrong (Cross-Test)" value={String(frameworkBehavior.repeatedWrongQuestionsCrossTest ?? 0)} sub="Also wrong in a prior attempt" danger />
           </MetricPanel>
+
+          {/* Fatigue Curve — accuracy through the exam, rolling 5-question windows */}
+          {Array.isArray(fatigueCurve.rollingWindows) && (fatigueCurve.rollingWindows as Record<string, unknown>[]).length > 0 && (
+            <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 text-amber-700 bg-amber-50 border-amber-100">
+                  <IconAlertTriangle className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 leading-tight">Fatigue Curve</h3>
+                  <p className="text-[10px] text-slate-400 font-semibold">Rolling accuracy across the exam — hover a point for detail</p>
+                </div>
+              </div>
+              <AreaLineChart
+                color="#d97706"
+                valueSuffix="%"
+                data={(fatigueCurve.rollingWindows as Record<string, unknown>[]).map((w) => ({
+                  label: `Q${w.startPosition}`,
+                  value: Number(w.accuracy ?? 0),
+                  detail: `Questions ${w.startPosition}–${w.endPosition}`,
+                }))}
+              />
+            </section>
+          )}
 
           <MetricPanel title="Patterns and Fatigue" icon={IconAlertTriangle} tone="amber">
             <MetricTile label="Alternation Count" value={String(frameworkPattern.rightWrongAlternationCount ?? 0)} sub="Right/wrong switches" />
@@ -504,13 +600,19 @@ export function AttemptAnalyticsView({
             <MetricTile label="Accuracy Recovery" value={String(frameworkFatigue.accuracyRecovery ?? "None")} sub="Recovery window index" />
             <MetricTile label="Fall Rate" value={`${Number(frameworkDifficulty.fallRatePercent ?? 0).toFixed(1)}%`} sub="First half vs second half" danger />
             <MetricTile label="Consistency Spread" value={`${Number(frameworkDifficulty.performanceConsistencyPercent ?? 0).toFixed(1)}%`} sub="Difficulty accuracy variance" />
+            <MetricTile
+              label="Streak Break Point"
+              value={streakBreakPoint ? String(streakBreakPoint.label) : "None"}
+              sub={streakBreakPoint ? `${streakBreakPoint.breakCount} good streaks broke here` : "No repeated break pattern"}
+            />
+            <MetricTile label="Topics Fatiguing" value={String(((frameworkFatigue.topicFatigue as unknown[]) || []).length)} sub="Accuracy drops within topic" danger />
           </MetricPanel>
 
           <MetricPanel title="Early Momentum" icon={IconTarget} tone="emerald">
             <MetricTile label="Foundation Time" value={`${Number(frameworkEarly.foundationTimeSeconds ?? 0).toFixed(0)}s`} sub="First answer time" />
             <MetricTile label="First N Accuracy" value={`${Number(frameworkEarly.firstNAccuracyPercent ?? 0).toFixed(1)}%`} sub="Early attempt quality" />
             <MetricTile label="Early Speed" value={`${Number(frameworkEarly.earlySpeedSeconds ?? 0).toFixed(0)}s`} sub="Avg first N time" />
-            <MetricTile label="Early Stability" value={`${Number(frameworkEarly.earlyAccuracyStabilitySeconds ?? 0).toFixed(0)}s`} sub="First N time spread" />
+            <MetricTile label="Early Accuracy Stability" value={`${Number(frameworkEarly.earlyAccuracyStabilityPercent ?? 0).toFixed(1)}%`} sub={`Lower = steadier (±${Number(frameworkEarly.earlyTimeSpreadSeconds ?? 0).toFixed(0)}s time spread)`} />
             <MetricTile label="Momentum Score" value={Number(frameworkEarly.momentumScore ?? 0).toFixed(1)} sub="Accuracy x speed" />
             <MetricTile label="Median Time" value={`${Number(frameworkTime.medianTimePerQuestionSeconds ?? 0).toFixed(0)}s`} sub="Middle question time" />
           </MetricPanel>
@@ -846,7 +948,7 @@ function StatCard({
   valueSmall?: boolean;
 }) {
   return (
-    <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-center flex flex-col justify-between">
+    <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-center flex flex-col justify-between transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
       <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">{label}</p>
       <div className="my-1">
         <h2 className={`font-black tabular-nums leading-tight ${valueSmall ? "text-lg sm:text-xl" : "text-2xl sm:text-3xl"} ${color}`}>
@@ -879,7 +981,7 @@ function MetricPanel({
   };
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3.5">
+    <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3.5 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="flex items-center gap-2">
         <span className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${toneClass[tone]}`}>
           <Icon className="w-4 h-4" />
@@ -905,7 +1007,7 @@ function MetricTile({
   danger?: boolean;
 }) {
   return (
-    <div className="min-h-[88px] rounded-xl border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between">
+    <div className="min-h-[88px] rounded-xl border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between transition-all duration-200 hover:bg-white hover:border-slate-200 hover:shadow-md hover:-translate-y-0.5">
       <p className="text-[9px] sm:text-[10px] font-extrabold uppercase text-slate-400 leading-snug">{label}</p>
       <p className={`text-lg sm:text-xl font-black tabular-nums leading-tight break-words ${danger ? "text-red-600" : "text-slate-900"}`}>
         {value}

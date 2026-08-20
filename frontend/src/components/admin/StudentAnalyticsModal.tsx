@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CommonModal, Spinner, MiniStatCard, IconChart, IconBook, IconClock } from "../common/UIComponents";
+import { CommonModal, Spinner, IconChart, IconBook, IconClock } from "../common/UIComponents";
+import { RadialMeter, AreaLineChart } from "../common/Charts";
 import { adminService, UserProfile } from "../../services/apiServices";
 
 interface StudentAnalyticsModalProps {
@@ -106,7 +107,7 @@ export function StudentAnalyticsModal({
           <div className="sm:text-right shrink-0 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-white/10 flex sm:flex-col justify-between sm:justify-center items-center sm:items-end gap-1">
             <span className="text-[10px] uppercase tracking-wider font-bold text-indigo-300">Scope</span>
             <span className="text-xs font-black text-white px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 inline-block">
-              {effectiveSprintId === "all" ? "🌟 All Sprints (Overall)" : "Selected Sprint"}
+              {effectiveSprintId === "all" ? "All Sprints (Overall)" : "Selected Sprint"}
             </span>
           </div>
         </div>
@@ -120,7 +121,7 @@ export function StudentAnalyticsModal({
           <>
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-indigo-300 transition-all">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5 transition-all">
                 <div className="flex items-center justify-between gap-1">
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Tests</p>
                   <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
@@ -131,7 +132,7 @@ export function StudentAnalyticsModal({
                 <p className="text-[10px] text-slate-400 font-bold mt-0.5">Completed</p>
               </div>
 
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-emerald-300 transition-all">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-emerald-300 hover:shadow-md hover:-translate-y-0.5 transition-all">
                 <div className="flex items-center justify-between gap-1">
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Marks</p>
                   <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
@@ -142,28 +143,52 @@ export function StudentAnalyticsModal({
                 <p className="text-[10px] text-slate-400 font-bold mt-0.5">Accumulated</p>
               </div>
 
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-purple-300 transition-all">
-                <div className="flex items-center justify-between gap-1">
+              {/* Avg Percentage & Coverage — ratio-vs-limit metrics, so a radial meter is the honest form */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-between gap-2">
+                <div>
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Avg Percentage</p>
-                  <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600 shrink-0">
-                    <IconChart className="w-4 h-4" />
-                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">Mean exam %</p>
                 </div>
-                <h4 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{summaryData?.averagePercentage !== undefined ? `${summaryData.averagePercentage}%` : "N/A"}</h4>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Mean exam %</p>
+                {summaryData?.averagePercentage !== undefined ? (
+                  <RadialMeter value={Number(summaryData.averagePercentage)} size={52} strokeWidth={5.5} />
+                ) : (
+                  <span className="text-xs font-black text-slate-300">N/A</span>
+                )}
               </div>
 
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-blue-300 transition-all">
-                <div className="flex items-center justify-between gap-1">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-between gap-2">
+                <div>
                   <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Coverage</p>
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 shrink-0">
-                    <IconBook className="w-4 h-4" />
-                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">Syllabus topics</p>
                 </div>
-                <h4 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{coverageData ? `${Math.round(Number(coverageData.coveragePercentage || coverageData.syllabusCoverage || 0))}%` : "N/A"}</h4>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Syllabus topics</p>
+                {coverageData ? (
+                  <RadialMeter value={Number(coverageData.coveragePercentage || coverageData.syllabusCoverage || 0)} size={52} strokeWidth={5.5} />
+                ) : (
+                  <span className="text-xs font-black text-slate-300">N/A</span>
+                )}
               </div>
             </div>
+
+            {/* Score trend across attempts */}
+            {historyData.length >= 2 && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-xs space-y-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Score Trend</p>
+                <AreaLineChart
+                  color="#4f46e5"
+                  valueSuffix=" pts"
+                  height={130}
+                  data={[...historyData].reverse().map((h, i) => {
+                    const examTitle = String((h.exam as { title?: string })?.title || h.examTitle || h.title || `Exam ${i + 1}`);
+                    const date = h.submittedAt ? new Date(String(h.submittedAt)).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "";
+                    return {
+                      label: `T${i + 1}`,
+                      value: Number(h.score ?? h.totalScore ?? 0),
+                      detail: `${examTitle} • ${date}`,
+                    };
+                  })}
+                />
+              </div>
+            )}
 
             {/* Attempt History List */}
             <div className="space-y-3">

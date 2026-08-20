@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * Lightweight route-protection middleware.
+ * Lightweight route-protection middleware (Next.js 16 "proxy" convention —
+ * the framework renamed middleware.ts to proxy.ts; this file replaces it).
  *
  * We cannot access Zustand (localStorage) from the Edge runtime, so we rely on
  * an `auth-role` cookie that we write to the browser on successful login and
@@ -17,7 +18,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/student": ["student"],
 };
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Find matching protected route prefix

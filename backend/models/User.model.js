@@ -48,6 +48,23 @@ const userSchema = new mongoose.Schema(
       select: false,
       default: null,
     },
+    /**
+     * The previous refreshTokenHash, kept for a short grace window after
+     * rotation. Lets a concurrent refresh request (multi-tab, retried
+     * network call) that read the token just before it was rotated succeed
+     * instead of being treated as reuse and nuking every active session —
+     * see backend/controllers/auth.controller.js refreshToken().
+     */
+    previousRefreshTokenHash: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    refreshTokenRotatedAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
     passwordResetToken: {
       type: String,
       select: false,

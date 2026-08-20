@@ -19,7 +19,6 @@ import {
   IconFilter,
   IconKey,
   IconAlertTriangle,
-  IconInfo,
   IconRefresh,
   IconUserCheck,
   IconUserX,
@@ -29,7 +28,6 @@ import {
   IconCopy,
   IconCode,
   IconArrowRight,
-  IconCalendar,
   IconChevronDown,
   StatusBadge,
   MiniStatCard,
@@ -37,7 +35,6 @@ import {
   Spinner,
   CardSkeleton,
   PaginationControls,
-  CustomSelect,
   CustomSelectMenu,
 } from "../common/UIComponents";
 
@@ -741,7 +738,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {/* TAB 1: SYSTEM OVERVIEW & HEALTH */}
         {/* ========================================== */}
         {activeTab === "system" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <MiniStatCard
                 title="Admin Team Accounts"
@@ -749,6 +746,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                 subtitle={`${platformStats?.team?.activeAdmins ?? 0} Active \u2022 ${platformStats?.team?.inactiveAdmins ?? 0
                   } Deactivated`}
                 icon={IconUsers}
+                ringValue={platformStats?.team?.totalAdmins ? Math.round((Number(platformStats.team.activeAdmins ?? 0) / Number(platformStats.team.totalAdmins)) * 100) : undefined}
               />
               <MiniStatCard
                 title="Total Enrolled Students"
@@ -756,12 +754,14 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                 subtitle={`${platformStats?.students?.active ?? 0} Active \u2022 ${platformStats?.students?.inactive ?? 0
                   } Inactive`}
                 icon={IconUsers}
+                ringValue={platformStats?.students?.total ? Math.round((Number(platformStats.students.active ?? 0) / Number(platformStats.students.total)) * 100) : undefined}
               />
               <MiniStatCard
                 title="Active Batches"
                 value={platformStats?.platform?.activeBatches ?? 0}
                 subtitle={`Out of ${platformStats?.platform?.totalBatches ?? 0} total batches`}
                 icon={IconClock}
+                ringValue={platformStats?.platform?.totalBatches ? Math.round((Number(platformStats.platform.activeBatches ?? 0) / Number(platformStats.platform.totalBatches)) * 100) : undefined}
               />
               <MiniStatCard
                 title="Exam Submissions"
@@ -853,7 +853,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {/* TAB 2: ADMIN TEAM MANAGEMENT */}
         {/* ========================================== */}
         {activeTab === "admins" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             {/* Header Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -1051,7 +1051,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {/* TAB 3: PLATFORM AUDIT TRAIL */}
         {/* ========================================== */}
         {activeTab === "logs" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             {/* Header Banner with Gradient & Stats */}
             <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 sm:p-7 text-white shadow-xl shadow-slate-900/10 relative overflow-hidden">
               <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -1438,7 +1438,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {/* TAB 4: GOVERNANCE & PURGE HUB */}
         {/* ========================================== */}
         {activeTab === "governance" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-red-50/80 border border-red-200 rounded-3xl p-4 sm:p-6 flex flex-col sm:flex-row items-start gap-4">
               <div className="p-3 bg-red-100 rounded-2xl text-red-700 shrink-0">
                 <IconAlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -1471,9 +1471,13 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                     onChange={(stdId) => {
                       const std = studentOptions.find((s) => s._id === stdId) || null;
                       setSelectedStudentForPurge(std);
+                      // SAFETY: never auto-fill the confirmation field — it exists
+                      // specifically to make the admin type the exact email before
+                      // an irreversible delete, and picker selection alone must
+                      // not be enough to satisfy it.
                       if (std) {
                         setPurgeStudentId(std._id);
-                        setPurgeStudentEmailConfirm(std.email);
+                        setPurgeStudentEmailConfirm("");
                       }
                     }}
                     placeholder={studentsLoading ? "Loading students..." : "-- Search by Name or Email --"}
@@ -1522,8 +1526,8 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                         <span className="text-slate-500">
                           MongoDB ID: <code className="text-indigo-900 font-mono font-bold">{selectedStudentForPurge._id}</code>
                         </span>
-                        <span className="text-emerald-700 font-bold flex items-center gap-1">
-                          <IconCheck className="w-3.5 h-3.5" /> Auto-filled
+                        <span className="text-amber-700 font-bold flex items-center gap-1">
+                          <IconAlertTriangle className="w-3.5 h-3.5" /> Type email below to confirm
                         </span>
                       </div>
                     </div>
@@ -1588,10 +1592,9 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                     value={purgeBatchId}
                     onChange={(bId) => {
                       setPurgeBatchId(bId);
-                      const bObj = batchOptions.find((b) => b._id === bId);
-                      if (bObj) {
-                        setPurgeBatchNameConfirm(bObj.name);
-                      }
+                      // SAFETY: don't auto-fill the confirmation field — see the
+                      // matching note on the student-purge picker above.
+                      setPurgeBatchNameConfirm("");
                     }}
                     placeholder="-- Search or Select Batch --"
                     options={batchOptions.map((b) => ({
@@ -1731,12 +1734,15 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                         onClick={() => {
                           setSelectedStudentForPurge(s);
                           setPurgeStudentId(s._id);
-                          setPurgeStudentEmailConfirm(s.email);
+                          // SAFETY: leave the confirmation field empty — the admin
+                          // must still type the exact email before this irreversible
+                          // delete can proceed.
+                          setPurgeStudentEmailConfirm("");
                           window.scrollTo({ top: 350, behavior: "smooth" });
                         }}
                         className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-[11px] font-extrabold transition-colors cursor-pointer shrink-0 self-start sm:self-auto"
                       >
-                        Select & Auto-fill Purge &rarr;
+                        Select for Purge &rarr;
                       </button>
                     </div>
                   ))}
@@ -1750,7 +1756,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {/* TAB 5: SECURITY SETTINGS */}
         {/* ========================================== */}
         {activeTab === "settings" && (
-          <div className="max-w-2xl space-y-6">
+          <div className="max-w-2xl space-y-6 animate-in fade-in duration-300">
             <div>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">Security Governance</h2>
               <p className="text-xs text-slate-500 font-semibold">

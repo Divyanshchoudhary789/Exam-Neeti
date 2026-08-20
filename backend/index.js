@@ -100,6 +100,25 @@ app.use(
   })
 );
 
+// ─── CSRF mitigation ──────────────────────────────────────────────────────────
+// Auth cookies use SameSite=None in production (required for the cross-origin
+// frontend/backend deployment), which does NOT stop a third-party page from
+// making the browser send a state-changing request with those cookies attached
+// (CORS only blocks the attacker from reading the *response*). As defense in
+// depth, reject state-changing requests whose Origin header doesn't match an
+// allowed origin. Only enforced when Origin is present — non-browser API
+// clients (Postman, mobile, server-to-server) don't send it and use the
+// Authorization header instead, which isn't vulnerable to CSRF anyway.
+const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+app.use((req, res, next) => {
+  if (!STATE_CHANGING_METHODS.has(req.method)) return next();
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ success: false, message: "Request origin not allowed." });
+  }
+  return next();
+});
+
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
 // FIX: Bulk-import override MUST come BEFORE the 50kb global parser, otherwise
 // the 50kb limit fires first and rejects large payloads with a 413.

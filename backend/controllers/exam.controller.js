@@ -394,52 +394,103 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
 exports.submitAttempt = asyncHandler(async (req, res, next) => {
   const { responses: submittedResponses, totalTimeSeconds } = req.body;
 
-  const attempt = await Attempt.findOne({
-    _id:     req.params.attemptId,
-    student: req.user.id,
-  });
+  // FIX: Atomically claim the attempt for submission before doing any work.
+  // Without this, two concurrent submit calls (double-click, client retry) both
+  // read status=IN_PROGRESS before either writes, both score the attempt, and
+  // both run the post-submission email/analytics pipeline. findOneAndUpdate with
+  // status:IN_PROGRESS in the filter guarantees only one request can win this race.
+  const attempt = await Attempt.findOneAndUpdate(
+    {
+      _id:     req.params.attemptId,
+      student: req.user.id,
+      status:  ATTEMPT_STATUS.IN_PROGRESS,
+    },
+    { status: ATTEMPT_STATUS.SUBMITTED },
+    { new: false } // we need the pre-update doc (with responses/startedAt) below
+  );
 
-  if (!attempt) return next(new AppError("Attempt not found.", 404));
-  if (attempt.status === ATTEMPT_STATUS.SUBMITTED) {
-    return next(new AppError("This attempt has already been submitted.", 409));
-  }
-
-  // Fetch exam — correctAnswer lives here, NOT in the attempt
-  const exam = await Exam.findById(attempt.exam).lean();
-  if (!exam) return next(new AppError("Exam not found.", 404));
-
-  // Enforce time limit — prevent 0-second submissions that corrupt analytics
-  const maxAllowedSeconds = exam.durationMinutes * 60 + 60; // +60s grace
-  if (totalTimeSeconds < 0 || totalTimeSeconds > maxAllowedSeconds) {
-    return next(
-      new AppError(
-        `Invalid totalTimeSeconds. Expected 0–${maxAllowedSeconds}s.`,
-        400
-      )
-    );
-  }
-
-  // Build slot → examQuestion map for score computation
-  const examQMap = {};
-  for (const q of exam.questions) {
-    examQMap[q.slotPosition] = q;
-  }
-
-  const submittedMap = new Map();
-  for (const response of submittedResponses) {
-    if (!examQMap[response.slotPosition]) {
-      return next(new AppError(`Invalid response slotPosition: ${response.slotPosition}.`, 400));
+  if (!attempt) {
+    // Either the attempt doesn't exist/belong to this student, or it was already
+    // submitted (possibly by a concurrent request that just won the race above).
+    const existing = await Attempt.findOne({ _id: req.params.attemptId, student: req.user.id }).select("status").lean();
+    if (existing?.status === ATTEMPT_STATUS.SUBMITTED) {
+      return next(new AppError("This attempt has already been submitted.", 409));
     }
-    if (submittedMap.has(response.slotPosition)) {
-      return next(new AppError(`Duplicate response slotPosition: ${response.slotPosition}.`, 400));
-    }
-    submittedMap.set(response.slotPosition, response);
+    return next(new AppError("Attempt not found.", 404));
   }
 
-  let score = 0;
+  // From here on the attempt is claimed (status=SUBMITTED in the DB already).
+  // Any early-exit below MUST revert it to IN_PROGRESS first, otherwise the
+  // attempt gets stuck "submitted" with stale/unscored data and the student
+  // can never resubmit or resume it.
+  const revertClaim = async () => {
+    attempt.status = ATTEMPT_STATUS.IN_PROGRESS;
+    await attempt.save({ validateBeforeSave: false });
+  };
 
-  // Build final responses — use .toObject() to get plain object per subdoc
-  const finalResponses = attempt.responses.map((storedResp) => {
+  let exam;
+  try {
+    // Fetch exam — correctAnswer lives here, NOT in the attempt
+    exam = await Exam.findById(attempt.exam).lean();
+    if (!exam) {
+      await revertClaim();
+      return next(new AppError("Exam not found.", 404));
+    }
+
+    // Enforce time limit — prevent 0-second submissions that corrupt analytics
+    const maxAllowedSeconds = exam.durationMinutes * 60 + 60; // +60s grace
+
+    // FIX: Also enforce the exam window against wall-clock time, not just the
+    // client-reported totalTimeSeconds. Without this, a student can leave an
+    // attempt open indefinitely (hours/days) and submit later with a fabricated
+    // totalTimeSeconds that looks legitimate — the timer is otherwise purely
+    // cosmetic on the frontend. A generous grace period tolerates real network/
+    // device hiccups without penalizing honest students.
+    const DEADLINE_GRACE_SECONDS = 10 * 60; // 10 extra minutes beyond the exam duration
+    const elapsedWallClockSeconds = (Date.now() - new Date(attempt.startedAt).getTime()) / 1000;
+    if (elapsedWallClockSeconds > maxAllowedSeconds + DEADLINE_GRACE_SECONDS) {
+      await revertClaim();
+      return next(
+        new AppError(
+          "This exam's time window has expired. Please contact support — your progress has been saved.",
+          400
+        )
+      );
+    }
+
+    if (totalTimeSeconds < 0 || totalTimeSeconds > maxAllowedSeconds) {
+      await revertClaim();
+      return next(
+        new AppError(
+          `Invalid totalTimeSeconds. Expected 0–${maxAllowedSeconds}s.`,
+          400
+        )
+      );
+    }
+
+    // Build slot → examQuestion map for score computation
+    const examQMap = {};
+    for (const q of exam.questions) {
+      examQMap[q.slotPosition] = q;
+    }
+
+    const submittedMap = new Map();
+    for (const response of submittedResponses) {
+      if (!examQMap[response.slotPosition]) {
+        await revertClaim();
+        return next(new AppError(`Invalid response slotPosition: ${response.slotPosition}.`, 400));
+      }
+      if (submittedMap.has(response.slotPosition)) {
+        await revertClaim();
+        return next(new AppError(`Duplicate response slotPosition: ${response.slotPosition}.`, 400));
+      }
+      submittedMap.set(response.slotPosition, response);
+    }
+
+    let score = 0;
+
+    // Build final responses — use .toObject() to get plain object per subdoc
+    const finalResponses = attempt.responses.map((storedResp) => {
     const resp     = storedResp.toObject();
     const submitted = submittedMap.get(resp.slotPosition);
     const examQ    = examQMap[resp.slotPosition];
@@ -493,15 +544,22 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
     };
   });
 
-  attempt.responses        = finalResponses;
-  attempt.score            = parseFloat(score.toFixed(2));
-  // FIX: Clamp percentage to 0 minimum — negative scores are valid NEET behaviour
-  // but a negative percentage confuses downstream analytics and UI charts.
-  attempt.percentage       = parseFloat((Math.max(0, score) / attempt.totalMarks * 100).toFixed(2));
-  attempt.totalTimeSeconds = totalTimeSeconds;
-  attempt.status           = ATTEMPT_STATUS.SUBMITTED;
-  attempt.submittedAt      = new Date();
-  await attempt.save();
+    attempt.responses        = finalResponses;
+    attempt.score            = parseFloat(score.toFixed(2));
+    // FIX: Clamp percentage to 0 minimum — negative scores are valid NEET behaviour
+    // but a negative percentage confuses downstream analytics and UI charts.
+    attempt.percentage       = parseFloat((Math.max(0, score) / attempt.totalMarks * 100).toFixed(2));
+    attempt.totalTimeSeconds = totalTimeSeconds;
+    attempt.status           = ATTEMPT_STATUS.SUBMITTED;
+    attempt.submittedAt      = new Date();
+    await attempt.save();
+  } catch (err) {
+    // Any failure while scoring/saving must not leave the attempt stuck as
+    // SUBMITTED with stale/unscored data — revert the atomic claim so the
+    // student can retry.
+    await revertClaim().catch(() => {});
+    throw err;
+  }
 
   // Submission confirmation email — fetch student outside setImmediate so req is not needed later
   const studentDoc = await User.findById(req.user.id).select("name email").lean();

@@ -29,9 +29,12 @@ exports.login = asyncHandler(async (req, res, next) => {
   const accessToken  = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
-  // Store refresh token hash in DB for rotation / invalidation
-  user.refreshTokenHash = hashToken(refreshToken);
-  user.lastLoginAt      = new Date();
+  // Store refresh token hash in DB for rotation / invalidation. Clear any
+  // stale previous-hash from an earlier session so its rotation grace window
+  // can't be used to resurrect a session that's no longer current.
+  user.refreshTokenHash         = hashToken(refreshToken);
+  user.previousRefreshTokenHash = null;
+  user.lastLoginAt              = new Date();
   await user.save({ validateBeforeSave: false });
 
   // Set httpOnly cookies — browser handles storage automatically
@@ -96,25 +99,65 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     return next(new AppError("Invalid or expired refresh token. Please log in again.", 401));
   }
 
-  // DB lookup — explicitly select all fields needed for validation
-  const user = await User.findById(decoded.id)
-    .select("+refreshTokenHash +passwordChangedAt isActive");
-
-  if (!user || !user.isActive) {
-    clearAuthCookies(res);
-    return next(new AppError("User not found or inactive.", 401));
-  }
-
-  // Token rotation — verify hash matches what we stored
   const submittedHash = hashToken(refreshToken);
-  if (!user.refreshTokenHash || user.refreshTokenHash !== submittedHash) {
-    // Reuse detected — nuke all sessions
-    user.refreshTokenHash = null;
-    await user.save({ validateBeforeSave: false });
-    clearAuthCookies(res);
-    return next(
-      new AppError("Refresh token reuse detected. All sessions invalidated. Please log in again.", 401)
+
+  // Role/email come from the JWT claims, not a DB read — safe, because
+  // authenticate.js never trusts the access token's role claim for
+  // authorization either; it always re-reads the role from the DB per request.
+  const payload         = { id: decoded.id, role: decoded.role, email: decoded.email };
+  const newAccessToken  = generateAccessToken(payload);
+  const newRefreshToken = generateRefreshToken(payload);
+  const newHash         = hashToken(newRefreshToken);
+
+  // FIX: Rotate atomically — the filter requires the CURRENTLY-stored hash to
+  // match, so the "check + write" happens as one DB operation. Without this,
+  // two concurrent refresh calls (multiple tabs, a client retry) can both read
+  // the same valid hash before either writes, and whichever loses the race
+  // then looks like "reuse" on its own next refresh — which used to nuke every
+  // active session, forcing a hard logout even though no token was ever stolen.
+  const GRACE_WINDOW_MS = 15 * 1000;
+  const rotated = await User.findOneAndUpdate(
+    { _id: decoded.id, refreshTokenHash: submittedHash, isActive: true },
+    {
+      refreshTokenHash:         newHash,
+      previousRefreshTokenHash: submittedHash,
+      refreshTokenRotatedAt:    new Date(),
+    },
+    { new: true }
+  ).select("+passwordChangedAt isActive role email");
+
+  let user = rotated;
+  let isRaceLoser = false;
+
+  if (!user) {
+    // Presented hash didn't match the current one — could be genuine reuse of
+    // a stale/stolen token, OR this request simply lost the rotation race
+    // above. Re-read fresh state to tell the two apart: if the presented hash
+    // matches what we just rotated FROM, and that rotation happened moments
+    // ago, treat it as the benign race and let this caller through too.
+    const current = await User.findById(decoded.id).select(
+      "+refreshTokenHash +previousRefreshTokenHash +refreshTokenRotatedAt +passwordChangedAt isActive role email"
     );
+
+    const withinGrace =
+      current?.previousRefreshTokenHash === submittedHash &&
+      current?.refreshTokenRotatedAt &&
+      Date.now() - current.refreshTokenRotatedAt.getTime() < GRACE_WINDOW_MS;
+
+    if (!current || !current.isActive || !withinGrace) {
+      if (current) {
+        current.refreshTokenHash         = null;
+        current.previousRefreshTokenHash = null;
+        await current.save({ validateBeforeSave: false });
+      }
+      clearAuthCookies(res);
+      return next(
+        new AppError("Refresh token reuse detected. All sessions invalidated. Please log in again.", 401)
+      );
+    }
+
+    user = current;
+    isRaceLoser = true;
   }
 
   // Reject if password changed after token was issued
@@ -123,16 +166,19 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
     return next(new AppError("Password was recently changed. Please log in again.", 401));
   }
 
-  // Issue new token pair (rotation)
-  const payload         = { id: user._id, role: user.role, email: user.email };
-  const newAccessToken  = generateAccessToken(payload);
-  const newRefreshToken = generateRefreshToken(payload);
-
-  user.refreshTokenHash = hashToken(newRefreshToken);
-  await user.save({ validateBeforeSave: false });
-
-  // Set new cookies
-  setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });
+  if (!isRaceLoser) {
+    // Canonical winner — cookies are shared across tabs, so this is the
+    // state every open tab will converge on.
+    setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });
+  }
+  // Race loser: a concurrent request already rotated the token and set the
+  // canonical cookies moments ago. Don't overwrite them. In non-production the
+  // fresh access token below lets the caller's retry proceed immediately without
+  // waiting on cookie propagation; in production the body is empty by design
+  // (httpOnly cookie is the source of truth there) and the retry instead relies
+  // on the winner's Set-Cookie having already landed — safe in practice since
+  // both requests originate from the same browser and the winner's response
+  // typically arrives first, but not strictly guaranteed ordering.
 
   // Only expose token in body in non-production (httpOnly cookie is the source of truth in prod)
   const responseData = process.env.NODE_ENV !== "production"
@@ -145,8 +191,12 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
 exports.logout = asyncHandler(async (req, res, _next) => {
-  // Clear DB hash so this refresh token can never be used again
-  await User.findByIdAndUpdate(req.user.id, { refreshTokenHash: null });
+  // Clear DB hash (both current and grace-window previous) so this refresh
+  // token can never be used again, including via the rotation race grace period.
+  await User.findByIdAndUpdate(req.user.id, {
+    refreshTokenHash:         null,
+    previousRefreshTokenHash: null,
+  });
 
   // Clear cookies from browser
   clearAuthCookies(res);
@@ -160,8 +210,9 @@ exports.logoutAll = asyncHandler(async (req, res, _next) => {
   // Bump passwordChangedAt → ALL access tokens for this user are instantly invalid
   // (authenticate.js rejects tokens issued before this timestamp)
   await User.findByIdAndUpdate(req.user.id, {
-    refreshTokenHash:  null,
-    passwordChangedAt: new Date(),
+    refreshTokenHash:         null,
+    previousRefreshTokenHash: null,
+    passwordChangedAt:        new Date(),
   });
 
   clearAuthCookies(res);
@@ -241,10 +292,11 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
     return next(new AppError("Reset token is invalid or has expired.", 400));
   }
 
-  user.password             = password;
-  user.passwordResetToken   = undefined;
-  user.passwordResetExpires = undefined;
-  user.refreshTokenHash     = null; // invalidate all active sessions
+  user.password                  = password;
+  user.passwordResetToken        = undefined;
+  user.passwordResetExpires      = undefined;
+  user.refreshTokenHash          = null; // invalidate all active sessions
+  user.previousRefreshTokenHash  = null;
   await user.save();
 
   // Clear any cookies still in browser
@@ -274,7 +326,8 @@ exports.changePassword = asyncHandler(async (req, res, next) => {
   const newAccessToken  = generateAccessToken(payload);
   const newRefreshToken = generateRefreshToken(payload);
 
-  user.refreshTokenHash = hashToken(newRefreshToken);
+  user.refreshTokenHash         = hashToken(newRefreshToken);
+  user.previousRefreshTokenHash = null;
   await user.save({ validateBeforeSave: false });
 
   // Set fresh cookies so user stays logged in after password change

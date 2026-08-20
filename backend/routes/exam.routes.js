@@ -5,6 +5,7 @@ const examController = require("../controllers/exam.controller");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
 const validate = require("../middleware/validate");
+const { heavyOperationLimiter } = require("../middleware/rateLimiter");
 const {
   createExamSchema,
   updateExamSchema,
@@ -32,13 +33,20 @@ router.get("/attempts/:attemptId", examController.getAttemptDetail);
 router.get("/attempts/:attemptId/with-questions", examController.getAttemptWithQuestions);
 
 // Student: submit an in-progress attempt (controller verifies attempt.student === req.user.id)
+// Rate-limited: triggers scoring + the full post-submission analytics pipeline.
 router.post(
   "/attempts/:attemptId/submit",
+  heavyOperationLimiter,
   validate(submitAttemptSchema),
   examController.submitAttempt
 );
 
-// Student: start an attempt (controller enforces batch membership)
+// Student: start an attempt (controller enforces batch membership).
+// Deliberately NOT behind heavyOperationLimiter: unlike submit (once per exam),
+// this endpoint is also the resume path — a student reconnecting after a
+// network drop or refresh during a live timed exam calls it again. Rate-limiting
+// it risks locking a student out of their own in-progress exam, which is worse
+// than the abuse it would prevent (the general apiLimiter still applies).
 router.post("/:id/start", examController.startAttempt);
 
 // Student: view a single published exam (controller strips answers + enforces batch membership)
