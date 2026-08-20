@@ -26,6 +26,7 @@ const DEFAULTS = {
   concept_error_confidence_max: 80,
   guess_confidence_threshold: 50,
   guess_time_factor: 0.6,
+  // ROI is measured as expected marks per minute.
   high_roi_threshold: 2.5,
   low_roi_threshold: 1.5,
   rolling_window_size: 5,
@@ -42,8 +43,23 @@ const DEFAULTS = {
   order_min_sequenced: 5,
 };
 
-const safeDiv = (num, denom) => (denom === 0 ? 0 : parseFloat((num / denom).toFixed(4)));
-const roundTo = (val, decimals = 2) => parseFloat(val.toFixed(decimals));
+const safeDiv = (num, denom) => (!denom ? 0 : parseFloat((num / denom).toFixed(4)));
+const roundTo = (val, decimals = 2) => parseFloat(Number(val || 0).toFixed(decimals));
+const pct = (num, denom) => roundTo(safeDiv(num, denom) * 100);
+const median = (values) => {
+  const sorted = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : roundTo((sorted[mid - 1] + sorted[mid]) / 2);
+};
+const stdDev = (values) => {
+  const clean = values.filter((v) => Number.isFinite(v));
+  if (!clean.length) return 0;
+  const mean = safeDiv(clean.reduce((s, v) => s + v, 0), clean.length);
+  return roundTo(Math.sqrt(safeDiv(clean.reduce((s, v) => s + Math.pow(v - mean, 2), 0), clean.length)));
+};
+const accuracyFor = (items) => pct(items.filter((r) => r.isCorrect).length, items.filter((r) => r.isAttempted).length);
+const attemptedRateFor = (items) => pct(items.filter((r) => r.isAttempted).length, items.length);
 
 const loadFormulaParams = async (sprintId) => {
   const configs = await FormulaConfig.find({
@@ -88,7 +104,7 @@ const computeFoundationMetrics = (responses, params) => {
 const computeTimeMetrics = (responses) => {
   const totalTime = responses.reduce((sum, r) => sum + (r.timeSpentSeconds || 0), 0);
   const attempted = responses.filter((r) => r.isAttempted);
-  const avgTimePerQuestion = roundTo(safeDiv(totalTime, attempted.length));
+  const avgTimePerQuestion = roundTo(safeDiv(totalTime, responses.length));
 
   // Subject-wise time
   const timeBySubject = {};
@@ -160,6 +176,8 @@ const computeDifficultyMetrics = (responses) => {
         attempted: 0,
         correct: 0,
         totalTime: 0,
+        incorrect: 0,
+        unattempted: 0,
       };
     }
     const d = difficultyMap[key];
@@ -167,6 +185,9 @@ const computeDifficultyMetrics = (responses) => {
     if (r.isAttempted) {
       d.attempted++;
       if (r.isCorrect) d.correct++;
+      else d.incorrect++;
+    } else {
+      d.unattempted++;
     }
     d.totalTime += r.timeSpentSeconds || 0;
   });
@@ -177,9 +198,14 @@ const computeDifficultyMetrics = (responses) => {
     totalQuestions: d.total,
     attempted: d.attempted,
     correct: d.correct,
+    incorrect: d.incorrect,
+    unattempted: d.unattempted,
+    totalTimeSeconds: roundTo(d.totalTime),
     accuracy: roundTo(safeDiv(d.correct, d.attempted) * 100),
     attemptRate: roundTo(safeDiv(d.attempted, d.total) * 100),
-    avgTimeSeconds: roundTo(safeDiv(d.totalTime, d.attempted)),
+    avgTimeSeconds: roundTo(safeDiv(d.totalTime, d.total)),
+    avgTimePerQuestion: roundTo(safeDiv(d.totalTime, d.total)),
+    attemptedQuestions: d.attempted,
     percentageOfTotal: 0,
   }));
 
@@ -267,12 +293,19 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
  */
 const computeROIMetrics = (responses, params, historicalProbability = {}) => {
   const roiMap = responses.map((r) => {
-    const topicKey = `${r.subject}_${r.chapter}_${r.topic}`;
-    const pCorrect = historicalProbability[topicKey] || (r.difficulty === "easy" ? 0.6 : r.difficulty === "medium" ? 0.45 : 0.3);
+    const chapterKey = `${r.subject}_${r.chapter}`;
+    const probMap = historicalProbability[chapterKey];
+    const pCorrect = probMap
+      ? r.difficulty === "easy"
+        ? probMap.pEasy
+        : r.difficulty === "medium"
+          ? probMap.pMedium
+          : probMap.pHard
+      : (r.difficulty === "easy" ? 0.6 : r.difficulty === "medium" ? 0.45 : 0.3);
     const pWrong = 1 - pCorrect;
     const expectedMarks = params.correct_marks * pCorrect + params.incorrect_marks * pWrong;
-    const avgTime = r.timeSpentSeconds || 60;
-    const roi = safeDiv(expectedMarks, avgTime);
+    const timeMinutes = Math.max((r.timeSpentSeconds || 60) / 60, 0.1);
+    const roi = safeDiv(expectedMarks, timeMinutes);
 
     return { ...r, roi, pCorrect, expectedMarks };
   });
@@ -502,8 +535,8 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
 
     const pWrong       = 1 - pCorrect;
     const expectedMark = CORRECT_MARKS * pCorrect + INCORRECT_MARKS * pWrong;
-    const timeEstimate = r.timeSpentSeconds > 0 ? r.timeSpentSeconds : 90; // fallback 90s
-    const roi          = expectedMark > 0 ? expectedMark / timeEstimate : 0;
+    const timeEstimateMinutes = Math.max((r.timeSpentSeconds > 0 ? r.timeSpentSeconds : 90) / 60, 0.1);
+    const roi          = expectedMark > 0 ? expectedMark / timeEstimateMinutes : 0;
 
     // Easy bonus: extra weight for easy questions (quick wins)
     const easyBonus = r.difficulty === "easy" ? 1 : r.difficulty === "medium" ? 0.5 : 0;
@@ -684,6 +717,284 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
     priorityWeights:                   { roi: W_ROI, easyBonus: W_EASY, marks: W_MARKS },
   };
 };
+
+const computeMetricsFramework = (
+  responses,
+  params,
+  foundation,
+  timeMetrics,
+  difficultyMetrics,
+  errorClassification,
+  roiMetrics,
+  fatigueCurve,
+  streakMetrics,
+  reattemptMetrics,
+  attemptOrderQuality
+) => {
+  const totalQuestions = responses.length;
+  const attempted = responses.filter((r) => r.isAttempted);
+  const wrong = responses.filter((r) => r.isAttempted && !r.isCorrect);
+  const unattempted = responses.filter((r) => !r.isAttempted);
+  const correct = responses.filter((r) => r.isCorrect);
+  const attemptedTimes = attempted.map((r) => r.timeSpentSeconds || 0);
+  const totalTime = responses.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0);
+  const totalMinutes = Math.max(totalTime / 60, 0.01);
+  const sortedBySlot = [...responses].sort((a, b) => (a.slotPosition || 0) - (b.slotPosition || 0));
+  const sortedByAttempt = [...attempted].sort(
+    (a, b) => (a.sequencePosition || a.slotPosition || 0) - (b.sequencePosition || b.slotPosition || 0)
+  );
+
+  const firstN = sortedByAttempt.slice(0, Math.min(10, sortedByAttempt.length));
+  const firstAnswerTimes = attempted
+    .map((r) => r.firstAnswerTimeSeconds)
+    .filter((v) => Number.isFinite(v));
+  const firstAttemptTime = firstAnswerTimes.length
+    ? Math.min(...firstAnswerTimes)
+    : (sortedByAttempt[0]?.timeSpentSeconds || 0);
+
+  const subjectMap = {};
+  const topicMap = {};
+  const typeMap = {};
+  const difficultyMap = {};
+  for (const r of responses) {
+    const subject = r.subject || "unknown";
+    const topicKey = `${subject}__${r.chapter || ""}__${r.topic || ""}`;
+    const type = String(r.questionType || "mcq").toLowerCase();
+    const difficulty = String(r.difficulty || "unknown").toLowerCase();
+    subjectMap[subject] = subjectMap[subject] || [];
+    topicMap[topicKey] = topicMap[topicKey] || [];
+    typeMap[type] = typeMap[type] || [];
+    difficultyMap[difficulty] = difficultyMap[difficulty] || [];
+    subjectMap[subject].push(r);
+    topicMap[topicKey].push(r);
+    typeMap[type].push(r);
+    difficultyMap[difficulty].push(r);
+  }
+
+  const topicDetails = Object.entries(topicMap).map(([key, items]) => {
+    const [subject, chapter, topic] = key.split("__");
+    return {
+      subject,
+      chapter,
+      topic,
+      totalQuestions: items.length,
+      attempted: items.filter((r) => r.isAttempted).length,
+      correct: items.filter((r) => r.isCorrect).length,
+      accuracy: accuracyFor(items),
+      attemptRate: attemptedRateFor(items),
+    };
+  });
+
+  const weakTopics = topicDetails.filter((t) => t.attempted > 0 && t.accuracy < (params.weak_topic_accuracy_threshold || 40));
+  const strongTopics = topicDetails.filter((t) => t.attempted > 0 && t.accuracy >= (params.strong_topic_accuracy_threshold || 80));
+  const topicROI = topicDetails
+    .map((t) => ({ ...t, roiScore: roundTo((t.accuracy / 100) * t.totalQuestions * (t.attemptRate / 100), 4) }))
+    .sort((a, b) => b.roiScore - a.roiScore);
+
+  const questionTypeCoverage = Object.entries(typeMap).map(([questionType, items]) => ({
+    questionType,
+    totalQuestions: items.length,
+    attempted: items.filter((r) => r.isAttempted).length,
+    correct: items.filter((r) => r.isCorrect).length,
+    accuracy: accuracyFor(items),
+    coverage: attemptedRateFor(items),
+  }));
+
+  const typeAccuracy = (matcher) => {
+    const items = responses.filter(matcher);
+    return {
+      totalQuestions: items.length,
+      attempted: items.filter((r) => r.isAttempted).length,
+      correct: items.filter((r) => r.isCorrect).length,
+      accuracy: accuracyFor(items),
+    };
+  };
+
+  const half = Math.ceil(sortedBySlot.length / 2);
+  const firstHalf = sortedBySlot.slice(0, half);
+  const secondHalf = sortedBySlot.slice(half);
+  const firstHalfAccuracy = accuracyFor(firstHalf);
+  const secondHalfAccuracy = accuracyFor(secondHalf);
+  const rollingAccuracies = fatigueCurve.rollingWindows?.map((w) => w.accuracy) || [];
+
+  let slowdownPoint = null;
+  const windowSize = Math.min(5, attemptedTimes.length);
+  if (windowSize >= 3) {
+    const sequencedTimes = sortedByAttempt.map((r) => r.timeSpentSeconds || 0);
+    for (let i = windowSize; i <= sequencedTimes.length - windowSize; i++) {
+      const before = safeDiv(sequencedTimes.slice(i - windowSize, i).reduce((s, v) => s + v, 0), windowSize);
+      const after = safeDiv(sequencedTimes.slice(i, i + windowSize).reduce((s, v) => s + v, 0), windowSize);
+      if (after > before * 1.35) {
+        slowdownPoint = { attemptIndex: i + 1, beforeAvgSeconds: roundTo(before), afterAvgSeconds: roundTo(after) };
+        break;
+      }
+    }
+  }
+
+  const reattempted = responses.filter((r) => r.wasReattempted);
+  const reattemptDelays = reattempted
+    .map((r) => r.reattemptDelaySeconds)
+    .filter((v) => Number.isFinite(v));
+  const immediateReattempts = reattempted.filter((r) => (r.reattemptDelaySeconds || 0) <= 15).length;
+  const consideredReattempts = reattempted.length - immediateReattempts;
+  const overthinkingItems = responses.filter((r) => {
+    const baseline = timeMetrics.avgTimePerQuestion || 1;
+    return r.isAttempted && !r.isCorrect && (r.timeSpentSeconds || 0) > baseline * 1.5;
+  });
+
+  const alternations = sortedByAttempt.reduce((count, r, idx, arr) => {
+    if (idx === 0) return count;
+    return count + (arr[idx - 1].isCorrect !== r.isCorrect ? 1 : 0);
+  }, 0);
+
+  return {
+    foundation: {
+      totalAttempts: totalQuestions,
+      accuracyPercent: foundation.accuracy,
+      attemptRatePercent: foundation.attemptRate,
+      score: foundation.totalScore,
+      correctQuestions: foundation.correct,
+      wrongQuestions: foundation.incorrect,
+      unattemptedQuestions: foundation.unattempted,
+      guessRatePercent: errorClassification.guessRate,
+      carelessErrorRatePercent: errorClassification.sillyMistakeRate,
+      sillyMistakeCount: errorClassification.sillyMistakes,
+      firstAttemptAccuracyPercent: accuracyFor(firstN),
+      reattemptAccuracyPercent: reattemptMetrics.reattemptAccuracy,
+    },
+    timeSpeed: {
+      totalTimeSeconds: totalTime,
+      avgTimePerQuestionSeconds: timeMetrics.avgTimePerQuestion,
+      medianTimePerQuestionSeconds: median(attemptedTimes),
+      timePerCorrectAnswerSeconds: roundTo(safeDiv(correct.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), correct.length)),
+      timePerWrongAnswerSeconds: roundTo(safeDiv(wrong.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), wrong.length)),
+      timePerUnattemptedSeconds: roundTo(safeDiv(unattempted.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), unattempted.length)),
+      firstAttemptTimeSeconds: firstAttemptTime,
+      speedIndex: roundTo(foundation.attempted / totalMinutes),
+      speedConsistencySeconds: timeMetrics.standardDeviation,
+      slowdownPoint,
+      timeMisallocationSeconds: wrong.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0),
+    },
+    accuracyErrors: {
+      overallAccuracyPercent: foundation.accuracy,
+      subjectAccuracy: Object.entries(subjectMap).map(([subject, items]) => ({
+        subject,
+        accuracy: accuracyFor(items),
+        attempted: items.filter((r) => r.isAttempted).length,
+        correct: items.filter((r) => r.isCorrect).length,
+      })),
+      topicAccuracy: topicDetails,
+      errorRatePercent: pct(wrong.length, attempted.length),
+      sillyMistakeRatePercent: errorClassification.sillyMistakeRate,
+      conceptualErrorRatePercent: errorClassification.conceptErrorRate,
+      calculationErrorRatePercent: pct(
+        wrong.filter((r) => (r.subject || "").toLowerCase() === "physics" || (r.subject || "").toLowerCase() === "chemistry").length,
+        wrong.length
+      ),
+      confidenceAccuracyGapPercent: roundTo(
+        safeDiv(attempted.reduce((s, r) => s + (r.confidence || 50), 0), attempted.length) - foundation.accuracy
+      ),
+      confidenceCollapseCount: wrong.filter((r) => (r.confidence || 0) >= params.silly_mistake_confidence_threshold).length,
+      highROIAccuracyPercent: roiMetrics.highROICoverage,
+      knownQuestionAccuracyPercent: accuracyFor(responses.filter((r) => r.wasPreviouslySeen || r.wasReattempted || r.answerChanges > 0)),
+    },
+    content: {
+      questionsAttempted: foundation.attempted,
+      questionsCorrect: foundation.correct,
+      questionsWrong: foundation.incorrect,
+      questionsUnattempted: foundation.unattempted,
+      questionTypeCoverage,
+      topicCoveragePercent: pct(topicDetails.filter((t) => t.attempted > 0).length, topicDetails.length),
+      highROIQuestions: {
+        coveragePercent: roiMetrics.highROICoverage,
+        scoreOpportunityIndex: roiMetrics.scoreOpportunityIndex,
+      },
+      newVsRepeated: {
+        repeatedAttempted: reattempted.length,
+        repeatedAccuracyPercent: accuracyFor(reattempted),
+        newAttempted: attempted.length - reattempted.length,
+        newAccuracyPercent: accuracyFor(attempted.filter((r) => !r.wasReattempted)),
+      },
+      assertionAccuracy: typeAccuracy((r) => String(r.questionType || "").toLowerCase().includes("assertion")),
+      numericAccuracy: typeAccuracy((r) => String(r.questionType || "").toLowerCase().includes("numeric") || String(r.questionType || "").toLowerCase().includes("integer")),
+      imageBasedAccuracy: typeAccuracy((r) => r.hasImage),
+    },
+    difficulty: {
+      breakdown: difficultyMetrics,
+      scoreContribution: Object.entries(difficultyMap).map(([difficulty, items]) => ({
+        difficulty,
+        score: items.reduce((s, r) => s + (r.isAttempted ? (r.isCorrect ? (r.marks || params.correct_marks) : -(r.negativeMarks || Math.abs(params.incorrect_marks))) : 0), 0),
+        accuracy: accuracyFor(items),
+      })),
+      performanceConsistencyPercent: stdDev(difficultyMetrics.map((d) => d.accuracy || 0)),
+      fallRatePercent: Math.max(0, roundTo(firstHalfAccuracy - secondHalfAccuracy)),
+      spikePoint: {
+        high: fatigueCurve.highestSpike,
+        low: fatigueCurve.lowestSpike,
+      },
+      recoveryPoint: fatigueCurve.recoveryWindow,
+    },
+    reattemptBehavior: {
+      ...reattemptMetrics,
+      timeChangeOnReattemptSeconds: roundTo(safeDiv(reattemptDelays.reduce((s, v) => s + v, 0), reattemptDelays.length)),
+      reattemptDelaySeconds: roundTo(safeDiv(reattemptDelays.reduce((s, v) => s + v, 0), reattemptDelays.length)),
+      smartVsBlind: {
+        consideredReattempts,
+        immediateReattempts,
+        smartRatePercent: pct(consideredReattempts, reattempted.length),
+      },
+      reattemptEfficiencyPercent: reattemptMetrics.productiveReattemptRate,
+      repeatedWrongQuestions: reattemptMetrics.wrongToWrong,
+      overthinkingIndex: overthinkingItems.length,
+    },
+    subjectTopic: {
+      subjectWiseScore: Object.entries(subjectMap).map(([subject, items]) => ({
+        subject,
+        score: items.reduce((s, r) => s + (r.marksAwarded || 0), 0),
+        accuracy: accuracyFor(items),
+        attemptRate: attemptedRateFor(items),
+      })),
+      topicWiseAccuracy: topicDetails,
+      weakTopics: weakTopics.slice(0, 20),
+      strongTopics: strongTopics.slice(0, 20),
+      topicROI: topicROI.slice(0, 20),
+      topicProgression: topicROI.slice(0, 20),
+    },
+    streakPattern: {
+      ...streakMetrics,
+      rightWrongAlternationCount: alternations,
+      patternOfErrors: {
+        consecutiveWrongMax: streakMetrics.badStreakLength,
+        alternationRatePercent: pct(alternations, Math.max(sortedByAttempt.length - 1, 0)),
+      },
+    },
+    fatigueRecovery: {
+      ...fatigueCurve,
+      fatigueCurve: fatigueCurve.rollingWindows || [],
+      accuracyRecovery: fatigueCurve.recoveryWindow,
+      peakPerformanceWindow: fatigueCurve.rollingWindows?.reduce((best, w) => (!best || w.accuracy > best.accuracy ? w : best), null) || null,
+      subjectFatigue: Object.entries(subjectMap).map(([subject, items]) => {
+        const ordered = [...items].sort((a, b) => (a.slotPosition || 0) - (b.slotPosition || 0));
+        const split = Math.ceil(ordered.length / 2);
+        return {
+          subject,
+          firstHalfAccuracy: accuracyFor(ordered.slice(0, split)),
+          secondHalfAccuracy: accuracyFor(ordered.slice(split)),
+          dropPercent: Math.max(0, roundTo(accuracyFor(ordered.slice(0, split)) - accuracyFor(ordered.slice(split)))),
+        };
+      }),
+      topicFatigue: topicDetails.filter((t) => t.accuracy < 50).slice(0, 20),
+    },
+    foundationTimeSpeedDetail: {
+      foundationTimeSeconds: firstAttemptTime,
+      firstNAccuracyPercent: accuracyFor(firstN),
+      earlySpeedSeconds: roundTo(safeDiv(firstN.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), firstN.length)),
+      earlyAccuracyStabilitySeconds: stdDev(firstN.map((r) => r.timeSpentSeconds || 0)),
+      momentumScore: roundTo((accuracyFor(firstN) * Math.max(firstN.length, 1)) / Math.max(safeDiv(firstN.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0), 60), 1)),
+    },
+    attemptOrderQuality,
+  };
+};
 const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
   const params    = await loadFormulaParams(attempt.sprint);
   const responses = attempt.responses;
@@ -719,6 +1030,20 @@ const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
   // 9. Attempt Order Quality — Spearman Rank Correlation
   const attemptOrderQuality = computeAttemptOrderQuality(responses, params, probabilityMap);
 
+  const metricsFramework = computeMetricsFramework(
+    responses,
+    params,
+    foundation,
+    timeMetrics,
+    difficultyMetrics,
+    errorClassification,
+    roiMetrics,
+    fatigueCurve,
+    streakMetrics,
+    reattemptMetrics,
+    attemptOrderQuality
+  );
+
   const result = await AdvancedAnalytics.findOneAndUpdate(
     { attempt: attempt._id },
     {
@@ -739,6 +1064,7 @@ const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
         avgTimeOnIncorrect: timeMetrics.avgTimeOnIncorrect,
       },
       attemptOrderQuality,
+      metricsFramework,
       computedAt: new Date(),
     },
     { upsert: true, new: true, runValidators: true }

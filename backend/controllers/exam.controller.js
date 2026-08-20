@@ -51,6 +51,7 @@ const hydrateQuestions = (examQuestions, questionBankData, stripAnswer = false) 
       topic:         slot.topic,
       difficulty:    slot.difficulty,
       questionType:  slot.questionType,
+      hasImage:      slot.hasImage || Boolean(full.questionImage?.url),
       marks:         slot.marks,
       negativeMarks: slot.negativeMarks,
 
@@ -141,6 +142,7 @@ exports.generateExam = asyncHandler(async (req, res, next) => {
     topic:         question.topic,
     difficulty:    question.difficulty,
     questionType:  question.questionType,
+    hasImage:      Boolean(question.questionImage?.url),
     marks:         question.marks,
     negativeMarks: question.negativeMarks,
     correctAnswer: question.correctAnswer,
@@ -309,6 +311,8 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
     chapter:          q.chapter,
     topic:            q.topic,
     difficulty:       q.difficulty,
+    questionType:     q.questionType,
+    hasImage:         Boolean(q.hasImage),
     marks:            q.marks,
     negativeMarks:    q.negativeMarks,
     // correctAnswer intentionally omitted
@@ -421,23 +425,40 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
     examQMap[q.slotPosition] = q;
   }
 
+  const submittedMap = new Map();
+  for (const response of submittedResponses) {
+    if (!examQMap[response.slotPosition]) {
+      return next(new AppError(`Invalid response slotPosition: ${response.slotPosition}.`, 400));
+    }
+    if (submittedMap.has(response.slotPosition)) {
+      return next(new AppError(`Duplicate response slotPosition: ${response.slotPosition}.`, 400));
+    }
+    submittedMap.set(response.slotPosition, response);
+  }
+
   let score = 0;
 
   // Build final responses — use .toObject() to get plain object per subdoc
   const finalResponses = attempt.responses.map((storedResp) => {
     const resp     = storedResp.toObject();
-    const submitted = submittedResponses.find((r) => r.slotPosition === resp.slotPosition);
+    const submitted = submittedMap.get(resp.slotPosition);
     const examQ    = examQMap[resp.slotPosition];
 
     if (!submitted || submitted.selectedAnswer === null) {
       return {
         ...resp,
+        correctAnswer:    examQ.correctAnswer,
+        questionType:     examQ.questionType || resp.questionType || "mcq",
+        hasImage:         Boolean(examQ.hasImage || resp.hasImage),
         selectedAnswer:  null,
         isAttempted:     false,
         isCorrect:       null,
         marksAwarded:    0,
         timeSpentSeconds: submitted?.timeSpentSeconds || 0,
         sequencePosition: submitted?.sequencePosition || null,
+        firstAnswerTimeSeconds: submitted?.firstAnswerTimeSeconds ?? null,
+        lastAnswerTimeSeconds: submitted?.lastAnswerTimeSeconds ?? null,
+        reattemptDelaySeconds: submitted?.reattemptDelaySeconds ?? null,
         wasReattempted:  submitted?.wasReattempted   || false,
         answerChanges:   submitted?.answerChanges    || 0,
         initialAnswer:   submitted?.initialAnswer    || null,
@@ -452,12 +473,18 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
 
     return {
       ...resp,
+      correctAnswer:    examQ.correctAnswer,
+      questionType:     examQ.questionType || resp.questionType || "mcq",
+      hasImage:         Boolean(examQ.hasImage || resp.hasImage),
       selectedAnswer:  submitted.selectedAnswer,
       isAttempted:     true,
       isCorrect,
       marksAwarded,
       timeSpentSeconds: submitted.timeSpentSeconds || 0,
       sequencePosition: submitted.sequencePosition || null,
+      firstAnswerTimeSeconds: submitted.firstAnswerTimeSeconds ?? null,
+      lastAnswerTimeSeconds: submitted.lastAnswerTimeSeconds ?? submitted.firstAnswerTimeSeconds ?? null,
+      reattemptDelaySeconds: submitted.reattemptDelaySeconds ?? null,
       wasReattempted:  submitted.wasReattempted    || false,
       answerChanges:   submitted.answerChanges     || 0,
       initialAnswer:   submitted.initialAnswer     || null,
@@ -769,13 +796,27 @@ exports.getAttemptWithQuestions = asyncHandler(async (req, res, next) => {
     return next(new AppError("Question details are only available after submission.", 403));
   }
 
+  const examDoc = await Exam.findById(attempt.exam?._id || attempt.exam).select("questions").lean();
+  const correctAnswerMap = {};
+  for (const q of examDoc?.questions || []) {
+    correctAnswerMap[q.slotPosition] = q.correctAnswer;
+  }
+
   // Get QuestionModel from the question bank connection
   const QuestionModel = req.app.get("QuestionModel");
 
   if (!QuestionModel || !attempt.responses || attempt.responses.length === 0) {
-    // Graceful degradation: return attempt without enrichment
+    const responsesWithAnswers = (attempt.responses || []).map((resp) => ({
+      ...resp,
+      correctAnswer: correctAnswerMap[resp.slotPosition] || resp.correctAnswer || null,
+    }));
+
+    // Graceful degradation: return attempt without question-bank enrichment.
     return sendSuccess(res, 200, "Attempt detail fetched (no question bank connection).", {
-      attempt,
+      attempt: {
+        ...attempt,
+        responses: responsesWithAnswers,
+      },
     });
   }
 
@@ -801,6 +842,7 @@ exports.getAttemptWithQuestions = asyncHandler(async (req, res, next) => {
       // Question not found in bank — return as-is with slot metadata only
       return {
         ...resp,
+        correctAnswer: correctAnswerMap[resp.slotPosition] || resp.correctAnswer || null,
         questionData: {
           text:          "Question content unavailable",
           options:       [],
@@ -811,18 +853,21 @@ exports.getAttemptWithQuestions = asyncHandler(async (req, res, next) => {
           hasLatex:      false,
           questionImage: null,
           solution:      null,
+          correctAnswer: correctAnswerMap[resp.slotPosition] || resp.correctAnswer || null,
         },
       };
     }
 
     return {
       ...resp,
+      correctAnswer: correctAnswerMap[resp.slotPosition] || resp.correctAnswer || null,
       questionData: {
         text:          qDoc.text          || "",
         hasLatex:      qDoc.hasLatex      || false,
         questionImage: qDoc.questionImage || null,
         options:       qDoc.options       || [],
         solution:      qDoc.solution      || null,
+        correctAnswer: correctAnswerMap[resp.slotPosition] || resp.correctAnswer || null,
         subject:       qDoc.subject       || resp.subject  || "",
         chapter:       qDoc.chapter       || resp.chapter  || "",
         topic:         qDoc.topic         || resp.topic    || "",

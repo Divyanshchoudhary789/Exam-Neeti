@@ -32,7 +32,10 @@ let failedQueue = [];
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
     if (error) prom.reject(error);
-    else if (token) prom.resolve(token);
+    // Resolve even when token is null — in production the refreshed access
+    // token lives only in the httpOnly cookie, so there's nothing to attach
+    // to the header, but the queued request must still be released to retry.
+    else prom.resolve(token);
   });
   failedQueue = [];
 };
@@ -54,7 +57,9 @@ api.interceptors.response.use(
           failedQueue.push({ resolve, reject });
         })
           .then((token) => {
-            originalRequest.headers["Authorization"] = `Bearer ${token}`;
+            if (token) {
+              originalRequest.headers["Authorization"] = `Bearer ${token}`;
+            }
             return api(originalRequest);
           })
           .catch((err) => Promise.reject(err));
@@ -64,6 +69,9 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        // A non-2xx response throws and is handled in the catch block below,
+        // so reaching here means the backend rotated the refresh token and
+        // set fresh cookies successfully — regardless of what the body contains.
         const res = await api.post("/auth/refresh-token");
         const newToken =
           res?.data?.data?.accessToken ||
@@ -72,7 +80,9 @@ api.interceptors.response.use(
           res?.data?.access_token;
 
         if (newToken) {
-          // Preserve all existing user fields — only update the token in memory
+          // Dev/non-production: body carries the new access token — keep it
+          // in memory and attach it explicitly for clients that rely on the
+          // Authorization header instead of the cookie.
           const currentUser = useAuthStore.getState().user;
           if (currentUser) {
             useAuthStore.getState().login(
@@ -92,14 +102,18 @@ api.interceptors.response.use(
           }
 
           originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
-          processQueue(null, newToken);
-          return api(originalRequest);
         } else {
-          processQueue(new Error("No access token returned on refresh"), null);
-          useAuthStore.getState().logout();
-          return Promise.reject(error);
+          // Production: no token in body by design — the httpOnly cookie was
+          // already refreshed by the server, so drop any stale bearer header
+          // and let the browser authenticate the retry via the cookie.
+          delete originalRequest.headers["Authorization"];
         }
+
+        processQueue(null, newToken || null);
+        return api(originalRequest);
       } catch (refreshError) {
+        // Only a genuinely failed refresh (expired/invalid/reused refresh
+        // token — the backend returns a non-2xx) should force a logout.
         processQueue(refreshError, null);
         useAuthStore.getState().logout();
         return Promise.reject(refreshError);

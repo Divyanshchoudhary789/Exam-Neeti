@@ -18,6 +18,8 @@ const responseSchema = new mongoose.Schema(
     chapter: { type: String, required: true },
     topic: { type: String, required: true },
     difficulty: { type: String, required: true },
+    questionType: { type: String, default: "mcq" },
+    hasImage: { type: Boolean, default: false },
     marks: { type: Number, required: true },
     negativeMarks: { type: Number, default: 0 },
     // correctAnswer is intentionally NOT required here — it is omitted at attempt
@@ -46,6 +48,21 @@ const responseSchema = new mongoose.Schema(
     sequencePosition: {
       type: Number,
       default: null,
+    },
+    firstAnswerTimeSeconds: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    lastAnswerTimeSeconds: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    reattemptDelaySeconds: {
+      type: Number,
+      default: null,
+      min: 0,
     },
     marksAwarded: {
       type: Number,

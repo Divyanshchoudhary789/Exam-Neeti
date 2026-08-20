@@ -93,6 +93,8 @@ interface Question {
   subject?: string;
   chapter?: string;
   topic?: string;
+  difficulty?: string;
+  questionType?: string;
   text: string;
   hasLatex?: boolean;
   questionImage?: QuestionImage | null;
@@ -146,6 +148,10 @@ export function ExamPortal({
   const [sequencePositions, setSequencePositions] = useState<Record<number, number>>({});
   const [reattemptMap, setReattemptMap] = useState<Record<number, boolean>>({});
   const [answerChangesMap, setAnswerChangesMap] = useState<Record<number, number>>({});
+  const [initialAnswerMap, setInitialAnswerMap] = useState<Record<number, string>>({});
+  const [firstAnswerTimeMap, setFirstAnswerTimeMap] = useState<Record<number, number>>({});
+  const [lastAnswerTimeMap, setLastAnswerTimeMap] = useState<Record<number, number>>({});
+  const [reattemptDelayMap, setReattemptDelayMap] = useState<Record<number, number>>({});
 
   // Timer & Navigation State
   const initialDuration = Math.max(1, Number(durationMinutes) || 180);
@@ -217,6 +223,8 @@ export function ExamPortal({
   }, [examId, durationMinutes, onFinish]);
 
   useEffect(() => {
+    // Exam startup is an async external-system sync; the call updates state after the API resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     initAttempt();
   }, [initAttempt]);
 
@@ -236,9 +244,13 @@ export function ExamPortal({
         selectedAnswer: answers[idx] ?? null,
         confidence: confidenceMap[idx] ?? 50,
         timeSpentSeconds: timeSpentMap[idx] ?? 0,
-        sequencePosition: sequencePositions[idx] ?? 0,
+        sequencePosition: sequencePositions[idx] ?? null,
         wasReattempted: Boolean(reattemptMap[idx]),
         answerChanges: answerChangesMap[idx] ?? 0,
+        initialAnswer: initialAnswerMap[idx] ?? answers[idx] ?? null,
+        firstAnswerTimeSeconds: firstAnswerTimeMap[idx] ?? null,
+        lastAnswerTimeSeconds: lastAnswerTimeMap[idx] ?? firstAnswerTimeMap[idx] ?? null,
+        reattemptDelaySeconds: reattemptDelayMap[idx] ?? null,
       }));
 
       await studentService.submitExamAttempt(attemptId, responsesPayload, totalTimeSeconds);
@@ -263,6 +275,10 @@ export function ExamPortal({
     sequencePositions,
     reattemptMap,
     answerChangesMap,
+    initialAnswerMap,
+    firstAnswerTimeMap,
+    lastAnswerTimeMap,
+    reattemptDelayMap,
     onFinish,
   ]);
 
@@ -317,11 +333,20 @@ export function ExamPortal({
 
   // ── Option Handlers ───────────────────────────────────────────────────────
   const handleSelectOption = (optKey: string) => {
+    const elapsedOnQuestion = timeSpentMap[currentIndex] ?? 0;
     if (answers[currentIndex]) {
       setReattemptMap(p => ({ ...p, [currentIndex]: true }));
       setAnswerChangesMap(p => ({ ...p, [currentIndex]: (p[currentIndex] || 0) + 1 }));
+      setReattemptDelayMap(p => ({
+        ...p,
+        [currentIndex]: Math.max(0, elapsedOnQuestion - (firstAnswerTimeMap[currentIndex] ?? elapsedOnQuestion)),
+      }));
+    } else {
+      setInitialAnswerMap(p => (p[currentIndex] ? p : { ...p, [currentIndex]: optKey }));
+      setFirstAnswerTimeMap(p => (p[currentIndex] !== undefined ? p : { ...p, [currentIndex]: elapsedOnQuestion }));
     }
     setAnswers(p => ({ ...p, [currentIndex]: optKey }));
+    setLastAnswerTimeMap(p => ({ ...p, [currentIndex]: elapsedOnQuestion }));
 
     if (!sequencePositions[currentIndex]) {
       stepCountRef.current += 1;
@@ -333,6 +358,11 @@ export function ExamPortal({
   };
 
   const handleClearAnswer = () => {
+    if (answers[currentIndex]) {
+      setReattemptMap(p => ({ ...p, [currentIndex]: true }));
+      setAnswerChangesMap(p => ({ ...p, [currentIndex]: (p[currentIndex] || 0) + 1 }));
+      setLastAnswerTimeMap(p => ({ ...p, [currentIndex]: timeSpentMap[currentIndex] ?? 0 }));
+    }
     setAnswers(p => {
       const next = { ...p };
       delete next[currentIndex];

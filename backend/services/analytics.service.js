@@ -52,12 +52,12 @@ const loadFormulaParams = async (sprintId) => {
 };
 
 const safeDiv = (numerator, denominator) => {
-  if (!denominator || denominator === 0) return 0;
+  if (!denominator) return 0;
   return parseFloat((numerator / denominator).toFixed(4));
 };
 
 const roundTo = (val, decimals = 2) => {
-  return parseFloat(val.toFixed(decimals));
+  return parseFloat(Number(val || 0).toFixed(decimals));
 };
 
 /**
@@ -351,7 +351,7 @@ const computeAnalytics = async (attempt) => {
     isAttempted: r.isAttempted,
   }));
 
-  const sortedByTime = [...questionTimings].sort(
+  const sortedByTime = questionTimings.filter((q) => q.isAttempted).sort(
     (a, b) => a.timeSpentSeconds - b.timeSpentSeconds
   );
   const topFastest = parseInt(params.top_fastest_count, 10) || 5;

@@ -20,6 +20,7 @@ const examQuestionSchema = new mongoose.Schema(
     topic: { type: String, required: true },
     difficulty: { type: String, required: true },
     questionType: { type: String, required: true },
+    hasImage: { type: Boolean, default: false },
     marks: { type: Number, required: true },
     negativeMarks: { type: Number, default: 0 },
     correctAnswer: { type: String, required: true },

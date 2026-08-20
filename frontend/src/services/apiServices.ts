@@ -15,12 +15,15 @@ export interface ExamResponsePayload {
   slotPosition: number;
   questionId?: string;
   selectedAnswer: string | null;
-  sequencePosition: number;
+  sequencePosition: number | null;
   timeSpentSeconds: number;
   confidence?: number;
   wasReattempted?: boolean;
   answerChanges?: number;
   initialAnswer?: string | null;
+  firstAnswerTimeSeconds?: number | null;
+  lastAnswerTimeSeconds?: number | null;
+  reattemptDelaySeconds?: number | null;
 }
 
 // ----------------------------------------------------

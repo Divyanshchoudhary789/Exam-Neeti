@@ -99,7 +99,15 @@ const timeDistributionSchema = new mongoose.Schema(
   {
     subject: String,
     difficulty: String,
+    totalQuestions: Number,
+    attempted: Number,
+    correct: Number,
+    incorrect: Number,
+    unattempted: Number,
     totalTimeSeconds: Number,
+    accuracy: Number,
+    attemptRate: Number,
+    avgTimeSeconds: Number,
     avgTimePerQuestion: Number,
     percentageOfTotal: Number,
     attemptedQuestions: Number,
@@ -264,6 +272,13 @@ const advancedAnalyticsSchema = new mongoose.Schema(
     // Attempt Order Quality — Spearman Rank Correlation
     attemptOrderQuality: {
       type: attemptOrderQualitySchema,
+      default: () => ({}),
+    },
+
+    // Full image-framework metrics grouped for frontend/reporting consumption.
+    // Kept flexible so new formula outputs can be added without migrations.
+    metricsFramework: {
+      type: mongoose.Schema.Types.Mixed,
       default: () => ({}),
     },
 

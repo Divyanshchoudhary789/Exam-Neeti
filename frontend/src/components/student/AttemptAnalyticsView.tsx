@@ -6,6 +6,7 @@ import {
   IconChart, IconClock, IconCross,
   IconChevronLeft, IconChevronRight,
   IconCheck, IconEye, Spinner,
+  IconAlertTriangle, IconTarget, IconBook, IconRefresh,
 } from "../common/UIComponents";
 import { studentService } from "../../services/apiServices";
 
@@ -90,21 +91,18 @@ export function AttemptAnalyticsView({
     initialAttemptDetails || null,
   );
   const [loading, setLoading]             = useState(!initialAttemptDetails && Boolean(attemptId));
-  const [activeTab, setActiveTab]         = useState<"overview" | "responses">("overview");
+  const [activeTab, setActiveTab]         = useState<"overview" | "metrics" | "responses">("overview");
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [statusFilter, setStatusFilter]   = useState("all");
   const [selectedIdx, setSelectedIdx]     = useState<number | null>(null);
+  const responseCount = Array.isArray(attemptDetails?.responses)
+    ? (attemptDetails.responses as ResponseItem[]).length
+    : 0;
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (initialAttemptDetails) {
-      setAttemptDetails(initialAttemptDetails);
-      setLoading(false);
-      return;
-    }
-    if (!attemptId) return;
+    if (initialAttemptDetails || !attemptId) return;
 
-    setLoading(true);
     Promise.allSettled([
       studentService.getAttemptWithQuestions(attemptId),
       studentService.getAttemptAnalytics(attemptId),
@@ -116,11 +114,15 @@ export function AttemptAnalyticsView({
         if (att && typeof att === "object") attemptBase = att as Record<string, unknown>;
       }
       let analyticsBase: Record<string, unknown> = {};
+      let advancedBase: Record<string, unknown> = {};
       if (analyticsRes.status === "fulfilled") {
         const val   = analyticsRes.value;
         const analy = val?.data?.analytics || val?.analytics || val?.data || val;
         if (analy && typeof analy === "object") analyticsBase = analy as Record<string, unknown>;
+        const adv = val?.data?.advancedAnalytics || val?.advancedAnalytics;
+        if (adv && typeof adv === "object") advancedBase = adv as Record<string, unknown>;
       }
+      const orderQuality = advancedBase.attemptOrderQuality as Record<string, unknown> | undefined;
       const merged: Record<string, unknown> = {
         ...attemptBase,
         totalScore:            analyticsBase.score           ?? attemptBase.score,
@@ -128,8 +130,10 @@ export function AttemptAnalyticsView({
         accuracy:              analyticsBase.overallAccuracy ?? attemptBase.accuracy,
         percentile:            analyticsBase.percentile      ?? attemptBase.percentile,
         totalTimeSpentSeconds: analyticsBase.totalTimeSeconds ?? attemptBase.totalTimeSeconds,
-        strategyRho:           analyticsBase.strategyRho     ?? attemptBase.strategyRho,
+        strategyRho:           orderQuality?.spearmanRho     ?? analyticsBase.strategyRho ?? attemptBase.strategyRho,
         subjectBreakdown:      analyticsBase.subjectAccuracy ?? attemptBase.subjectBreakdown ?? [],
+        analytics:             analyticsBase,
+        advancedAnalytics:     advancedBase,
         basicAnalytics: {
           totalAttempted:   analyticsBase.totalAttempted   ?? "—",
           totalUnattempted: analyticsBase.totalUnattempted ?? "—",
@@ -158,13 +162,12 @@ export function AttemptAnalyticsView({
     if (selectedIdx === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft")  goPrev();
-      if (e.key === "ArrowRight") goNext(enrichedResponses.length);
+      if (e.key === "ArrowRight") goNext(responseCount);
       if (e.key === "Escape")     closeModal();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIdx, closeModal, goPrev, goNext]);
+  }, [selectedIdx, closeModal, goPrev, goNext, responseCount]);
 
   // ── Loading / empty ───────────────────────────────────────────────────────
   if (loading) return (
@@ -219,6 +222,25 @@ export function AttemptAnalyticsView({
 
   const subjectBreakdown = (attemptDetails.subjectBreakdown as Record<string, unknown>[]) || [];
   const basicAnalytics   = attemptDetails.basicAnalytics as Record<string, unknown> | undefined;
+  const analytics        = (attemptDetails.analytics as Record<string, unknown>) || {};
+  const advancedAnalytics = (attemptDetails.advancedAnalytics as Record<string, unknown>) || {};
+  const errorClassification = (advancedAnalytics.errorClassification as Record<string, unknown>) || {};
+  const roiMetrics = (advancedAnalytics.roiMetrics as Record<string, unknown>) || {};
+  const fatigueCurve = (advancedAnalytics.fatigueCurve as Record<string, unknown>) || {};
+  const reattemptMetrics = (advancedAnalytics.reattemptMetrics as Record<string, unknown>) || {};
+  const timeVariance = (advancedAnalytics.timeVariance as Record<string, unknown>) || {};
+  const orderQuality = (advancedAnalytics.attemptOrderQuality as Record<string, unknown>) || {};
+  const metricsFramework = (advancedAnalytics.metricsFramework as Record<string, unknown>) || {};
+  const frameworkContent = (metricsFramework.content as Record<string, unknown>) || {};
+  const frameworkBehavior = (metricsFramework.reattemptBehavior as Record<string, unknown>) || {};
+  const frameworkPattern = (metricsFramework.streakPattern as Record<string, unknown>) || {};
+  const frameworkFatigue = (metricsFramework.fatigueRecovery as Record<string, unknown>) || {};
+  const frameworkEarly = (metricsFramework.foundationTimeSpeedDetail as Record<string, unknown>) || {};
+  const frameworkTime = (metricsFramework.timeSpeed as Record<string, unknown>) || {};
+  const frameworkDifficulty = (metricsFramework.difficulty as Record<string, unknown>) || {};
+  const difficultyAccuracy = (analytics.difficultyAccuracy as Record<string, unknown>[]) || [];
+  const topicAccuracy = (analytics.topicAccuracy as Record<string, unknown>[]) || [];
+  const recoverableMarks = (analytics.recoverableMarks as Record<string, unknown>) || {};
 
   // ── Filters ───────────────────────────────────────────────────────────────
   const filteredResponses = enrichedResponses.filter(r => {
@@ -304,6 +326,7 @@ export function AttemptAnalyticsView({
       <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none">
         {[
           { id: "overview"  as const, label: "Performance Overview", icon: IconChart },
+          { id: "metrics"   as const, label: "Metrics Framework", icon: IconTarget },
           { id: "responses" as const, label: `Solutions (${enrichedResponses.length} Qs)`, icon: IconEye },
         ].map(({ id, label, icon: Icon }) => (
           <button
@@ -346,7 +369,7 @@ export function AttemptAnalyticsView({
                       <div className="flex items-center gap-2 text-[10px] tabular-nums shrink-0">
                         <span className="text-emerald-600 font-black">{marks} pts</span>
                         <span className="text-slate-400">{acc}%</span>
-                        <span className="text-slate-400">{correct}✓ {wrong}✗</span>
+                        <span className="text-slate-400">C {correct} / W {wrong}</span>
                       </div>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -386,6 +409,111 @@ export function AttemptAnalyticsView({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* == METRICS FRAMEWORK TAB ======================================= */}
+      {activeTab === "metrics" && (
+        <div className="space-y-3 sm:space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <MetricPanel title="Foundation Metrics" icon={IconChart} tone="indigo">
+              <MetricTile label="Total Attempts" value={String(analytics.totalQuestions ?? enrichedResponses.length)} sub="Questions in paper" />
+              <MetricTile label="Attempt Rate" value={`${Number(analytics.overallAttemptRate ?? 0).toFixed(1)}%`} sub={`${analytics.totalAttempted ?? 0} attempted`} />
+              <MetricTile label="Accuracy" value={`${Number(analytics.overallAccuracy ?? accuracy).toFixed(1)}%`} sub={`${analytics.totalCorrect ?? 0} correct`} />
+              <MetricTile label="Negative Marks" value={Number(analytics.totalNegativeMarks ?? 0).toFixed(1)} sub="Marks lost" danger />
+              <MetricTile label="Guess Rate" value={`${Number(errorClassification.guessRate ?? 0).toFixed(1)}%`} sub={`${errorClassification.guesses ?? analytics.totalGuessAttempts ?? 0} guesses`} />
+              <MetricTile label="Recoverable Marks" value={Number(recoverableMarks.totalRecoverable ?? 0).toFixed(1)} sub="Score opportunity" />
+            </MetricPanel>
+
+            <MetricPanel title="Time and Speed" icon={IconClock} tone="emerald">
+              <MetricTile label="Total Time" value={formatTime(Number(analytics.totalTimeSeconds ?? totalTimeSec))} sub="Submitted duration" />
+              <MetricTile label="Avg Time/Q" value={`${Number(analytics.avgTimePerQuestion ?? 0).toFixed(0)}s`} sub="Across all questions" />
+              <MetricTile label="Correct Avg Time" value={`${Number(analytics.avgTimeOnCorrect ?? timeVariance.avgTimeOnCorrect ?? 0).toFixed(0)}s`} sub="Correct answers" />
+              <MetricTile label="Wrong Avg Time" value={`${Number(analytics.avgTimeOnIncorrect ?? timeVariance.avgTimeOnIncorrect ?? 0).toFixed(0)}s`} sub="Incorrect answers" danger />
+              <MetricTile label="Speed Consistency" value={`${Number(analytics.timeStdDeviation ?? timeVariance.standardDeviation ?? 0).toFixed(0)}s`} sub="Std deviation" />
+              <MetricTile label="Order Quality" value={String(orderQuality.spearmanRho ?? orderRho)} sub={String(orderQuality.interpretation || "strategy score")} />
+            </MetricPanel>
+
+            <MetricPanel title="Accuracy and Errors" icon={IconAlertTriangle} tone="rose">
+              <MetricTile label="Silly Mistakes" value={String(errorClassification.sillyMistakes ?? 0)} sub={`${Number(errorClassification.sillyMistakeRate ?? 0).toFixed(1)}% rate`} danger />
+              <MetricTile label="Concept Errors" value={String(errorClassification.conceptErrors ?? 0)} sub={`${Number(errorClassification.conceptErrorRate ?? 0).toFixed(1)}% rate`} danger />
+              <MetricTile label="Confidence Gap" value={`${Math.abs(Number(errorClassification.sillyMistakeRate ?? 0) - Number(errorClassification.guessRate ?? 0)).toFixed(1)}%`} sub="Mistake vs guess spread" />
+              <MetricTile label="High ROI Coverage" value={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}%`} sub="Priority questions attempted" />
+              <MetricTile label="Low ROI Attempts" value={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}%`} sub="Low value attempted" danger />
+              <MetricTile label="Opportunity Index" value={Number(roiMetrics.scoreOpportunityIndex ?? 0).toFixed(1)} sub="Avoidable loss estimate" />
+            </MetricPanel>
+
+            <MetricPanel title="Fatigue and Reattempts" icon={IconRefresh} tone="amber">
+              <MetricTile label="Longest Correct Streak" value={String((advancedAnalytics.streakMetrics as Record<string, unknown>)?.goodStreakLength ?? 0)} sub="Best run" />
+              <MetricTile label="Longest Wrong Streak" value={String((advancedAnalytics.streakMetrics as Record<string, unknown>)?.badStreakLength ?? 0)} sub="Risk run" danger />
+              <MetricTile label="Max Accuracy Drop" value={`${Number(fatigueCurve.maxDrop ?? 0).toFixed(1)}%`} sub={`${fatigueCurve.criticalWindowsCount ?? 0} critical windows`} danger />
+              <MetricTile label="Recovery Window" value={String(fatigueCurve.recoveryWindow ?? "None")} sub="After a drop" />
+              <MetricTile label="Reattempt Rate" value={`${Number(reattemptMetrics.reattemptRate ?? 0).toFixed(1)}%`} sub={`${reattemptMetrics.totalReattempts ?? 0} total`} />
+              <MetricTile label="Reattempt Efficiency" value={`${Number(reattemptMetrics.productiveReattemptRate ?? 0).toFixed(1)}%`} sub={`${reattemptMetrics.wrongToCorrect ?? 0} wrong to correct`} />
+            </MetricPanel>
+          </div>
+
+          <MetricPanel title="Difficulty Wise Performance" icon={IconBook} tone="slate">
+            {difficultyAccuracy.length === 0 ? (
+              <p className="col-span-full py-6 text-center text-xs font-semibold text-slate-400">No difficulty data available yet.</p>
+            ) : difficultyAccuracy.map((d, i) => (
+              <MetricTile
+                key={`${String(d.difficulty)}-${i}`}
+                label={String(d.difficulty || "Difficulty")}
+                value={`${Number(d.accuracy ?? 0).toFixed(1)}%`}
+                sub={`${d.correct ?? 0}/${d.attempted ?? 0} correct, ${Number(d.avgTimeSeconds ?? 0).toFixed(0)}s avg`}
+              />
+            ))}
+          </MetricPanel>
+
+          <MetricPanel title="Subject and Topic Analytics" icon={IconBook} tone="teal">
+            <MetricTile label="Weak Topics" value={String(topicAccuracy.filter(t => t.isWeak).length)} sub="Below configured threshold" danger />
+            <MetricTile label="Strong Topics" value={String(topicAccuracy.filter(t => t.isStrong).length)} sub="Above configured threshold" />
+            {subjectBreakdown.slice(0, 4).map((s, i) => (
+              <MetricTile
+                key={i}
+                label={String(s.subject || `Subject ${i + 1}`)}
+                value={`${Number(s.accuracy ?? 0).toFixed(1)}%`}
+                sub={`${s.correct ?? 0}/${s.attempted ?? 0} correct`}
+              />
+            ))}
+          </MetricPanel>
+
+          <MetricPanel title="Content and Coverage" icon={IconBook} tone="indigo">
+            <MetricTile label="Question Type Coverage" value={`${Number(frameworkContent.topicCoveragePercent ?? 0).toFixed(1)}%`} sub="Attempted topic coverage" />
+            <MetricTile label="Assertion Accuracy" value={`${Number((frameworkContent.assertionAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.assertionAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
+            <MetricTile label="Numeric Accuracy" value={`${Number((frameworkContent.numericAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.numericAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
+            <MetricTile label="Image Accuracy" value={`${Number((frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
+            <MetricTile label="New Accuracy" value={`${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.newAccuracyPercent ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.newAttempted ?? 0} new attempts`} />
+            <MetricTile label="Repeated Accuracy" value={`${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAccuracyPercent ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAttempted ?? 0} repeated attempts`} />
+          </MetricPanel>
+
+          <MetricPanel title="Reattempt and Behavior" icon={IconRefresh} tone="rose">
+            <MetricTile label="Correct on Reattempt" value={String(frameworkBehavior.wrongToCorrect ?? 0)} sub="Wrong to correct switches" />
+            <MetricTile label="Wrong Again" value={String(frameworkBehavior.wrongToWrong ?? 0)} sub="Repeated wrong answers" danger />
+            <MetricTile label="Avg Reattempt Delay" value={`${Number(frameworkBehavior.reattemptDelaySeconds ?? 0).toFixed(0)}s`} sub="Gap before change" />
+            <MetricTile label="Smart Reattempt Rate" value={`${Number((frameworkBehavior.smartVsBlind as Record<string, unknown>)?.smartRatePercent ?? 0).toFixed(1)}%`} sub="Considered vs immediate" />
+            <MetricTile label="Overthinking Index" value={String(frameworkBehavior.overthinkingIndex ?? 0)} sub="High time plus wrong" danger />
+            <MetricTile label="Efficiency" value={`${Number(frameworkBehavior.reattemptEfficiencyPercent ?? 0).toFixed(1)}%`} sub="Productive reattempt rate" />
+          </MetricPanel>
+
+          <MetricPanel title="Patterns and Fatigue" icon={IconAlertTriangle} tone="amber">
+            <MetricTile label="Alternation Count" value={String(frameworkPattern.rightWrongAlternationCount ?? 0)} sub="Right/wrong switches" />
+            <MetricTile label="Error Pattern Rate" value={`${Number((frameworkPattern.patternOfErrors as Record<string, unknown>)?.alternationRatePercent ?? 0).toFixed(1)}%`} sub="Alternating responses" />
+            <MetricTile label="Peak Window" value={String((frameworkFatigue.peakPerformanceWindow as Record<string, unknown>)?.windowIndex ?? "None")} sub={`${Number((frameworkFatigue.peakPerformanceWindow as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}% accuracy`} />
+            <MetricTile label="Accuracy Recovery" value={String(frameworkFatigue.accuracyRecovery ?? "None")} sub="Recovery window index" />
+            <MetricTile label="Fall Rate" value={`${Number(frameworkDifficulty.fallRatePercent ?? 0).toFixed(1)}%`} sub="First half vs second half" danger />
+            <MetricTile label="Consistency Spread" value={`${Number(frameworkDifficulty.performanceConsistencyPercent ?? 0).toFixed(1)}%`} sub="Difficulty accuracy variance" />
+          </MetricPanel>
+
+          <MetricPanel title="Early Momentum" icon={IconTarget} tone="emerald">
+            <MetricTile label="Foundation Time" value={`${Number(frameworkEarly.foundationTimeSeconds ?? 0).toFixed(0)}s`} sub="First answer time" />
+            <MetricTile label="First N Accuracy" value={`${Number(frameworkEarly.firstNAccuracyPercent ?? 0).toFixed(1)}%`} sub="Early attempt quality" />
+            <MetricTile label="Early Speed" value={`${Number(frameworkEarly.earlySpeedSeconds ?? 0).toFixed(0)}s`} sub="Avg first N time" />
+            <MetricTile label="Early Stability" value={`${Number(frameworkEarly.earlyAccuracyStabilitySeconds ?? 0).toFixed(0)}s`} sub="First N time spread" />
+            <MetricTile label="Momentum Score" value={Number(frameworkEarly.momentumScore ?? 0).toFixed(1)} sub="Accuracy x speed" />
+            <MetricTile label="Median Time" value={`${Number(frameworkTime.medianTimePerQuestionSeconds ?? 0).toFixed(0)}s`} sub="Middle question time" />
+          </MetricPanel>
         </div>
       )}
 
@@ -726,6 +854,63 @@ function StatCard({
         </h2>
       </div>
       <p className="text-[10px] text-slate-400 font-semibold">{sub}</p>
+    </div>
+  );
+}
+
+function MetricPanel({
+  title,
+  icon: Icon,
+  tone,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: "indigo" | "emerald" | "rose" | "amber" | "slate" | "teal";
+  children: React.ReactNode;
+}) {
+  const toneClass: Record<typeof tone, string> = {
+    indigo: "text-indigo-700 bg-indigo-50 border-indigo-100",
+    emerald: "text-emerald-700 bg-emerald-50 border-emerald-100",
+    rose: "text-rose-700 bg-rose-50 border-rose-100",
+    amber: "text-amber-700 bg-amber-50 border-amber-100",
+    slate: "text-slate-700 bg-slate-50 border-slate-100",
+    teal: "text-teal-700 bg-teal-50 border-teal-100",
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3.5">
+      <div className="flex items-center gap-2">
+        <span className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${toneClass[tone]}`}>
+          <Icon className="w-4 h-4" />
+        </span>
+        <h3 className="text-sm font-black text-slate-900 leading-tight">{title}</h3>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  sub,
+  danger = false,
+}: {
+  label: string;
+  value: string | number;
+  sub: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className="min-h-[88px] rounded-xl border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between">
+      <p className="text-[9px] sm:text-[10px] font-extrabold uppercase text-slate-400 leading-snug">{label}</p>
+      <p className={`text-lg sm:text-xl font-black tabular-nums leading-tight break-words ${danger ? "text-red-600" : "text-slate-900"}`}>
+        {value}
+      </p>
+      <p className="text-[10px] text-slate-500 font-semibold leading-snug line-clamp-2">{sub}</p>
     </div>
   );
 }
