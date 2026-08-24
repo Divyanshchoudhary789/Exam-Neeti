@@ -201,7 +201,10 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   const rawSolImg = selectedQuestionDetail?.solutionImage as { url?: string } | undefined;
   const detailSolImageUrl = solObj?.image?.url || solObj?.images?.[0]?.url || solObj?.solutionImage?.url || rawSolImg?.url || null;
 
-  const canEdit = (q: Record<string, unknown>) => {
+  // Gates both Edit and Delete: super_admin can manage every question;
+  // a regular admin can only manage questions they created themselves.
+  // View has no restriction — any admin can view any question.
+  const canManage = (q: Record<string, unknown>) => {
     if (user?.role === "super_admin") return true;
     const owner = (q.createdBy as { userId?: string } | undefined)?.userId;
     return Boolean(owner) && Boolean(user?.id) && String(owner) === String(user?.id);
@@ -312,18 +315,20 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
                     <button onClick={() => handleViewQuestionDetails(qId)} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 rounded-xl text-xs font-bold transition-all cursor-pointer">
                       <IconEye className="w-3.5 h-3.5" /><span>View</span>
                     </button>
-                    {canEdit(q) && (
-                      <button
-                        onClick={() => handleEditQuestion(qId)}
-                        disabled={fetchingEditId === qId}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-700 text-slate-700 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {fetchingEditId === qId ? <Spinner className="w-3.5 h-3.5" /> : <IconEdit className="w-3.5 h-3.5" />}<span>Edit</span>
-                      </button>
+                    {canManage(q) && (
+                      <>
+                        <button
+                          onClick={() => handleEditQuestion(qId)}
+                          disabled={fetchingEditId === qId}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-700 text-slate-700 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {fetchingEditId === qId ? <Spinner className="w-3.5 h-3.5" /> : <IconEdit className="w-3.5 h-3.5" />}<span>Edit</span>
+                        </button>
+                        <button onClick={() => handleDeleteQuestion(qId)} className="p-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-100 rounded-xl transition-all cursor-pointer">
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
-                    <button onClick={() => handleDeleteQuestion(qId)} className="p-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-100 rounded-xl transition-all cursor-pointer">
-                      <IconTrash className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 </div>
               </div>
