@@ -25,6 +25,7 @@ import {
   IconMail,
   IconPhone,
   IconDownload,
+  IconUpload,
   IconCopy,
   IconCode,
   IconArrowRight,
@@ -37,6 +38,8 @@ import {
   PaginationControls,
   CustomSelectMenu,
 } from "../common/UIComponents";
+import { QuestionBankPanel } from "../admin/QuestionBankPanel";
+import { MyQuestionsPanel } from "../admin/MyQuestionsPanel";
 
 interface SuperAdminDashboardProps {
   onLogout: () => void;
@@ -45,6 +48,8 @@ interface SuperAdminDashboardProps {
 const TABS = [
   { id: "system", label: "System Overview", icon: IconChart },
   { id: "admins", label: "Admin Team", icon: IconUsers },
+  { id: "questionBank", label: "Question Bank", icon: IconFilter },
+  { id: "myQuestions", label: "My Questions", icon: IconUpload },
   { id: "logs", label: "Platform Audit Trail", icon: IconClock },
   { id: "governance", label: "Governance & Purge", icon: IconAlertTriangle },
   { id: "settings", label: "Security", icon: IconShield },
@@ -1751,6 +1756,16 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
             </div>
           </div>
         )}
+
+        {/* ========================================== */}
+        {/* TAB: QUESTION BANK — full CRUD, all admins' questions */}
+        {/* ========================================== */}
+        {activeTab === "questionBank" && <QuestionBankPanel showToast={showToast} />}
+
+        {/* ========================================== */}
+        {/* TAB: MY QUESTIONS — super_admin's own bulk uploads / questions */}
+        {/* ========================================== */}
+        {activeTab === "myQuestions" && <MyQuestionsPanel showToast={showToast} />}
 
         {/* ========================================== */}
         {/* TAB 5: SECURITY SETTINGS */}

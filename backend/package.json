@@ -11,6 +11,7 @@
     "seed:syllabus": "node scripts/seedSyllabus.js",
     "seed:blueprint": "node scripts/seedBlueprint.js",
     "seed:questions": "node scripts/seedQuestions.js",
+    "migrate:question-status": "node scripts/migrateQuestionStatus.js",
     "seed:all": "node seedAdmin.js && node scripts/seedSyllabus.js && node scripts/seedBlueprint.js",
     "extract:docx": "node scripts/extractDocx.js"
   },
@@ -28,6 +29,7 @@
     "cloudinary": "^2.5.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "docx": "^9.7.1",
     "dotenv": "^17.4.2",
     "exceljs": "3.10.0",
     "express": "^5.2.1",
@@ -35,6 +37,7 @@
     "helmet": "^8.3.0",
     "joi": "^18.2.3",
     "jsonwebtoken": "^9.0.3",
+    "jszip": "^3.10.1",
     "katex": "^0.16.22",
     "mongoose": "^9.8.0",
     "multer": "^2.0.1",
@@ -42,7 +45,6 @@
     "pdfkit": "^0.16.0"
   },
   "devDependencies": {
-    "jszip": "^3.10.1",
     "nodemon": "^3.1.14"
   }
 }

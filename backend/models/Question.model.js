@@ -271,6 +271,43 @@ const questionSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    // ── Draft / review workflow ─────────────────────────────────────────────
+    /**
+     * status — "draft" questions were created via bulk upload and are NOT
+     * usable in exams (see questionReconstruction.service.js) until an admin
+     * reviews them (adds missing images etc.) and flips this to "active".
+     * Manually created single questions go straight to "active".
+     *
+     * NOTE: pre-existing documents have NO status field at all (this is a
+     * new field) — treat "missing" as exam-eligible everywhere this is read,
+     * do not assume the schema default has been backfilled.
+     */
+    status: {
+      type: String,
+      enum: ["draft", "active"],
+      default: "active",
+      index: true,
+    },
+    /**
+     * createdBy — denormalized (userId + email only, no name/populate).
+     * Question lives on a separate Mongoose connection from User, so a real
+     * populate() isn't practical. Used to scope "my questions" and to gate
+     * edit/delete/deactivate to the owning admin (super_admin bypasses).
+     */
+    createdBy: {
+      userId: { type: mongoose.Schema.Types.ObjectId, default: null },
+      email:  { type: String, default: "" },
+    },
+    /**
+     * uploadBatch — set only for questions created via bulk upload; groups
+     * every question from one uploaded file together for traceability.
+     */
+    uploadBatch: {
+      batchId:    { type: mongoose.Schema.Types.ObjectId, default: null },
+      fileName:   { type: String, default: "" },
+      uploadedAt: { type: Date, default: null },
+    },
   },
   {
     timestamps: true,
@@ -286,6 +323,7 @@ questionSchema.index({ questionCategory: 1, questionVariant: 1 });
 questionSchema.index({ sourceRef: 1 });
 questionSchema.index({ "patternSlotTags.sprintId": 1, "patternSlotTags.slotPosition": 1 });
 questionSchema.index({ "usageLog.sprintId": 1, "usageLog.slotPosition": 1 });
+questionSchema.index({ "createdBy.userId": 1, status: 1 });
 
 // ─── Model factory ────────────────────────────────────────────────────────────
 

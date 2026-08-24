@@ -61,7 +61,8 @@
 
 "use strict";
 
-const katex = require("katex");
+const katex   = require("katex");
+const AppError = require("./AppError");
 
 // ─── Greek letter map ─────────────────────────────────────────────────────────
 
@@ -496,6 +497,31 @@ function processAndValidateText(input) {
   return result;
 }
 
+// ─── processMathField ─────────────────────────────────────────────────────────
+
+/**
+ * Processes a single text field (question text, solution text, or an option's
+ * text) through the math pipeline, with field-context added to any error.
+ *
+ * Shared by the single-question create/update flow AND the bulk-upload
+ * pipeline so both paths validate LaTeX identically.
+ *
+ * @param {*}      value      Raw input (may be undefined/null/empty)
+ * @param {string} fieldName  Used only to make thrown errors actionable
+ * @returns {{ text: string, hasLatex: boolean }}
+ */
+function processMathField(value, fieldName) {
+  if (!value && value !== 0) return { text: "", hasLatex: false };
+  try {
+    return processAndValidateText(String(value));
+  } catch (err) {
+    throw new AppError(
+      `Invalid math in field "${fieldName}": ${err.message}`,
+      400
+    );
+  }
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -504,4 +530,5 @@ module.exports = {
   convertMathSegment,
   validateLatex,
   validateLatexFragment,
+  processMathField,
 };

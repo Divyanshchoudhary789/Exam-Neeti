@@ -300,7 +300,7 @@ export const adminService = {
   },
 
   // Questions
-  getQuestions: async (params?: { subject?: string; difficulty?: string; classLevel?: string; chapter?: string; page?: number; limit?: number; search?: string }) => {
+  getQuestions: async (params?: { subject?: string; difficulty?: string; classLevel?: string; chapter?: string; page?: number; limit?: number; search?: string; mine?: boolean; status?: "draft" | "active" }) => {
     const queryObj: Record<string, string> = {};
     if (params?.subject) queryObj.subject = params.subject;
     if (params?.difficulty) queryObj.difficulty = params.difficulty;
@@ -309,6 +309,8 @@ export const adminService = {
     if (params?.page) queryObj.page = String(params.page);
     if (params?.limit) queryObj.limit = String(params.limit);
     if (params?.search) queryObj.search = params.search;
+    if (params?.mine) queryObj.mine = "true";
+    if (params?.status) queryObj.status = params.status;
     const q = new URLSearchParams(queryObj).toString();
     const res = await api.get(`/questions${q ? `?${q}` : ""}`);
     return res.data;
@@ -347,8 +349,30 @@ export const adminService = {
     return res.data;
   },
   bulkDeactivateQuestions: async (ids: string[]) => {
-    const res = await api.patch("/questions/bulk-deactivate", { questionIds: ids });
+    // FIX: backend's bulkDeactivate controller reads req.body.ids, not
+    // questionIds — this call was silently a no-op until corrected.
+    const res = await api.patch("/questions/bulk-deactivate", { ids });
     return res.data;
+  },
+  /** Bulk-upload a .docx or .xlsx of questions — creates them as drafts. */
+  bulkUploadQuestions: async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await api.post("/questions/bulk-upload", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  },
+  /** Download the sample bulk-upload template (Word or Excel). */
+  downloadQuestionTemplate: async (format: "docx" | "xlsx"): Promise<{ objectUrl: string; filename: string }> => {
+    const res = await api.get(`/questions/template?format=${format}`, {
+      responseType: "blob",
+    });
+    const contentDisposition = res.headers["content-disposition"] || "";
+    const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
+    const filename = match?.[1] || `exam-neeti-question-upload-template.${format}`;
+    const objectUrl = URL.createObjectURL(res.data as Blob);
+    return { objectUrl, filename };
   },
 
   // Dashboard Analytics

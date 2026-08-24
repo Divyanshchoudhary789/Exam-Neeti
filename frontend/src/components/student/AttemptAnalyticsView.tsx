@@ -247,6 +247,8 @@ export function AttemptAnalyticsView({
     : 0;
   const streakBreakPoint = (frameworkPattern.streakBreakPoint as Record<string, unknown>) || null;
   const difficultyAccuracy = (analytics.difficultyAccuracy as Record<string, unknown>[]) || [];
+  const difficultySummary = (analytics.difficultySummary as Record<string, unknown>[]) || [];
+  const subjectTimeDistribution = (analytics.subjectTimeDistribution as Record<string, unknown>[]) || [];
   const topicAccuracy = (analytics.topicAccuracy as Record<string, unknown>[]) || [];
   const recoverableMarks = (analytics.recoverableMarks as Record<string, unknown>) || {};
 
@@ -434,6 +436,9 @@ export function AttemptAnalyticsView({
               <MetricTile label="Total Attempts" value={String(analytics.totalQuestions ?? enrichedResponses.length)} sub="Questions in paper" />
               <MetricTile label="Attempt Rate" value={`${Number(analytics.overallAttemptRate ?? 0).toFixed(1)}%`} sub={`${analytics.totalAttempted ?? 0} attempted`} />
               <MetricTile label="Accuracy" value={`${Number(analytics.overallAccuracy ?? accuracy).toFixed(1)}%`} sub={`${analytics.totalCorrect ?? 0} correct`} />
+              <MetricTile label="Correct Attempts" value={String(analytics.totalCorrect ?? 0)} sub="Answered correctly" />
+              <MetricTile label="Incorrect Attempts" value={String(analytics.totalIncorrect ?? 0)} sub="Answered wrongly" danger />
+              <MetricTile label="Unattempted Questions" value={String(analytics.totalUnattempted ?? 0)} sub="Left unanswered" />
               <MetricTile label="Negative Marks" value={Number(analytics.totalNegativeMarks ?? 0).toFixed(1)} sub="Marks lost" danger />
               <MetricTile label="Guess Rate" value={`${Number(errorClassification.guessRate ?? 0).toFixed(1)}%`} sub={`${errorClassification.guesses ?? analytics.totalGuessAttempts ?? 0} guesses`} />
               <MetricTile label="Recoverable Marks" value={Number(recoverableMarks.totalRecoverable ?? 0).toFixed(1)} sub="Score opportunity" />
@@ -529,6 +534,90 @@ export function AttemptAnalyticsView({
               />
             )}
           </section>
+
+          {difficultySummary.length > 0 && (
+            <MetricPanel title="Accuracy &amp; Attempt Rate by Difficulty" icon={IconTarget} tone="slate">
+              {(["easy", "medium", "hard"] as const).map((diff) => {
+                const row = difficultySummary.find(
+                  (d) => String(d.difficulty || "").toLowerCase() === diff
+                );
+                const label = diff.charAt(0).toUpperCase() + diff.slice(1);
+                return (
+                  <React.Fragment key={diff}>
+                    <MetricTile
+                      label={`${label} Accuracy`}
+                      value={`${Number(row?.accuracy ?? 0).toFixed(1)}%`}
+                      sub={`${row?.correct ?? 0}/${row?.attempted ?? 0} correct`}
+                    />
+                    <MetricTile
+                      label={`${label} Attempt Rate`}
+                      value={`${Number(row?.attemptRate ?? 0).toFixed(1)}%`}
+                      sub={`${row?.attempted ?? 0}/${row?.totalQuestions ?? 0} attempted`}
+                    />
+                  </React.Fragment>
+                );
+              })}
+            </MetricPanel>
+          )}
+
+          {subjectTimeDistribution.length > 0 && (
+            <MetricPanel title="Time per Subject" icon={IconClock} tone="emerald">
+              {subjectTimeDistribution.map((s, i) => (
+                <MetricTile
+                  key={i}
+                  label={String(s.subject || `Subject ${i + 1}`)}
+                  value={formatTime(Number(s.totalTimeSeconds ?? 0))}
+                  sub={`${Number(s.percentageOfTotal ?? 0).toFixed(1)}% of total · ${Number(s.avgTimePerQuestion ?? 0).toFixed(0)}s/Q avg`}
+                />
+              ))}
+            </MetricPanel>
+          )}
+
+          {difficultyAccuracy.length > 0 && (
+            <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <IconClock className="w-4 h-4 text-indigo-600 shrink-0" />Avg Time Spent — Difficulty × Subject
+              </h3>
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full text-xs border-collapse min-w-[420px]">
+                  <thead>
+                    <tr>
+                      <th className="text-left font-extrabold uppercase text-[10px] text-slate-400 py-2 pr-2">Difficulty</th>
+                      {["physics", "chemistry", "biology"].map((subj) => (
+                        <th key={subj} className="text-center font-extrabold uppercase text-[10px] text-slate-400 py-2 px-2 capitalize">{subj}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(["easy", "medium", "hard"] as const).map((diff) => (
+                      <tr key={diff} className="border-t border-slate-100">
+                        <td className="py-2.5 pr-2 font-bold text-slate-800 capitalize">{diff}</td>
+                        {["physics", "chemistry", "biology"].map((subj) => {
+                          const cell = difficultyAccuracy.find(
+                            (d) =>
+                              String(d.difficulty || "").toLowerCase() === diff &&
+                              String(d.subject || "").toLowerCase() === subj
+                          );
+                          return (
+                            <td key={subj} className="py-2.5 px-2 text-center tabular-nums">
+                              {cell ? (
+                                <span className="font-bold text-slate-900">{Number(cell.avgTimeSeconds ?? 0).toFixed(0)}s</span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                              {cell && (
+                                <span className="block text-[10px] text-slate-400 font-semibold">{Number(cell.correct ?? 0)}/{Number(cell.attempted ?? 0)} correct</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <MetricPanel title="Subject and Topic Analytics" icon={IconBook} tone="teal">
             <MetricTile label="Weak Topics" value={String(topicAccuracy.filter(t => t.isWeak).length)} sub="Below configured threshold" danger />

@@ -124,8 +124,35 @@ const questionUpload = multerUpload.fields([
   { name: "solutionImages",   maxCount: 6 },
 ]);
 
+// ─── Bulk question upload (.docx / .xlsx) — separate config, separate rules ───
+// Not an image upload: different mimetypes, different size ceiling, single file.
+
+const ALLOWED_BULK_MIME = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",       // .xlsx
+]);
+const MAX_BULK_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+const bulkQuestionUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_BULK_FILE_SIZE,
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_BULK_MIME.has(file.mimetype)) {
+      return cb(
+        new AppError("Only .docx or .xlsx files are allowed.", 400),
+        false
+      );
+    }
+    cb(null, true);
+  },
+}).single("file");
+
 module.exports = {
   questionUpload,
+  bulkQuestionUpload,
   uploadToCloudinary,
   deleteFromCloudinary,
 };

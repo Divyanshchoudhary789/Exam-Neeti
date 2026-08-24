@@ -30,11 +30,12 @@ const questionController = require("../controllers/question.controller");
 const authenticate       = require("../middleware/authenticate");
 const authorize          = require("../middleware/authorize");
 const validate           = require("../middleware/validate");
-const { questionUpload } = require("../middleware/upload");
+const { questionUpload, bulkQuestionUpload } = require("../middleware/upload");
 const {
   createQuestionSchema,
   updateQuestionSchema,
   listQuestionsSchema,
+  templateQuerySchema,
 } = require("../validators/question.validator");
 const { ROLES } = require("../config/constants");
 
@@ -71,6 +72,20 @@ router.get("/distinct", questionController.getDistinctValues);
 
 // PATCH /questions/bulk-deactivate
 router.patch("/bulk-deactivate", questionController.bulkDeactivate);
+
+// POST /questions/bulk-upload — multipart, single .docx/.xlsx file field "file"
+router.post(
+  "/bulk-upload",
+  bulkQuestionUpload,
+  questionController.bulkUploadQuestions
+);
+
+// GET /questions/template?format=docx|xlsx
+router.get(
+  "/template",
+  validate(templateQuerySchema, "query"),
+  questionController.getQuestionTemplate
+);
 
 // ─── Collection routes ────────────────────────────────────────────────────────
 

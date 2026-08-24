@@ -199,8 +199,12 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
   const slots         = sprint.patternSlots;
 
   // Bulk fetch all active questions
+  // status:{$ne:"draft"} (not status:"active") so pre-existing questions with
+  // no status field at all (created before the draft/active workflow existed)
+  // remain exam-eligible without requiring a migration first.
   const allCandidates = await QuestionModel.find({
     isActive: true,
+    status: { $ne: "draft" },
   }).lean();
 
   // Index candidates by subject (lowercase) for fast lookup
@@ -303,8 +307,12 @@ const getSlotPoolStats = async (QuestionModel, sprint) => {
   const sprintIdStr = sprint._id.toString();
   const slots       = sprint.patternSlots;
 
+  // status:{$ne:"draft"} (not status:"active") so pre-existing questions with
+  // no status field at all (created before the draft/active workflow existed)
+  // remain exam-eligible without requiring a migration first.
   const allCandidates = await QuestionModel.find({
     isActive: true,
+    status: { $ne: "draft" },
   }).lean();
 
   const bySubject = {};

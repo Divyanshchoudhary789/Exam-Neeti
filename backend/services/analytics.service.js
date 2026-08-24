@@ -258,6 +258,43 @@ const computeAnalytics = async (attempt) => {
     percentageOfTotal: roundTo(safeDiv(d.totalTimeSeconds, totalTimeAllResponses) * 100),
   }));
 
+  // Pure per-difficulty rollup, collapsed across subject — covers
+  // Accuracy(Easy/Medium/Hard), Attempt Rate(Easy/Medium/Hard),
+  // Time per Difficulty, and time-distribution % across difficulty.
+  const difficultySummaryMap = {};
+  for (const r of responses) {
+    if (!difficultySummaryMap[r.difficulty]) {
+      difficultySummaryMap[r.difficulty] = {
+        difficulty: r.difficulty,
+        totalQuestions: 0,
+        attempted: 0,
+        correct: 0,
+        incorrect: 0,
+        unattempted: 0,
+        totalTimeSeconds: 0,
+      };
+    }
+    const d = difficultySummaryMap[r.difficulty];
+    d.totalQuestions++;
+    if (r.isAttempted) {
+      d.attempted++;
+      if (r.isCorrect) d.correct++;
+      else d.incorrect++;
+    } else {
+      d.unattempted++;
+    }
+    d.totalTimeSeconds += r.timeSpentSeconds || 0;
+  }
+
+  const difficultySummary = Object.values(difficultySummaryMap).map((d) => ({
+    ...d,
+    totalTimeSeconds: roundTo(d.totalTimeSeconds),
+    accuracy: roundTo(safeDiv(d.correct, d.attempted) * 100),
+    attemptRate: roundTo(safeDiv(d.attempted, d.totalQuestions) * 100),
+    avgTimeSeconds: roundTo(safeDiv(d.totalTimeSeconds, d.totalQuestions)),
+    percentageOfTotal: roundTo(safeDiv(d.totalTimeSeconds, totalTimeAllResponses) * 100),
+  }));
+
   // ─── Section C: Negative Marking Analysis ────────────────────────────────
   const totalNegativeMarks = responses.reduce(
     (sum, r) => (r.isAttempted && !r.isCorrect ? sum + r.negativeMarks : sum),
@@ -460,6 +497,7 @@ const computeAnalytics = async (attempt) => {
       chapterAccuracy,
       topicAccuracy,
       difficultyAccuracy,
+      difficultySummary,
       // Section B
       totalQuestions,
       totalAttempted,

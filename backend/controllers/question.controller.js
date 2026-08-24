@@ -29,32 +29,21 @@
 
 "use strict";
 
-const crypto       = require("crypto");
-const AppError     = require("../utils/AppError");
-const asyncHandler = require("../utils/asyncHandler");
+const mongoose      = require("mongoose");
+const AppError      = require("../utils/AppError");
+const asyncHandler  = require("../utils/asyncHandler");
 const { sendSuccess, sendPaginated } = require("../utils/response");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
-const { uploadToCloudinary, deleteFromCloudinary } = require("../middleware/upload");
-const { processAndValidateText, validateLatex }    = require("../utils/mathParser");
+const { uploadToCloudinary, deleteFromCloudinary }  = require("../middleware/upload");
+const { processAndValidateText, validateLatex, processMathField } = require("../utils/mathParser");
+const { computeContentHash }         = require("../utils/questionHash");
+const { createQuestionSchema }       = require("../validators/question.validator");
+const { parseQuestionsXlsx }         = require("../utils/questionXlsxParser");
+const { parseQuestionsDocx }         = require("../utils/questionDocxParser");
+const { getQuestionTemplateBuffer }  = require("../utils/questionTemplateGenerator");
+const { ROLES }                      = require("../config/constants");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * SHA-256 content hash for dedup.
- * Computed from RAW (pre-conversion) input so seeded questions stay deduped
- * even if their text was converted from shorthand.
- */
-const computeContentHash = ({ subject, classLevel, chapter, topic, text }) => {
-  const raw = [
-    (subject    || "").toLowerCase().trim(),
-    (classLevel || "").toLowerCase().trim(),
-    (chapter    || "").toLowerCase().trim(),
-    (topic      || "").toLowerCase().trim(),
-    // Normalise whitespace only — do NOT strip LaTeX so hash is stable
-    (text || "").replace(/\s+/g, " ").trim(),
-  ].join("|");
-  return crypto.createHash("sha256").update(raw).digest("hex");
-};
 
 /** Returns the QuestionModel or throws 503. */
 const getQuestionModel = (req) => {
@@ -64,20 +53,14 @@ const getQuestionModel = (req) => {
 };
 
 /**
- * Processes a single text field through the math pipeline.
- * Returns { text, hasLatex }.
- * If the field is empty / undefined, returns a safe default.
+ * Throws 403 unless the requester is super_admin OR owns the question.
+ * super_admin already bypasses the route-level authorize() check, but that
+ * only gates the ROUTE — this is the per-document check for the admin role.
  */
-const processMathField = (value, fieldName) => {
-  if (!value && value !== 0) return { text: "", hasLatex: false };
-  try {
-    return processAndValidateText(String(value));
-  } catch (err) {
-    // Re-throw with field context so the error message is actionable
-    throw new AppError(
-      `Invalid math in field "${fieldName}": ${err.message}`,
-      400
-    );
+const assertOwnsQuestion = (req, question) => {
+  if (req.user.role === ROLES.ADMIN &&
+      String(question.createdBy?.userId || "") !== String(req.user.id)) {
+    throw new AppError("You can only modify questions you created.", 403);
   }
 };
 
@@ -252,6 +235,10 @@ exports.createQuestion = asyncHandler(async (req, res, next) => {
     contentHash,
     sourceRef:        body.sourceRef || "",
     isActive:         body.isActive !== undefined ? body.isActive : true,
+    // Manual single-add stays immediate-active — the admin already reviews
+    // via the form + /questions/preview before submitting.
+    status:           "active",
+    createdBy:        { userId: req.user.id, email: req.user.email },
     patternSlotTags:  [],
     usageLog:         [],
   });
@@ -278,6 +265,21 @@ exports.listQuestions = asyncHandler(async (req, res) => {
 
   if (q.isActive !== undefined) filter.isActive = q.isActive === "true" || q.isActive === true;
   if (q.hasLatex !== undefined) filter.hasLatex = q.hasLatex === "true" || q.hasLatex === true;
+  if (q.status === "draft") {
+    filter.status = "draft";
+  } else if (q.status === "active") {
+    // $ne:"draft" (not a strict "active" match) so pre-existing questions
+    // with no status field at all (created before this field existed) still
+    // show up under the "Active" filter — same reasoning as the exam-
+    // selection query in questionReconstruction.service.js.
+    filter.status = { $ne: "draft" };
+  }
+
+  // mine=true — scope to the requesting admin's OWN questions. The filter is
+  // always derived from the authenticated req.user, never a client-supplied
+  // id, so one admin can never query another's questions via this flag.
+  const mine = q.mine === "true" || q.mine === true;
+  if (mine) filter["createdBy.userId"] = req.user.id;
 
   if (q.search && q.search.trim()) {
     const escaped = q.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -326,6 +328,8 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
   const question = await QuestionModel.findById(req.params.id);
   if (!question) return next(new AppError("Question not found.", 404));
 
+  assertOwnsQuestion(req, question);
+
   const body  = req.body;
   const files = req.files || {};
 
@@ -345,7 +349,7 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
     "questionCategory", "questionVariant", "difficulty",
     "idealTimeSeconds", "questionType",
     "correctAnswer", "marks", "negativeMarks",
-    "sourceRef", "isActive",
+    "sourceRef", "isActive", "status",
   ];
   for (const field of directFields) {
     if (body[field] !== undefined) question[field] = body[field];
@@ -479,6 +483,8 @@ exports.deleteQuestion = asyncHandler(async (req, res, next) => {
   const question = await QuestionModel.findById(req.params.id);
   if (!question) return next(new AppError("Question not found.", 404));
 
+  assertOwnsQuestion(req, question);
+
   if (question.usageLog?.length > 0) {
     return next(
       new AppError(
@@ -525,8 +531,14 @@ exports.bulkDeactivate = asyncHandler(async (req, res, next) => {
     return next(new AppError(`Invalid IDs: ${invalid.slice(0, 5).join(", ")}`, 400));
   }
 
+  // Non-owned IDs are silently excluded (not a hard 403) — friendlier for a
+  // multi-select UI where the selection may span both owned and non-owned
+  // rows. super_admin is unrestricted.
+  const filter = { _id: { $in: ids } };
+  if (req.user.role === ROLES.ADMIN) filter["createdBy.userId"] = req.user.id;
+
   const result = await QuestionModel.updateMany(
-    { _id: { $in: ids } },
+    filter,
     { $set: { isActive: false } }
   );
 
@@ -599,4 +611,276 @@ exports.getDistinctValues = asyncHandler(async (req, res, next) => {
     field,
     values: values.filter(Boolean).sort(),
   });
+});
+
+// ─── BULK UPLOAD ────────────────────────────────────────────────────────────────
+
+const MAX_BULK_ROWS = 200;
+
+/**
+ * Normalises a free-typed class level ("xi", "XI", "Dropper", ...) to the
+ * exact enum casing the schema expects. Unrecognised input passes through
+ * unchanged so Joi's enum validation produces a clear error for that row.
+ */
+function normalizeClassLevel(v) {
+  const s = String(v || "").trim();
+  if (/^xi$/i.test(s))      return "XI";
+  if (/^xii$/i.test(s))     return "XII";
+  if (/^dropper$/i.test(s)) return "dropper";
+  return s;
+}
+
+/**
+ * Reshapes one flat parsed row (field:string) into a createQuestionSchema-
+ * shaped candidate. Joi + processMathField validate/convert it next — this
+ * function only reshapes, it does not validate.
+ */
+function buildCandidateFromRawRow(row) {
+  return {
+    subject:          (row.subject || "").toLowerCase().trim(),
+    classLevel:       normalizeClassLevel(row.classLevel),
+    chapter:          (row.chapter || "").trim(),
+    topic:            (row.topic || "").trim(),
+    questionCategory: (row.questionCategory || "").trim(),
+    questionVariant:  (row.questionVariant  || "").trim(),
+    difficulty:       (row.difficulty || "").toLowerCase().trim(),
+    idealTimeSeconds:
+      row.idealTimeSeconds && String(row.idealTimeSeconds).trim() !== ""
+        ? row.idealTimeSeconds
+        : null,
+    questionType: "mcq",
+    text: (row.questionText || "").trim(),
+    options: [
+      { key: "A", text: (row.optionA || "").trim() },
+      { key: "B", text: (row.optionB || "").trim() },
+      { key: "C", text: (row.optionC || "").trim() },
+      { key: "D", text: (row.optionD || "").trim() },
+    ],
+    correctAnswer: (row.correctAnswer || "").toUpperCase().trim(),
+    marks: row.marks,
+    negativeMarks:
+      row.negativeMarks && String(row.negativeMarks).trim() !== ""
+        ? row.negativeMarks
+        : 0,
+    solution: {
+      text: (row.solutionText || "").trim(),
+      hasLatex: false,
+    },
+    sourceRef: (row.sourceRef || "").trim(),
+    isActive: true,
+  };
+}
+
+/**
+ * POST /questions/bulk-upload
+ *
+ * Parses an uploaded .docx or .xlsx file (template format only — see
+ * questionDocxParser.js / questionXlsxParser.js) into rows, validates each
+ * row through the SAME Joi schema + math pipeline the single-question create
+ * flow uses, and inserts every valid, non-duplicate row as a "draft"
+ * question (no images — those get added later during review). One bad row
+ * never aborts the batch: every row succeeds, is skipped as a duplicate, or
+ * fails independently, and all three outcomes are reported back so the
+ * admin knows exactly what to fix and re-upload.
+ */
+exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
+  const QuestionModel = getQuestionModel(req);
+
+  if (!req.file) {
+    return next(new AppError('No file uploaded. Attach a .docx or .xlsx file as "file".', 400));
+  }
+
+  const isXlsx = req.file.mimetype ===
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+  const rawRows = isXlsx
+    ? await parseQuestionsXlsx(req.file.buffer)
+    : await parseQuestionsDocx(req.file.buffer);
+
+  if (rawRows.length > MAX_BULK_ROWS) {
+    return next(new AppError(
+      `Too many questions in one file (${rawRows.length}). Maximum ${MAX_BULK_ROWS} per upload.`,
+      400
+    ));
+  }
+
+  const batchId    = new mongoose.Types.ObjectId();
+  const uploadedAt = new Date();
+
+  const docsToInsert       = [];
+  const rowNumbers         = []; // parallel to docsToInsert — maps back to source row for error reporting
+  const failed             = [];
+  const skippedDuplicates  = [];
+  const seenHashes         = new Map(); // contentHash -> rowNumber, catches duplicates WITHIN this file
+
+  for (const rawRow of rawRows) {
+    const rowNumber = rawRow._rowNumber;
+    const candidate = buildCandidateFromRawRow(rawRow);
+
+    const { error, value } = createQuestionSchema.validate(candidate, {
+      abortEarly: false,
+      convert: true,
+      stripUnknown: true,
+    });
+
+    if (error) {
+      failed.push({
+        row: rowNumber,
+        errors: error.details.map((d) => d.message.replace(/"/g, "'")),
+      });
+      continue;
+    }
+
+    try {
+      const processedText = processMathField(value.text, "Question Text");
+      const processedSol  = processMathField(value.solution?.text, "Solution Text");
+      const processedOptions = value.options.map((opt) => ({
+        key: opt.key,
+        text: processMathField(opt.text, `Option ${opt.key}`).text,
+      }));
+
+      const contentHash = computeContentHash({
+        subject:    value.subject,
+        classLevel: value.classLevel,
+        chapter:    value.chapter,
+        topic:      value.topic,
+        text:       processedText.text,
+      });
+
+      if (seenHashes.has(contentHash)) {
+        skippedDuplicates.push({
+          row: rowNumber,
+          reason: `Duplicate of row ${seenHashes.get(contentHash)} in this same file.`,
+        });
+        continue;
+      }
+      seenHashes.set(contentHash, rowNumber);
+
+      docsToInsert.push({
+        subject:          value.subject,
+        classLevel:       value.classLevel,
+        chapter:          value.chapter,
+        topic:            value.topic,
+        questionCategory: value.questionCategory || "",
+        questionVariant:  value.questionVariant  || "",
+        difficulty:       value.difficulty,
+        idealTimeSeconds: value.idealTimeSeconds ?? null,
+        questionType:     value.questionType || "mcq",
+        text:             processedText.text,
+        hasLatex:         processedText.hasLatex,
+        questionImage:    { url: null, publicId: null },
+        options: processedOptions.map((o) => ({
+          key: o.key,
+          text: o.text,
+          image: { url: null, publicId: null },
+        })),
+        correctAnswer:    value.correctAnswer,
+        marks:            value.marks,
+        negativeMarks:    value.negativeMarks ?? 0,
+        solution: {
+          text:     processedSol.text,
+          hasLatex: processedSol.hasLatex,
+          image:    { url: null, publicId: null },
+          images:   [],
+        },
+        contentHash,
+        sourceRef:       value.sourceRef || "",
+        isActive:        true,
+        status:          "draft",
+        createdBy:       { userId: req.user.id, email: req.user.email },
+        uploadBatch:     { batchId, fileName: req.file.originalname, uploadedAt },
+        patternSlotTags: [],
+        usageLog:        [],
+      });
+      rowNumbers.push(rowNumber);
+    } catch (err) {
+      // processMathField throws AppError with a field-scoped, actionable message
+      failed.push({ row: rowNumber, errors: [err.message || "Invalid data."] });
+    }
+  }
+
+  // ── One dedup query against the DB (not one findOne per row) ───────────────
+  if (docsToInsert.length > 0) {
+    const hashes = docsToInsert.map((d) => d.contentHash);
+    const existingHashes = new Set(
+      await QuestionModel.distinct("contentHash", { contentHash: { $in: hashes } })
+    );
+    if (existingHashes.size > 0) {
+      const keptDocs = [];
+      const keptRowNumbers = [];
+      docsToInsert.forEach((doc, idx) => {
+        if (existingHashes.has(doc.contentHash)) {
+          skippedDuplicates.push({
+            row: rowNumbers[idx],
+            reason: "A question with identical classification and text already exists in the bank.",
+          });
+        } else {
+          keptDocs.push(doc);
+          keptRowNumbers.push(rowNumbers[idx]);
+        }
+      });
+      docsToInsert.length = 0;
+      docsToInsert.push(...keptDocs);
+      rowNumbers.length = 0;
+      rowNumbers.push(...keptRowNumbers);
+    }
+  }
+
+  // ── One bulk write ──────────────────────────────────────────────────────────
+  let createdIds = [];
+  if (docsToInsert.length > 0) {
+    try {
+      const inserted = await QuestionModel.insertMany(docsToInsert, { ordered: false });
+      createdIds = inserted.map((d) => d._id);
+    } catch (err) {
+      // Rare race: a duplicate contentHash slipped in between the distinct()
+      // check above and this write. Mongoose surfaces this as a bulk-write
+      // error with writeErrors[].index (position in docsToInsert) and
+      // insertedDocs (the ones that DID succeed).
+      if (err.writeErrors) {
+        const failedIdx = new Set(err.writeErrors.map((we) => we.index));
+        docsToInsert.forEach((doc, idx) => {
+          if (failedIdx.has(idx)) {
+            skippedDuplicates.push({
+              row: rowNumbers[idx],
+              reason: "A question with identical classification and text already exists in the bank.",
+            });
+          }
+        });
+        createdIds = (err.insertedDocs || []).map((d) => d._id);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  return sendSuccess(res, 201, "Bulk upload processed.", {
+    totalRows:    rawRows.length,
+    createdCount: createdIds.length,
+    created:      createdIds,
+    skippedDuplicates,
+    failed,
+  });
+});
+
+// ─── DOWNLOAD SAMPLE TEMPLATE ─────────────────────────────────────────────────
+
+/**
+ * GET /questions/template?format=docx|xlsx
+ * Streams a generated sample bulk-upload file with instructions and 2 worked
+ * examples (one plain-text, one demonstrating inline LaTeX).
+ */
+exports.getQuestionTemplate = asyncHandler(async (req, res) => {
+  const { format } = req.query; // validated by templateQuerySchema
+  const buffer = await getQuestionTemplateBuffer(format);
+
+  const contentType = format === "xlsx"
+    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const filename = `exam-neeti-question-upload-template.${format}`;
+
+  res.setHeader("Content-Type",        contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length",      buffer.length);
+  return res.send(buffer);
 });

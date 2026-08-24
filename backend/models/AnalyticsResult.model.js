@@ -76,6 +76,24 @@ const difficultyBreakdownSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Pure per-difficulty rollup, collapsed across subject
+const difficultySummarySchema = new mongoose.Schema(
+  {
+    difficulty: String,
+    totalQuestions: Number,
+    attempted: Number,
+    correct: Number,
+    incorrect: Number,
+    unattempted: Number,
+    totalTimeSeconds: Number,
+    accuracy: Number,
+    attemptRate: Number,
+    avgTimeSeconds: Number,
+    percentageOfTotal: Number,
+  },
+  { _id: false }
+);
+
 const questionTimeSchema = new mongoose.Schema(
   {
     slotPosition: Number,
@@ -153,6 +171,7 @@ const analyticsResultSchema = new mongoose.Schema(
     chapterAccuracy: { type: [chapterBreakdownSchema], default: [] },
     topicAccuracy: { type: [topicBreakdownSchema], default: [] },
     difficultyAccuracy: { type: [difficultyBreakdownSchema], default: [] },
+    difficultySummary: { type: [difficultySummarySchema], default: [] },
 
     // --- Section B: Attempt Analysis ---
     totalQuestions: { type: Number, default: 0 },

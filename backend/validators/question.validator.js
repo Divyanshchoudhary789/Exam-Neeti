@@ -103,6 +103,9 @@ const updateQuestionSchema = Joi.object({
   sourceRef:        Joi.string().trim().allow("").max(200),
   isActive:         Joi.boolean(),
 
+  // Draft → active review workflow
+  status: Joi.string().valid("draft", "active"),
+
   // Image removal flags
   removeQuestionImage:  Joi.boolean().default(false),
   removeSolutionImage:  Joi.boolean().default(false),
@@ -128,6 +131,11 @@ const listQuestionsSchema = Joi.object({
   sourceRef:        Joi.string().trim().max(200),
   isActive:         Joi.boolean(),
   hasLatex:         Joi.boolean(),
+  status:           Joi.string().valid("draft", "active"),
+  // mine=true scopes results to the requesting admin's own questions —
+  // the controller derives the actual filter from req.user.id, never from
+  // a client-supplied id, so this flag can't be used to query someone else.
+  mine:             Joi.boolean(),
   search:           Joi.string().trim().max(500),
   sortBy:           Joi.string()
     .valid("createdAt", "chapter", "topic", "difficulty", "subject")
@@ -135,4 +143,15 @@ const listQuestionsSchema = Joi.object({
   sortOrder:        Joi.string().valid("asc", "desc").default("desc"),
 });
 
-module.exports = { createQuestionSchema, updateQuestionSchema, listQuestionsSchema };
+// ─── templateQuerySchema ──────────────────────────────────────────────────────
+
+const templateQuerySchema = Joi.object({
+  format: Joi.string().valid("docx", "xlsx").required(),
+});
+
+module.exports = {
+  createQuestionSchema,
+  updateQuestionSchema,
+  listQuestionsSchema,
+  templateQuerySchema,
+};
