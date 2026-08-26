@@ -5,11 +5,14 @@ import { adminService } from "../../services/apiServices";
 import { useAuthStore } from "../../store/useAuthStore";
 import { MathRenderer } from "../common/MathRenderer";
 import {
-  IconBook, IconFilter, IconPlus, IconTrash, IconEdit, IconEye, IconSearch, IconCheck,
+  IconBook, IconFilter, IconPlus, IconTrash, IconEdit, IconEye, IconSearch, IconCheck, IconKey,
   Spinner, MiniStatCard, CommonModal, PaginationControls,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
 import { EditQuestionModal } from "./EditQuestionModal";
+import { ManageQuestionFieldsModal } from "./ManageQuestionFieldsModal";
+import { DynamicCustomFieldsSection } from "./CustomFieldInputs";
+import type { QuestionFieldDefinition, CustomFieldValues } from "../../types/questionFields";
 
 interface QuestionBankPanelProps {
   showToast: (text: string, type?: "success" | "error") => void;
@@ -72,6 +75,11 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   const qImageInputRef = useRef<HTMLInputElement>(null);
   const qSolImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Admin-defined custom fields (e.g. "Sub Topic")
+  const [fieldDefinitions, setFieldDefinitions] = useState<QuestionFieldDefinition[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValues>({});
+  const [showManageFieldsModal, setShowManageFieldsModal] = useState(false);
+
   // ── Data loader ────────────────────────────────────────────────────────
   const loadQuestions = useCallback(async () => {
     const [qRes, stRes] = await Promise.allSettled([
@@ -104,6 +112,18 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   // component) — a single effect covers both "just activated" and "filters
   // changed", since mount already happens exactly on tab activation.
   useEffect(() => { loadQuestions(); }, [loadQuestions]);
+
+  const loadFieldDefinitions = useCallback(async () => {
+    try {
+      const res = await adminService.getQuestionFieldDefinitions(true);
+      const list = res?.data?.fieldDefinitions || res?.fieldDefinitions || res?.data || res || [];
+      setFieldDefinitions(Array.isArray(list) ? list : []);
+    } catch {
+      // Non-fatal — Add Question form just won't show custom fields this session.
+    }
+  }, []);
+
+  useEffect(() => { loadFieldDefinitions(); }, [loadFieldDefinitions]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
   const handleViewQuestionDetails = async (id: string) => {
@@ -171,6 +191,7 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
       }
       if (newQImageFile) fd.append("questionImage", newQImageFile);
       if (newQSolImageFile) fd.append("solutionImage", newQSolImageFile);
+      fd.append("customFields", JSON.stringify(customFieldValues));
 
       await adminService.createQuestion(fd);
       showToast("Question added to bank!");
@@ -178,6 +199,7 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
       setNewQChapter(""); setNewQTopic(""); setNewQText(""); setNewQSolutionText("");
       setNewQOptA(""); setNewQOptB(""); setNewQOptC(""); setNewQOptD("");
       setNewQImageFile(null); setNewQSolImageFile(null);
+      setCustomFieldValues({});
       loadQuestions();
     } catch (err: unknown) { showToast((err as { message?: string }).message || "Failed to add question", "error"); }
     finally { setQSubmitting(false); }
@@ -210,6 +232,31 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
     return Boolean(owner) && Boolean(user?.id) && String(owner) === String(user?.id);
   };
 
+  /**
+   * Human label for a customFields key. Looks up the live field definition
+   * (so it always matches what "Manage Fields" shows); falls back to a
+   * Title-Cased version of the raw key if the definition was since deleted
+   * — a question can still hold a value for a key that no longer has an
+   * active definition (see the preserve-on-edit logic in question.controller.js).
+   */
+  const formatFieldLabel = (key: string) => {
+    const def = fieldDefinitions.find((d) => d.key === key);
+    if (def) return def.label;
+    return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  };
+
+  /** Renders "Label: Value" pills for every non-empty customFields entry on a question. */
+  const renderCustomFieldPills = (customFields: Record<string, unknown> | undefined, pillClass: string) => {
+    if (!customFields) return null;
+    const entries = Object.entries(customFields).filter(([, v]) => v !== undefined && v !== null && v !== "" && v !== false);
+    if (entries.length === 0) return null;
+    return entries.map(([key, val]) => (
+      <span key={key} className={pillClass}>
+        <span className="font-black uppercase">{formatFieldLabel(key)}:</span> {val === true ? "Yes" : String(val)}
+      </span>
+    ));
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
       {/* Question Stats Bar */}
@@ -227,9 +274,14 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
             <h2 className="text-lg font-black text-slate-900">Question Bank</h2>
             <p className="text-xs text-slate-500 font-medium">{qTotalItems} questions total</p>
           </div>
-          <button onClick={() => setShowAddQuestionModal(true)} className="self-start flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">
-            <IconPlus className="w-4 h-4" /><span>Add Question</span>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowManageFieldsModal(true)} className="self-start flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer">
+              <IconKey className="w-4 h-4" /><span>Manage Fields</span>
+            </button>
+            <button onClick={() => setShowAddQuestionModal(true)} className="self-start flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">
+              <IconPlus className="w-4 h-4" /><span>Add Question</span>
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-[160px]">
@@ -307,6 +359,13 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
                   )}
                   <span className={`ml-auto px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${diffColors[diff.toLowerCase()] || "bg-slate-100 text-slate-600 border-slate-200"}`}>{diff}</span>
                 </div>
+                {(() => {
+                  const pills = renderCustomFieldPills(
+                    q.customFields as Record<string, unknown> | undefined,
+                    "px-2.5 py-0.5 rounded-full border text-[10px] font-semibold bg-violet-50 text-violet-700 border-violet-200"
+                  );
+                  return pills ? <div className="flex flex-wrap gap-1.5 pt-2">{pills}</div> : null;
+                })()}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
                   <p className="text-xs font-semibold text-slate-800 leading-relaxed line-clamp-2 flex-1">
                     <MathRenderer text={String(q.text || "Question text...")} />
@@ -408,11 +467,24 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
               <input type="file" ref={qSolImageInputRef} accept="image/*" onChange={e => setNewQSolImageFile(e.target.files?.[0] || null)} className="w-full text-xs text-slate-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
             </div>
           </div>
+          <DynamicCustomFieldsSection
+            fieldDefinitions={fieldDefinitions}
+            values={customFieldValues}
+            onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+          />
           <button type="submit" disabled={qSubmitting} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer">
             {qSubmitting ? <Spinner className="w-4 h-4 text-white" /> : "Save Question"}
           </button>
         </form>
       </CommonModal>
+
+      {/* Manage Custom Fields */}
+      <ManageQuestionFieldsModal
+        isOpen={showManageFieldsModal}
+        onClose={() => setShowManageFieldsModal(false)}
+        showToast={showToast}
+        onFieldsChanged={loadFieldDefinitions}
+      />
 
       {/* View Question Detail */}
       <CommonModal isOpen={showViewQuestionModal} onClose={() => setShowViewQuestionModal(false)} title="Question Details" maxWidth="max-w-2xl">
@@ -456,6 +528,19 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
                 );
               })}
             </div>
+            {(() => {
+              const pills = renderCustomFieldPills(
+                selectedQuestionDetail.customFields as Record<string, unknown> | undefined,
+                "px-2.5 py-1 rounded-full border text-[10px] font-semibold bg-violet-50 text-violet-700 border-violet-200"
+              );
+              if (!pills) return null;
+              return (
+                <div className="p-4 rounded-2xl bg-violet-50/50 border border-violet-200 space-y-2">
+                  <span className="text-[10px] font-black uppercase text-violet-700 tracking-wider">Additional Fields</span>
+                  <div className="flex flex-wrap gap-1.5">{pills}</div>
+                </div>
+              );
+            })()}
             {(Boolean(detailSolText) || Boolean(detailSolImageUrl)) && (
               <div className="p-5 rounded-2xl bg-indigo-50/80 border border-indigo-200 space-y-3">
                 <span className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">Solution Explanation</span>

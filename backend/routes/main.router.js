@@ -13,6 +13,7 @@ const probabilityRoutes = require("./probability.routes");
 const adminTeamRoutes  = require("./adminTeam.routes");
 const syllabusRoutes   = require("./syllabus.routes");
 const questionRoutes   = require("./question.routes");
+const questionFieldDefinitionRoutes = require("./questionFieldDefinition.routes");
 
 mainRouter.use("/auth",        authRoutes);
 mainRouter.use("/users",       userRoutes);
@@ -26,5 +27,6 @@ mainRouter.use("/probability", probabilityRoutes);
 mainRouter.use("/admin-team",  adminTeamRoutes);
 mainRouter.use("/syllabus",    syllabusRoutes);
 mainRouter.use("/questions",   questionRoutes);
+mainRouter.use("/question-field-definitions", questionFieldDefinitionRoutes);
 
 module.exports = mainRouter;

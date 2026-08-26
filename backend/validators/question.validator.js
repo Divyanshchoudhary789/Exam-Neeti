@@ -79,6 +79,11 @@ const createQuestionSchema = Joi.object({
   // Metadata
   sourceRef: Joi.string().trim().allow("").max(200).default(""),
   isActive:  Joi.boolean().default(true),
+
+  // Admin-defined extra fields (e.g. "Sub Topic") — loosely validated here,
+  // the real per-type validation runs in customFieldValidation.js against
+  // the live QuestionFieldDefinition documents.
+  customFields: Joi.object().pattern(Joi.string(), Joi.any()).default({}),
 });
 
 // ─── updateQuestionSchema ─────────────────────────────────────────────────────
@@ -102,6 +107,9 @@ const updateQuestionSchema = Joi.object({
   solution:         solutionBodySchema,
   sourceRef:        Joi.string().trim().allow("").max(200),
   isActive:         Joi.boolean(),
+
+  // Admin-defined extra fields — see createQuestionSchema above.
+  customFields: Joi.object().pattern(Joi.string(), Joi.any()),
 
   // Draft → active review workflow
   status: Joi.string().valid("draft", "active"),

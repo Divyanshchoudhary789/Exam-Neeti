@@ -38,6 +38,8 @@ const { uploadToCloudinary, deleteFromCloudinary }  = require("../middleware/upl
 const { processAndValidateText, validateLatex, processMathField } = require("../utils/mathParser");
 const { computeContentHash }         = require("../utils/questionHash");
 const { createQuestionSchema }       = require("../validators/question.validator");
+const { validateAndNormalizeCustomFields } = require("../utils/customFieldValidation");
+const QuestionFieldDefinition        = require("../models/QuestionFieldDefinition.model");
 const { parseQuestionsXlsx }         = require("../utils/questionXlsxParser");
 const { parseQuestionsDocx }         = require("../utils/questionDocxParser");
 const { getQuestionTemplateBuffer }  = require("../utils/questionTemplateGenerator");
@@ -178,6 +180,10 @@ exports.createQuestion = asyncHandler(async (req, res, next) => {
     );
   }
 
+  // ── 2b. Validate + normalize admin-defined custom fields ───────────────────
+  const activeFieldDefs = await QuestionFieldDefinition.find({ isActive: true }).lean();
+  const customFields = validateAndNormalizeCustomFields(body.customFields, activeFieldDefs);
+
   // ── 3. Upload images in parallel ──────────────────────────────────────────
   const [questionImage, solutionImage] = await Promise.all([
     uploadField(files, "questionImage", "examneeti/questions"),
@@ -234,6 +240,7 @@ exports.createQuestion = asyncHandler(async (req, res, next) => {
     solution,
     contentHash,
     sourceRef:        body.sourceRef || "",
+    customFields,
     isActive:         body.isActive !== undefined ? body.isActive : true,
     // Manual single-add stays immediate-active — the admin already reviews
     // via the form + /questions/preview before submitting.
@@ -353,6 +360,28 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
   ];
   for (const field of directFields) {
     if (body[field] !== undefined) question[field] = body[field];
+  }
+
+  // ── 2b. Custom fields (admin-defined) ─────────────────────────────────────
+  // Only touch customFields if the client actually sent them. Values are
+  // normalized against CURRENTLY ACTIVE definitions only, then merged with
+  // any existing entries whose key no longer matches an active definition —
+  // this preserves data tied to a since-deactivated field instead of wiping
+  // it out on an unrelated edit (e.g. just changing marks).
+  if (body.customFields !== undefined) {
+    const activeFieldDefs = await QuestionFieldDefinition.find({ isActive: true }).lean();
+    const normalizedActive = validateAndNormalizeCustomFields(body.customFields, activeFieldDefs);
+
+    const existingCustomFields = question.customFields instanceof Map
+      ? Object.fromEntries(question.customFields)
+      : (question.customFields || {});
+    const activeKeys = new Set(activeFieldDefs.map((d) => d.key));
+    const preserved = {};
+    for (const [k, v] of Object.entries(existingCustomFields)) {
+      if (!activeKeys.has(k)) preserved[k] = v;
+    }
+
+    question.customFields = { ...preserved, ...normalizedActive };
   }
 
   // ── 3. Solution text processing ───────────────────────────────────────────

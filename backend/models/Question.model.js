@@ -308,9 +308,29 @@ const questionSchema = new mongoose.Schema(
       fileName:   { type: String, default: "" },
       uploadedAt: { type: Date, default: null },
     },
+
+    /**
+     * customFields — admin-defined extra values (e.g. "Sub Topic"), keyed by
+     * the `key` of an active QuestionFieldDefinition document. The set of
+     * valid keys/types is admin-managed data, not part of this schema — see
+     * backend/utils/customFieldValidation.js for the actual per-type
+     * validation that runs in the controller before this gets written.
+     */
+    customFields: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+      default: () => ({}),
+    },
   },
   {
     timestamps: true,
+    // Without this, a Mongoose Map field serializes to `{}` when a full
+    // (non-.lean()) document is JSON-stringified (e.g. res.json() after
+    // .create()/.save()) — native Map has no enumerable own properties.
+    // .lean() reads are unaffected: Map is stored as a plain embedded object
+    // in MongoDB itself.
+    toJSON:   { flattenMaps: true },
+    toObject: { flattenMaps: true },
   }
 );
 

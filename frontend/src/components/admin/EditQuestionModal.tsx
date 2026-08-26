@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { CommonModal, Spinner, IconEye, IconCheck, IconCross } from "../common/UIComponents";
 import { adminService } from "../../services/apiServices";
 import { MathRenderer } from "../common/MathRenderer";
+import { DynamicCustomFieldsSection } from "./CustomFieldInputs";
+import type { QuestionFieldDefinition, CustomFieldValues } from "../../types/questionFields";
 
 interface EditQuestionModalProps {
   isOpen: boolean;
@@ -79,6 +81,25 @@ export function EditQuestionModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const solFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Admin-defined custom fields (e.g. "Sub Topic")
+  const [fieldDefinitions, setFieldDefinitions] = useState<QuestionFieldDefinition[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValues>({});
+
+  // Refetch active field definitions every time the modal opens, so a field
+  // added/edited/deactivated elsewhere (Manage Fields) is always current.
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        const res = await adminService.getQuestionFieldDefinitions(true);
+        const list = res?.data?.fieldDefinitions || res?.fieldDefinitions || res?.data || res || [];
+        setFieldDefinitions(Array.isArray(list) ? list : []);
+      } catch {
+        // Non-fatal — form just won't show custom fields this session.
+      }
+    })();
+  }, [isOpen]);
+
   // Existing image URLs (for "already uploaded" previews) — read fresh from
   // questionData each render rather than mirrored into state, since they're
   // display-only and never edited directly (only replaced via file inputs).
@@ -146,6 +167,11 @@ export function EditQuestionModal({
           if (k === "D") setOptD(o.text || "");
         });
       }
+
+      // Raw stored values (not filtered to active-only) — preserves any
+      // value tied to a since-deactivated field so it round-trips back to
+      // the server unchanged if the admin saves without touching it.
+      setCustomFieldValues((questionData.customFields as CustomFieldValues) || {});
     }
   }, [questionData]);
 
@@ -197,6 +223,7 @@ export function EditQuestionModal({
         const f = optionImages[k];
         if (f) fd.append(`optionImage_${k}`, f);
       });
+      fd.append("customFields", JSON.stringify(customFieldValues));
 
       await adminService.updateQuestion(qId, fd);
       showToast(
@@ -434,6 +461,12 @@ export function EditQuestionModal({
             className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs p-3 rounded-xl focus:outline-none font-medium resize-none"
           />
         </div>
+
+        <DynamicCustomFieldsSection
+          fieldDefinitions={fieldDefinitions}
+          values={customFieldValues}
+          onChange={(key, value) => setCustomFieldValues((prev) => ({ ...prev, [key]: value }))}
+        />
 
         <div className="grid grid-cols-3 gap-3">
           <div>

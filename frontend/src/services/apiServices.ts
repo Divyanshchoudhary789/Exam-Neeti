@@ -375,6 +375,28 @@ export const adminService = {
     return { objectUrl, filename };
   },
 
+  // Question Field Definitions — admin-defined custom fields for the Question Bank
+  getQuestionFieldDefinitions: async (activeOnly?: boolean) => {
+    const res = await api.get(`/question-field-definitions${activeOnly ? "?activeOnly=true" : ""}`);
+    return res.data;
+  },
+  createQuestionFieldDefinition: async (data: Record<string, unknown>) => {
+    const res = await api.post("/question-field-definitions", data);
+    return res.data;
+  },
+  updateQuestionFieldDefinition: async (id: string, data: Record<string, unknown>) => {
+    const res = await api.put(`/question-field-definitions/${id}`, data);
+    return res.data;
+  },
+  toggleQuestionFieldDefinition: async (id: string) => {
+    const res = await api.patch(`/question-field-definitions/${id}/toggle`);
+    return res.data;
+  },
+  deleteQuestionFieldDefinition: async (id: string) => {
+    const res = await api.delete(`/question-field-definitions/${id}`);
+    return res.data;
+  },
+
   // Dashboard Analytics
   getDashboardOverview: async (sprintId: string) => {
     const res = await api.get(`/dashboard/sprint/${sprintId}/overview`);
