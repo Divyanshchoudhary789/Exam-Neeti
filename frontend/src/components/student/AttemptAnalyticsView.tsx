@@ -7,6 +7,7 @@ import {
   IconChevronLeft, IconChevronRight,
   IconCheck, IconEye, Spinner,
   IconAlertTriangle, IconTarget, IconBook, IconRefresh,
+  FormulaInfo,
 } from "../common/UIComponents";
 import { RadialMeter, AreaLineChart, HBarChart } from "../common/Charts";
 import { studentService } from "../../services/apiServices";
@@ -306,7 +307,13 @@ export function AttemptAnalyticsView({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
         {/* Score — the hero figure for this view */}
         <div className="col-span-1 p-4 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white text-center shadow-lg flex flex-col justify-between">
-          <p className="text-[10px] font-extrabold uppercase tracking-wide text-indigo-200">Score</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-wide text-indigo-200 flex items-center justify-center gap-1">
+            Score
+            <FormulaInfo
+              formula="Σ (+4 for each correct − 1 for each incorrect); unattempted = 0"
+              calculation={`${analytics.totalCorrect ?? 0} correct × 4 − ${analytics.totalIncorrect ?? 0} incorrect × 1 = ${score} / ${maxScore}`}
+            />
+          </p>
           <div className="my-1">
             <h2 className="text-2xl sm:text-3xl font-black tabular-nums leading-tight">{score}</h2>
             <p className="text-xs font-bold text-indigo-300 tabular-nums">/ {maxScore}</p>
@@ -318,6 +325,13 @@ export function AttemptAnalyticsView({
 
         {/* Accuracy — a ratio against an 80% target, so a radial meter is the honest form */}
         <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm text-center flex flex-col items-center justify-center gap-1">
+          <p className="text-[9px] font-extrabold uppercase tracking-wide text-slate-400 flex items-center justify-center gap-1">
+            Accuracy
+            <FormulaInfo
+              formula="Correct ÷ Attempted × 100"
+              calculation={`${analytics.totalCorrect ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${accuracy}%`}
+            />
+          </p>
           <RadialMeter value={Number(accuracy)} size={72} strokeWidth={7} />
           <p className="text-[9px] text-slate-400 font-semibold">Target 80%</p>
         </div>
@@ -329,10 +343,17 @@ export function AttemptAnalyticsView({
           sub={`Avg ${enrichedResponses.length > 0 ? (totalTimeSec / enrichedResponses.length).toFixed(0) : 0}s/Q`}
           color="text-slate-900"
           valueSmall
+          formula="Sum of time spent on every question; Avg = Total Time ÷ Question count"
+          calc={`${formatTime(totalTimeSec)} total ÷ ${enrichedResponses.length} questions = ${enrichedResponses.length > 0 ? (totalTimeSec / enrichedResponses.length).toFixed(0) : 0}s/Q`}
         />
 
         {/* Order quality */}
-        <StatCard label="Order Quality" value={orderRho} sub="Spearman ρ" color="text-indigo-600" />
+        <StatCard
+          label="Order Quality" value={orderRho} sub="Spearman ρ" color="text-indigo-600"
+          formula="Spearman ρ = 1 − (6 × Σd²) ÷ (n × (n²−1)), comparing your actual attempt order to the ideal priority order"
+          calc={`ρ = ${orderRho} (${orderQuality.interpretation ?? "n/a"}) across ${orderQuality.totalSequenced ?? "n/a"} sequenced questions`}
+        />
+
       </div>
 
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
@@ -433,58 +454,220 @@ export function AttemptAnalyticsView({
         <div className="space-y-3 sm:space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             <MetricPanel title="Foundation Metrics" icon={IconChart} tone="indigo">
-              <MetricTile label="Total Attempts" value={String(analytics.totalQuestions ?? enrichedResponses.length)} sub="Questions in paper" />
-              <MetricTile label="Attempt Rate" value={`${Number(analytics.overallAttemptRate ?? 0).toFixed(1)}%`} sub={`${analytics.totalAttempted ?? 0} attempted`} />
-              <MetricTile label="Accuracy" value={`${Number(analytics.overallAccuracy ?? accuracy).toFixed(1)}%`} sub={`${analytics.totalCorrect ?? 0} correct`} />
-              <MetricTile label="Correct Attempts" value={String(analytics.totalCorrect ?? 0)} sub="Answered correctly" />
-              <MetricTile label="Incorrect Attempts" value={String(analytics.totalIncorrect ?? 0)} sub="Answered wrongly" danger />
-              <MetricTile label="Unattempted Questions" value={String(analytics.totalUnattempted ?? 0)} sub="Left unanswered" />
-              <MetricTile label="Negative Marks" value={Number(analytics.totalNegativeMarks ?? 0).toFixed(1)} sub="Marks lost" danger />
-              <MetricTile label="Guess Rate" value={`${Number(errorClassification.guessRate ?? 0).toFixed(1)}%`} sub={`${errorClassification.guesses ?? analytics.totalGuessAttempts ?? 0} guesses`} />
-              <MetricTile label="Recoverable Marks" value={Number(recoverableMarks.totalRecoverable ?? 0).toFixed(1)} sub="Score opportunity" />
-              <MetricTile label="First Attempt Accuracy" value={`${Number(frameworkFoundation.firstAttemptAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct before any reattempt" />
-              <MetricTile label="Reattempt Accuracy" value={`${Number(frameworkFoundation.reattemptAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct on reattempted Qs" />
-              <MetricTile label="Careless Error Rate" value={`${Number(frameworkFoundation.carelessErrorRatePercent ?? 0).toFixed(1)}%`} sub="Careless mistakes / attempted" danger />
+              <MetricTile
+                label="Total Attempts" value={String(analytics.totalQuestions ?? enrichedResponses.length)} sub="Questions in paper"
+                formula="Count of all questions in the paper"
+                calc={`${analytics.totalQuestions ?? enrichedResponses.length} questions`}
+              />
+              <MetricTile
+                label="Attempt Rate" value={`${Number(analytics.overallAttemptRate ?? 0).toFixed(1)}%`} sub={`${analytics.totalAttempted ?? 0} attempted`}
+                formula="Attempted ÷ Total Questions × 100"
+                calc={`${analytics.totalAttempted ?? 0} ÷ ${analytics.totalQuestions ?? 0} × 100 = ${Number(analytics.overallAttemptRate ?? 0).toFixed(1)}%`}
+              />
+              <MetricTile
+                label="Accuracy" value={`${Number(analytics.overallAccuracy ?? accuracy).toFixed(1)}%`} sub={`${analytics.totalCorrect ?? 0} correct`}
+                formula="Correct ÷ Attempted × 100"
+                calc={`${analytics.totalCorrect ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${Number(analytics.overallAccuracy ?? accuracy).toFixed(1)}%`}
+              />
+              <MetricTile
+                label="Correct Attempts" value={String(analytics.totalCorrect ?? 0)} sub="Answered correctly"
+                formula="Count of responses marked correct"
+                calc={`${analytics.totalCorrect ?? 0} of ${analytics.totalQuestions ?? 0} questions`}
+              />
+              <MetricTile
+                label="Incorrect Attempts" value={String(analytics.totalIncorrect ?? 0)} sub="Answered wrongly" danger
+                formula="Count of attempted responses marked incorrect"
+                calc={`${analytics.totalIncorrect ?? 0} of ${analytics.totalAttempted ?? 0} attempted`}
+              />
+              <MetricTile
+                label="Unattempted Questions" value={String(analytics.totalUnattempted ?? 0)} sub="Left unanswered"
+                formula="Total Questions − Attempted"
+                calc={`${analytics.totalQuestions ?? 0} − ${analytics.totalAttempted ?? 0} = ${analytics.totalUnattempted ?? 0}`}
+              />
+              <MetricTile
+                label="Negative Marks" value={Number(analytics.totalNegativeMarks ?? 0).toFixed(1)} sub="Marks lost" danger
+                formula="Sum of negative marks across every incorrect answer"
+                calc={`${analytics.totalIncorrect ?? 0} wrong answers → ${Number(analytics.totalNegativeMarks ?? 0).toFixed(1)} marks lost`}
+              />
+              <MetricTile
+                label="Guess Rate" value={`${Number(errorClassification.guessRate ?? 0).toFixed(1)}%`} sub={`${errorClassification.guesses ?? analytics.totalGuessAttempts ?? 0} guesses`}
+                formula="Guesses ÷ Attempted × 100"
+                calc={`${errorClassification.guesses ?? analytics.totalGuessAttempts ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${Number(errorClassification.guessRate ?? 0).toFixed(1)}%`}
+                note="A response counts as a guess when confidence < 50% AND time spent < 60% of your average time per question."
+              />
+              <MetricTile
+                label="Recoverable Marks" value={Number(recoverableMarks.totalRecoverable ?? 0).toFixed(1)} sub="Score opportunity"
+                formula="Wrong-easy marks + Negative-marking loss + Time misallocation + Weak-topic misses + Skipped high-value Qs"
+                calc={`${Number(recoverableMarks.incorrectEasyQuestions ?? 0).toFixed(1)} + ${Number(recoverableMarks.negativeLoss ?? 0).toFixed(1)} + ${Number(recoverableMarks.timeMisallocation ?? 0).toFixed(1)} + ${Number(recoverableMarks.lowAccuracyAreas ?? 0).toFixed(1)} + ${Number(recoverableMarks.missedHighROI ?? 0).toFixed(1)} = ${Number(recoverableMarks.totalRecoverable ?? 0).toFixed(1)}`}
+              />
+              <MetricTile
+                label="First Attempt Accuracy" value={`${Number(frameworkFoundation.firstAttemptAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct before any reattempt"
+                formula="Correct on first answer ÷ Attempted × 100"
+                calc={`${Number(frameworkFoundation.firstAttemptAccuracyPercent ?? 0).toFixed(1)}% of ${analytics.totalAttempted ?? 0} attempted, using each question's very first submitted answer`}
+              />
+              <MetricTile
+                label="Reattempt Accuracy" value={`${Number(frameworkFoundation.reattemptAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct on reattempted Qs"
+                formula="Correct after reattempt ÷ Total reattempted questions × 100"
+                calc={`${reattemptMetrics.totalReattempts ?? 0} reattempted → ${Number(frameworkFoundation.reattemptAccuracyPercent ?? 0).toFixed(1)}% ended up correct`}
+              />
+              <MetricTile
+                label="Careless Error Rate" value={`${Number(frameworkFoundation.carelessErrorRatePercent ?? 0).toFixed(1)}%`} sub="Careless mistakes / attempted" danger
+                formula="Careless mistakes ÷ Attempted × 100"
+                calc={`${errorClassification.sillyMistakes ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${Number(frameworkFoundation.carelessErrorRatePercent ?? 0).toFixed(1)}%`}
+                note="Same underlying classification as Silly Mistakes below, expressed against all attempted questions instead of just the wrong ones."
+              />
             </MetricPanel>
 
             <MetricPanel title="Time and Speed" icon={IconClock} tone="emerald">
-              <MetricTile label="Total Time" value={formatTime(Number(analytics.totalTimeSeconds ?? totalTimeSec))} sub="Submitted duration" />
-              <MetricTile label="Avg Time/Q" value={`${Number(analytics.avgTimePerQuestion ?? 0).toFixed(0)}s`} sub="Across all questions" />
-              <MetricTile label="Correct Avg Time" value={`${Number(analytics.avgTimeOnCorrect ?? timeVariance.avgTimeOnCorrect ?? 0).toFixed(0)}s`} sub="Correct answers" />
-              <MetricTile label="Wrong Avg Time" value={`${Number(analytics.avgTimeOnIncorrect ?? timeVariance.avgTimeOnIncorrect ?? 0).toFixed(0)}s`} sub="Incorrect answers" danger />
-              <MetricTile label="Speed Consistency" value={`${Number(analytics.timeStdDeviation ?? timeVariance.standardDeviation ?? 0).toFixed(0)}s`} sub="Std deviation" />
-              <MetricTile label="Order Quality" value={String(orderQuality.spearmanRho ?? orderRho)} sub={String(orderQuality.interpretation || "strategy score")} />
-              <MetricTile label="Time / Unattempted" value={`${Number(frameworkTime.timePerUnattemptedSeconds ?? 0).toFixed(0)}s`} sub="Before skipping" />
-              <MetricTile label="First Attempt Time" value={`${Number(frameworkTime.firstAttemptTimeSeconds ?? 0).toFixed(0)}s`} sub="Time to first answer" />
-              <MetricTile label="Speed Index" value={Number(frameworkTime.speedIndex ?? 0).toFixed(2)} sub="Attempted / minute" />
+              <MetricTile
+                label="Total Time" value={formatTime(Number(analytics.totalTimeSeconds ?? totalTimeSec))} sub="Submitted duration"
+                formula="Sum of time spent across every question"
+                calc={`${formatTime(Number(analytics.totalTimeSeconds ?? totalTimeSec))} total`}
+              />
+              <MetricTile
+                label="Avg Time/Q" value={`${Number(analytics.avgTimePerQuestion ?? 0).toFixed(0)}s`} sub="Across all questions"
+                formula="Total Time ÷ Total Questions"
+                calc={`${Number(analytics.totalTimeSeconds ?? totalTimeSec)}s ÷ ${analytics.totalQuestions ?? enrichedResponses.length} = ${Number(analytics.avgTimePerQuestion ?? 0).toFixed(0)}s`}
+              />
+              <MetricTile
+                label="Correct Avg Time" value={`${Number(analytics.avgTimeOnCorrect ?? timeVariance.avgTimeOnCorrect ?? 0).toFixed(0)}s`} sub="Correct answers"
+                formula="Sum of time on correct answers ÷ Correct count"
+                calc={`Averaged over ${analytics.totalCorrect ?? 0} correct answers = ${Number(analytics.avgTimeOnCorrect ?? timeVariance.avgTimeOnCorrect ?? 0).toFixed(0)}s`}
+              />
+              <MetricTile
+                label="Wrong Avg Time" value={`${Number(analytics.avgTimeOnIncorrect ?? timeVariance.avgTimeOnIncorrect ?? 0).toFixed(0)}s`} sub="Incorrect answers" danger
+                formula="Sum of time on incorrect answers ÷ Incorrect count"
+                calc={`Averaged over ${analytics.totalIncorrect ?? 0} incorrect answers = ${Number(analytics.avgTimeOnIncorrect ?? timeVariance.avgTimeOnIncorrect ?? 0).toFixed(0)}s`}
+              />
+              <MetricTile
+                label="Speed Consistency" value={`${Number(analytics.timeStdDeviation ?? timeVariance.standardDeviation ?? 0).toFixed(0)}s`} sub="Std deviation"
+                formula="√( Σ(time − mean time)² ÷ n ) across attempted questions"
+                calc={`Standard deviation of per-question time = ${Number(analytics.timeStdDeviation ?? timeVariance.standardDeviation ?? 0).toFixed(0)}s — lower means steadier pacing`}
+              />
+              <MetricTile
+                label="Order Quality" value={String(orderQuality.spearmanRho ?? orderRho)} sub={String(orderQuality.interpretation || "strategy score")}
+                formula="Spearman ρ = 1 − (6 × Σd²) ÷ (n × (n²−1)), d = ideal rank − your actual rank"
+                calc={`Comparing the order you attempted questions in vs. the ideal (highest-value-first) order across ${orderQuality.totalSequenced ?? "n/a"} sequenced questions → ρ = ${orderQuality.spearmanRho ?? "n/a"} (${orderQuality.interpretation ?? "insufficient data"})`}
+                note="+1 = perfect priority order, 0 = random, −1 = reverse of ideal. 'Ideal' rank blends expected ROI, easy-question bonus and marks per question."
+              />
+              <MetricTile
+                label="Time / Unattempted" value={`${Number(frameworkTime.timePerUnattemptedSeconds ?? 0).toFixed(0)}s`} sub="Before skipping"
+                formula="Sum of time spent on skipped questions ÷ Unattempted count"
+                calc={`Averaged over ${analytics.totalUnattempted ?? 0} unattempted questions = ${Number(frameworkTime.timePerUnattemptedSeconds ?? 0).toFixed(0)}s each before moving on`}
+              />
+              <MetricTile
+                label="First Attempt Time" value={`${Number(frameworkTime.firstAttemptTimeSeconds ?? 0).toFixed(0)}s`} sub="Time to first answer"
+                formula="Time spent to submit your very first answer of the exam"
+                calc={`${Number(frameworkTime.firstAttemptTimeSeconds ?? 0).toFixed(0)}s`}
+              />
+              <MetricTile
+                label="Speed Index" value={Number(frameworkTime.speedIndex ?? 0).toFixed(2)} sub="Attempted / minute"
+                formula="Attempted ÷ (Total Time in minutes)"
+                calc={`${analytics.totalAttempted ?? 0} ÷ ${(Number(analytics.totalTimeSeconds ?? totalTimeSec) / 60).toFixed(1)} min = ${Number(frameworkTime.speedIndex ?? 0).toFixed(2)} Q/min`}
+              />
               <MetricTile
                 label="Slowdown Point"
                 value={frameworkTime.slowdownPoint ? `Q${(frameworkTime.slowdownPoint as Record<string, unknown>).attemptIndex}` : "None"}
                 sub={frameworkTime.slowdownPoint ? `${(frameworkTime.slowdownPoint as Record<string, unknown>).beforeAvgSeconds}s → ${(frameworkTime.slowdownPoint as Record<string, unknown>).afterAvgSeconds}s` : "No sharp slowdown detected"}
+                formula="First point where a 5-question rolling avg time jumps > 35% vs. the previous 5-question window"
+                calc={frameworkTime.slowdownPoint
+                  ? `Before: ${(frameworkTime.slowdownPoint as Record<string, unknown>).beforeAvgSeconds}s avg → After: ${(frameworkTime.slowdownPoint as Record<string, unknown>).afterAvgSeconds}s avg, detected at question #${(frameworkTime.slowdownPoint as Record<string, unknown>).attemptIndex}`
+                  : "No 5-question window showed a >35% time jump"}
               />
             </MetricPanel>
 
             <MetricPanel title="Accuracy and Errors" icon={IconAlertTriangle} tone="rose">
-              <MetricTile label="Silly Mistakes" value={String(errorClassification.sillyMistakes ?? 0)} sub={`${Number(errorClassification.sillyMistakeRate ?? 0).toFixed(1)}% of wrong`} danger />
-              <MetricTile label="Concept Errors" value={String(errorClassification.conceptErrors ?? 0)} sub={`${Number(errorClassification.conceptErrorRate ?? 0).toFixed(1)}% of wrong`} danger />
-              <MetricTile label="Calculation Error Rate" value={`${Number(frameworkAccuracyErrors.calculationErrorRatePercent ?? 0).toFixed(1)}%`} sub="Wrong numeric Qs, worked not guessed" danger />
-              <MetricTile label="Confidence Gap" value={`${Number(frameworkAccuracyErrors.confidenceAccuracyGapPercent ?? 0).toFixed(1)}%`} sub="|Avg confidence − accuracy|" />
-              <MetricTile label="Confidence Collapse" value={String(frameworkAccuracyErrors.confidenceCollapseCount ?? 0)} sub="Wrong despite high confidence, high-ROI" danger />
-              <MetricTile label="Error Rate" value={`${Number(frameworkAccuracyErrors.errorRatePercent ?? 0).toFixed(1)}%`} sub="Wrong / attempted" danger />
-              <MetricTile label="High ROI Coverage" value={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}%`} sub="Priority questions attempted" />
-              <MetricTile label="High ROI Accuracy" value={`${Number(frameworkAccuracyErrors.highROIAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct among priority Qs" />
-              <MetricTile label="Low ROI Attempts" value={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}%`} sub="Low value attempted" danger />
-              <MetricTile label="Known Question Accuracy" value={`${Number(frameworkAccuracyErrors.knownQuestionAccuracyPercent ?? 0).toFixed(1)}%`} sub="Seen in a prior attempt" />
-              <MetricTile label="Opportunity Index" value={Number(roiMetrics.scoreOpportunityIndex ?? 0).toFixed(1)} sub="Avoidable loss estimate" />
+              <MetricTile
+                label="Silly Mistakes" value={String(errorClassification.sillyMistakes ?? 0)} sub={`${Number(errorClassification.sillyMistakeRate ?? 0).toFixed(1)}% of wrong`} danger
+                formula="Wrong AND confidence ≥ 80% AND you're normally ≥60% accurate here AND time spent ≥ 50% of your average — Rate = count ÷ Wrong × 100"
+                calc={`${errorClassification.sillyMistakes ?? 0} ÷ ${analytics.totalIncorrect ?? 0} wrong × 100 = ${Number(errorClassification.sillyMistakeRate ?? 0).toFixed(1)}%`}
+              />
+              <MetricTile
+                label="Concept Errors" value={String(errorClassification.conceptErrors ?? 0)} sub={`${Number(errorClassification.conceptErrorRate ?? 0).toFixed(1)}% of wrong`} danger
+                formula="Wrong AND confidence 50–80% AND time spent > 120% of your average — Rate = count ÷ Wrong × 100"
+                calc={`${errorClassification.conceptErrors ?? 0} ÷ ${analytics.totalIncorrect ?? 0} wrong × 100 = ${Number(errorClassification.conceptErrorRate ?? 0).toFixed(1)}%`}
+              />
+              <MetricTile
+                label="Calculation Error Rate" value={`${Number(frameworkAccuracyErrors.calculationErrorRatePercent ?? 0).toFixed(1)}%`} sub="Wrong numeric Qs, worked not guessed" danger
+                formula="Wrong numeric/integer-type questions worked for ≥ 50% of avg wrong-answer time ÷ Wrong × 100"
+                calc={`${Number(frameworkAccuracyErrors.calculationErrorRatePercent ?? 0).toFixed(1)}% of ${analytics.totalIncorrect ?? 0} wrong answers`}
+              />
+              <MetricTile
+                label="Confidence Gap" value={`${Number(frameworkAccuracyErrors.confidenceAccuracyGapPercent ?? 0).toFixed(1)}%`} sub="|Avg confidence − accuracy|"
+                formula="| Average self-reported confidence − Actual accuracy |"
+                calc={`|avg confidence − ${Number(analytics.overallAccuracy ?? accuracy).toFixed(1)}% accuracy| = ${Number(frameworkAccuracyErrors.confidenceAccuracyGapPercent ?? 0).toFixed(1)}%`}
+                note="Large gap = you're over- or under-confident relative to how you actually perform."
+              />
+              <MetricTile
+                label="Confidence Collapse" value={String(frameworkAccuracyErrors.confidenceCollapseCount ?? 0)} sub="Wrong despite high confidence, high-ROI" danger
+                formula="Count of high-ROI questions attempted wrong with confidence ≥ 80%"
+                calc={`${frameworkAccuracyErrors.confidenceCollapseCount ?? 0} such questions out of ${(roiMetrics.highROIQuestions as unknown[] | undefined)?.length ?? "the"} high-ROI questions`}
+              />
+              <MetricTile
+                label="Error Rate" value={`${Number(frameworkAccuracyErrors.errorRatePercent ?? 0).toFixed(1)}%`} sub="Wrong / attempted" danger
+                formula="Wrong ÷ Attempted × 100"
+                calc={`${analytics.totalIncorrect ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${Number(frameworkAccuracyErrors.errorRatePercent ?? 0).toFixed(1)}%`}
+              />
+              <MetricTile
+                label="High ROI Coverage" value={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}%`} sub="Priority questions attempted"
+                formula="High-ROI questions attempted ÷ Total high-ROI questions × 100"
+                calc={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}% attempted`}
+                note="A question is 'high-ROI' when expected marks per minute ≥ 2.5, where expected marks = P(correct)×4 − P(wrong)×1."
+              />
+              <MetricTile
+                label="High ROI Accuracy" value={`${Number(frameworkAccuracyErrors.highROIAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct among priority Qs"
+                formula="Correct high-ROI attempts ÷ Attempted high-ROI questions × 100"
+                calc={`${Number(frameworkAccuracyErrors.highROIAccuracyPercent ?? 0).toFixed(1)}% correct among high-ROI questions you attempted`}
+              />
+              <MetricTile
+                label="Low ROI Attempts" value={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}%`} sub="Low value attempted" danger
+                formula="Low-ROI questions attempted ÷ Total low-ROI questions × 100"
+                calc={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}% attempted`}
+                note="A question is 'low-ROI' when expected marks per minute < 1.5 — time likely better spent elsewhere."
+              />
+              <MetricTile
+                label="Known Question Accuracy" value={`${Number(frameworkAccuracyErrors.knownQuestionAccuracyPercent ?? 0).toFixed(1)}%`} sub="Seen in a prior attempt"
+                formula="Correct ÷ Attempted, restricted to questions you've answered in an earlier submitted attempt"
+                calc={`${Number(frameworkAccuracyErrors.knownQuestionAccuracyPercent ?? 0).toFixed(1)}% on questions you'd seen before (any past attempt, last 50)`}
+              />
+              <MetricTile
+                label="Opportunity Index" value={Number(roiMetrics.scoreOpportunityIndex ?? 0).toFixed(1)} sub="Avoidable loss estimate"
+                formula="Silly-mistake loss + Skipped-high-ROI loss + Wrong-low-ROI loss + Guessing loss"
+                calc={`${Number((roiMetrics.soiBreakdown as Record<string, unknown>)?.sillyMistakesLoss ?? 0).toFixed(1)} + ${Number((roiMetrics.soiBreakdown as Record<string, unknown>)?.highROISkippedLoss ?? 0).toFixed(1)} + ${Number((roiMetrics.soiBreakdown as Record<string, unknown>)?.lowROIAttemptedLoss ?? 0).toFixed(1)} + ${Number((roiMetrics.soiBreakdown as Record<string, unknown>)?.guessingLoss ?? 0).toFixed(1)} = ${Number(roiMetrics.scoreOpportunityIndex ?? 0).toFixed(1)}`}
+              />
             </MetricPanel>
 
             <MetricPanel title="Fatigue and Reattempts" icon={IconRefresh} tone="amber">
-              <MetricTile label="Longest Correct Streak" value={String((advancedAnalytics.streakMetrics as Record<string, unknown>)?.goodStreakLength ?? 0)} sub="Best run" />
-              <MetricTile label="Longest Wrong Streak" value={String((advancedAnalytics.streakMetrics as Record<string, unknown>)?.badStreakLength ?? 0)} sub="Risk run" danger />
-              <MetricTile label="Max Accuracy Drop" value={`${Number(fatigueCurve.maxDrop ?? 0).toFixed(1)}%`} sub={`${fatigueCurve.criticalWindowsCount ?? 0} critical windows`} danger />
-              <MetricTile label="Recovery Window" value={String(fatigueCurve.recoveryWindow ?? "None")} sub="After a drop" />
-              <MetricTile label="Reattempt Rate" value={`${Number(reattemptMetrics.reattemptRate ?? 0).toFixed(1)}%`} sub={`${reattemptMetrics.totalReattempts ?? 0} total`} />
-              <MetricTile label="Reattempt Efficiency" value={`${Number(reattemptMetrics.productiveReattemptRate ?? 0).toFixed(1)}%`} sub={`${reattemptMetrics.wrongToCorrect ?? 0} wrong to correct`} />
+              <MetricTile
+                label="Longest Correct Streak" value={String((advancedAnalytics.streakMetrics as Record<string, unknown>)?.goodStreakLength ?? 0)} sub="Best run"
+                formula="Longest run of consecutive correct answers, in attempt order"
+                calc={`${(advancedAnalytics.streakMetrics as Record<string, unknown>)?.goodStreakLength ?? 0} in a row, best case`}
+              />
+              <MetricTile
+                label="Longest Wrong Streak" value={String((advancedAnalytics.streakMetrics as Record<string, unknown>)?.badStreakLength ?? 0)} sub="Risk run" danger
+                formula="Longest run of consecutive wrong answers, in attempt order"
+                calc={`${(advancedAnalytics.streakMetrics as Record<string, unknown>)?.badStreakLength ?? 0} in a row, worst case`}
+              />
+              <MetricTile
+                label="Max Accuracy Drop" value={`${Number(fatigueCurve.maxDrop ?? 0).toFixed(1)}%`} sub={`${fatigueCurve.criticalWindowsCount ?? 0} critical windows`} danger
+                formula="Highest 5-question rolling accuracy − Lowest 5-question rolling accuracy"
+                calc={`${Number(fatigueCurve.highestSpike ?? 0).toFixed(1)}% − ${Number(fatigueCurve.lowestSpike ?? 0).toFixed(1)}% = ${Number(fatigueCurve.maxDrop ?? 0).toFixed(1)}%, with ${fatigueCurve.criticalWindowsCount ?? 0} windows below 40% accuracy`}
+              />
+              <MetricTile
+                label="Recovery Window" value={String(fatigueCurve.recoveryWindow ?? "None")} sub="After a drop"
+                formula="First rolling window index where accuracy climbs back to ≥ 60% after dropping below 40%"
+                calc={fatigueCurve.recoveryWindow != null ? `Recovered at rolling window #${fatigueCurve.recoveryWindow}` : "Never dropped below 40% and recovered to 60%+"}
+              />
+              <MetricTile
+                label="Reattempt Rate" value={`${Number(reattemptMetrics.reattemptRate ?? 0).toFixed(1)}%`} sub={`${reattemptMetrics.totalReattempts ?? 0} total`}
+                formula="Reattempted questions ÷ Attempted × 100"
+                calc={`${reattemptMetrics.totalReattempts ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${Number(reattemptMetrics.reattemptRate ?? 0).toFixed(1)}%`}
+              />
+              <MetricTile
+                label="Reattempt Efficiency" value={`${Number(reattemptMetrics.productiveReattemptRate ?? 0).toFixed(1)}%`} sub={`${reattemptMetrics.wrongToCorrect ?? 0} wrong to correct`}
+                formula="Wrong→Correct on reattempt ÷ Total reattempts × 100"
+                calc={`${reattemptMetrics.wrongToCorrect ?? 0} ÷ ${reattemptMetrics.totalReattempts ?? 0} × 100 = ${Number(reattemptMetrics.productiveReattemptRate ?? 0).toFixed(1)}%`}
+              />
             </MetricPanel>
           </div>
 
@@ -548,11 +731,15 @@ export function AttemptAnalyticsView({
                       label={`${label} Accuracy`}
                       value={`${Number(row?.accuracy ?? 0).toFixed(1)}%`}
                       sub={`${row?.correct ?? 0}/${row?.attempted ?? 0} correct`}
+                      formula="Correct ÷ Attempted × 100, restricted to this difficulty"
+                      calc={`${row?.correct ?? 0} ÷ ${row?.attempted ?? 0} × 100 = ${Number(row?.accuracy ?? 0).toFixed(1)}%`}
                     />
                     <MetricTile
                       label={`${label} Attempt Rate`}
                       value={`${Number(row?.attemptRate ?? 0).toFixed(1)}%`}
                       sub={`${row?.attempted ?? 0}/${row?.totalQuestions ?? 0} attempted`}
+                      formula="Attempted ÷ Total Questions × 100, restricted to this difficulty"
+                      calc={`${row?.attempted ?? 0} ÷ ${row?.totalQuestions ?? 0} × 100 = ${Number(row?.attemptRate ?? 0).toFixed(1)}%`}
                     />
                   </React.Fragment>
                 );
@@ -568,6 +755,8 @@ export function AttemptAnalyticsView({
                   label={String(s.subject || `Subject ${i + 1}`)}
                   value={formatTime(Number(s.totalTimeSeconds ?? 0))}
                   sub={`${Number(s.percentageOfTotal ?? 0).toFixed(1)}% of total · ${Number(s.avgTimePerQuestion ?? 0).toFixed(0)}s/Q avg`}
+                  formula="Sum of time on this subject's questions; % of total = subject time ÷ sum of every question's time × 100"
+                  calc={`${formatTime(Number(s.totalTimeSeconds ?? 0))} = ${Number(s.percentageOfTotal ?? 0).toFixed(1)}% of total time across all questions`}
                 />
               ))}
             </MetricPanel>
@@ -620,12 +809,22 @@ export function AttemptAnalyticsView({
           )}
 
           <MetricPanel title="Subject and Topic Analytics" icon={IconBook} tone="teal">
-            <MetricTile label="Weak Topics" value={String(topicAccuracy.filter(t => t.isWeak).length)} sub="Below configured threshold" danger />
-            <MetricTile label="Strong Topics" value={String(topicAccuracy.filter(t => t.isStrong).length)} sub="Above configured threshold" />
+            <MetricTile
+              label="Weak Topics" value={String(topicAccuracy.filter(t => t.isWeak).length)} sub="Below configured threshold" danger
+              formula="Topics with ≥1 attempt where accuracy is below the weak-topic threshold (default 40%)"
+              calc={`${topicAccuracy.filter(t => t.isWeak).length} of ${topicAccuracy.length} attempted topics fall below threshold`}
+            />
+            <MetricTile
+              label="Strong Topics" value={String(topicAccuracy.filter(t => t.isStrong).length)} sub="Above configured threshold"
+              formula="Topics with ≥1 attempt where accuracy is at or above the strong-topic threshold (default 80%)"
+              calc={`${topicAccuracy.filter(t => t.isStrong).length} of ${topicAccuracy.length} attempted topics meet threshold`}
+            />
             <MetricTile
               label="Avg Topic Attempt Rate"
               value={`${(topicAccuracy.length ? topicAccuracy.reduce((s, t) => s + Number(t.attemptRate ?? 0), 0) / topicAccuracy.length : 0).toFixed(1)}%`}
               sub={`Across ${topicAccuracy.length} topics`}
+              formula="Mean of each topic's (Attempted ÷ Total Questions × 100)"
+              calc={`Average across ${topicAccuracy.length} topics = ${(topicAccuracy.length ? topicAccuracy.reduce((s, t) => s + Number(t.attemptRate ?? 0), 0) / topicAccuracy.length : 0).toFixed(1)}%`}
             />
             {subjectBreakdown.slice(0, 4).map((s, i) => (
               <MetricTile
@@ -633,29 +832,92 @@ export function AttemptAnalyticsView({
                 label={String(s.subject || `Subject ${i + 1}`)}
                 value={`${Number(s.accuracy ?? 0).toFixed(1)}%`}
                 sub={`${s.correct ?? 0}/${s.attempted ?? 0} correct`}
+                formula="Correct ÷ Attempted × 100, restricted to this subject"
+                calc={`${s.correct ?? 0} ÷ ${s.attempted ?? 0} × 100 = ${Number(s.accuracy ?? 0).toFixed(1)}%`}
               />
             ))}
           </MetricPanel>
 
           <MetricPanel title="Content and Coverage" icon={IconBook} tone="indigo">
-            <MetricTile label="Topic Coverage" value={`${Number(frameworkContent.topicCoveragePercent ?? 0).toFixed(1)}%`} sub="Attempted topic coverage" />
-            <MetricTile label="Question Type Coverage" value={`${avgQuestionTypeCoverage.toFixed(1)}%`} sub={`Across ${questionTypeCoverageArr.length} question types`} />
-            <MetricTile label="Assertion Accuracy" value={`${Number((frameworkContent.assertionAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.assertionAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
-            <MetricTile label="Numeric Accuracy" value={`${Number((frameworkContent.numericAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.numericAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
-            <MetricTile label="Image Accuracy" value={`${Number((frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`} />
-            <MetricTile label="New Accuracy" value={`${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.newAccuracyPercent ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.newAttempted ?? 0} new attempts`} />
-            <MetricTile label="Repeated Accuracy" value={`${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAccuracyPercent ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAttempted ?? 0} repeated attempts`} />
+            <MetricTile
+              label="Topic Coverage" value={`${Number(frameworkContent.topicCoveragePercent ?? 0).toFixed(1)}%`} sub="Attempted topic coverage"
+              formula="Topics with ≥1 attempt ÷ Total distinct topics in the paper × 100"
+              calc={`${Number(frameworkContent.topicCoveragePercent ?? 0).toFixed(1)}% of ${topicAccuracy.length} topics touched`}
+            />
+            <MetricTile
+              label="Question Type Coverage" value={`${avgQuestionTypeCoverage.toFixed(1)}%`} sub={`Across ${questionTypeCoverageArr.length} question types`}
+              formula="Mean of each question type's (Attempted ÷ Total of that type × 100)"
+              calc={`Average across ${questionTypeCoverageArr.length} question types = ${avgQuestionTypeCoverage.toFixed(1)}%`}
+            />
+            <MetricTile
+              label="Assertion Accuracy" value={`${Number((frameworkContent.assertionAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.assertionAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`}
+              formula="Correct ÷ Attempted × 100, restricted to Assertion-Reason questions"
+              calc={`${(frameworkContent.assertionAccuracy as Record<string, unknown>)?.correct ?? 0} ÷ ${(frameworkContent.assertionAccuracy as Record<string, unknown>)?.attempted ?? 0} × 100 = ${Number((frameworkContent.assertionAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`}
+            />
+            <MetricTile
+              label="Numeric Accuracy" value={`${Number((frameworkContent.numericAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.numericAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`}
+              formula="Correct ÷ Attempted × 100, restricted to Numeric/Integer-type questions"
+              calc={`${(frameworkContent.numericAccuracy as Record<string, unknown>)?.correct ?? 0} ÷ ${(frameworkContent.numericAccuracy as Record<string, unknown>)?.attempted ?? 0} × 100 = ${Number((frameworkContent.numericAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`}
+            />
+            <MetricTile
+              label="Image Accuracy" value={`${Number((frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.attempted ?? 0} attempted`}
+              formula="Correct ÷ Attempted × 100, restricted to questions with an image"
+              calc={`${(frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.correct ?? 0} ÷ ${(frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.attempted ?? 0} × 100 = ${Number((frameworkContent.imageBasedAccuracy as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}%`}
+            />
+            <MetricTile
+              label="New Accuracy" value={`${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.newAccuracyPercent ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.newAttempted ?? 0} new attempts`}
+              formula="Correct ÷ Attempted × 100, restricted to questions never seen before"
+              calc={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.newAttempted ?? 0} new questions attempted = ${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.newAccuracyPercent ?? 0).toFixed(1)}% correct`}
+            />
+            <MetricTile
+              label="Repeated Accuracy" value={`${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAccuracyPercent ?? 0).toFixed(1)}%`} sub={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAttempted ?? 0} repeated attempts`}
+              formula="Correct ÷ Attempted × 100, restricted to questions seen in a prior submitted attempt"
+              calc={`${(frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAttempted ?? 0} repeated questions attempted = ${Number((frameworkContent.newVsRepeated as Record<string, unknown>)?.repeatedAccuracyPercent ?? 0).toFixed(1)}% correct`}
+            />
           </MetricPanel>
 
           <MetricPanel title="Reattempt and Behavior" icon={IconRefresh} tone="rose">
-            <MetricTile label="Correct on Reattempt" value={String(frameworkBehavior.wrongToCorrect ?? 0)} sub="Wrong to correct switches" />
-            <MetricTile label="Wrong Again" value={String(frameworkBehavior.wrongToWrong ?? 0)} sub="Repeated wrong answers" danger />
-            <MetricTile label="Avg Reattempt Delay" value={`${Number(frameworkBehavior.reattemptDelaySeconds ?? 0).toFixed(0)}s`} sub="Gap before reattempting" />
-            <MetricTile label="Time Change on Reattempt" value={`${Number(frameworkBehavior.timeChangeOnReattemptSeconds ?? 0).toFixed(0)}s`} sub="Extra time to finalize answer" />
-            <MetricTile label="Smart Reattempt Rate" value={`${Number((frameworkBehavior.smartVsBlind as Record<string, unknown>)?.smartRatePercent ?? 0).toFixed(1)}%`} sub="Considered vs immediate" />
-            <MetricTile label="Overthinking Index" value={String(frameworkBehavior.overthinkingIndex ?? 0)} sub="High time plus wrong" danger />
-            <MetricTile label="Efficiency" value={`${Number(frameworkBehavior.reattemptEfficiencyPercent ?? 0).toFixed(1)}%`} sub="Productive reattempt rate" />
-            <MetricTile label="Repeated Wrong (Cross-Test)" value={String(frameworkBehavior.repeatedWrongQuestionsCrossTest ?? 0)} sub="Also wrong in a prior attempt" danger />
+            <MetricTile
+              label="Correct on Reattempt" value={String(frameworkBehavior.wrongToCorrect ?? 0)} sub="Wrong to correct switches"
+              formula="Count of reattempted questions where the initial answer was wrong and the final answer was correct"
+              calc={`${frameworkBehavior.wrongToCorrect ?? 0} of ${reattemptMetrics.totalReattempts ?? 0} reattempts turned right`}
+            />
+            <MetricTile
+              label="Wrong Again" value={String(frameworkBehavior.wrongToWrong ?? 0)} sub="Repeated wrong answers" danger
+              formula="Count of reattempted questions where both the initial and final answer were wrong"
+              calc={`${frameworkBehavior.wrongToWrong ?? 0} of ${reattemptMetrics.totalReattempts ?? 0} reattempts stayed wrong`}
+            />
+            <MetricTile
+              label="Avg Reattempt Delay" value={`${Number(frameworkBehavior.reattemptDelaySeconds ?? 0).toFixed(0)}s`} sub="Gap before reattempting"
+              formula="Average gap between first answer and reattempt, across reattempted questions"
+              calc={`Averaged over reattempted questions = ${Number(frameworkBehavior.reattemptDelaySeconds ?? 0).toFixed(0)}s`}
+            />
+            <MetricTile
+              label="Time Change on Reattempt" value={`${Number(frameworkBehavior.timeChangeOnReattemptSeconds ?? 0).toFixed(0)}s`} sub="Extra time to finalize answer"
+              formula="Average of (time of last answer − time of first answer) across reattempted questions"
+              calc={`${Number(frameworkBehavior.timeChangeOnReattemptSeconds ?? 0).toFixed(0)}s extra spent finalizing, on average`}
+            />
+            <MetricTile
+              label="Smart Reattempt Rate" value={`${Number((frameworkBehavior.smartVsBlind as Record<string, unknown>)?.smartRatePercent ?? 0).toFixed(1)}%`} sub="Considered vs immediate"
+              formula="Reattempts with delay > 15s ÷ Total reattempts × 100"
+              calc={`${(frameworkBehavior.smartVsBlind as Record<string, unknown>)?.consideredReattempts ?? 0} ÷ ${reattemptMetrics.totalReattempts ?? 0} × 100 = ${Number((frameworkBehavior.smartVsBlind as Record<string, unknown>)?.smartRatePercent ?? 0).toFixed(1)}%`}
+                note="A reattempt within 15s of the first answer is treated as impulsive/blind rather than a considered second look."
+            />
+            <MetricTile
+              label="Overthinking Index" value={String(frameworkBehavior.overthinkingIndex ?? 0)} sub="High time plus wrong" danger
+              formula="Count of wrong answers where time spent > 1.5 × your average time per question"
+              calc={`${frameworkBehavior.overthinkingIndex ?? 0} questions took long and were still wrong`}
+            />
+            <MetricTile
+              label="Efficiency" value={`${Number(frameworkBehavior.reattemptEfficiencyPercent ?? 0).toFixed(1)}%`} sub="Productive reattempt rate"
+              formula="Wrong→Correct on reattempt ÷ Total reattempts × 100 (same as Reattempt Efficiency above)"
+              calc={`${reattemptMetrics.wrongToCorrect ?? 0} ÷ ${reattemptMetrics.totalReattempts ?? 0} × 100 = ${Number(frameworkBehavior.reattemptEfficiencyPercent ?? 0).toFixed(1)}%`}
+            />
+            <MetricTile
+              label="Repeated Wrong (Cross-Test)" value={String(frameworkBehavior.repeatedWrongQuestionsCrossTest ?? 0)} sub="Also wrong in a prior attempt" danger
+              formula="Wrong this attempt AND wrong in a prior submitted attempt (any sprint, last 50 attempts)"
+              calc={`${frameworkBehavior.repeatedWrongQuestionsCrossTest ?? 0} of ${analytics.totalIncorrect ?? 0} wrong answers were also wrong before`}
+            />
           </MetricPanel>
 
           {/* Fatigue Curve — accuracy through the exam, rolling 5-question windows */}
@@ -683,27 +945,82 @@ export function AttemptAnalyticsView({
           )}
 
           <MetricPanel title="Patterns and Fatigue" icon={IconAlertTriangle} tone="amber">
-            <MetricTile label="Alternation Count" value={String(frameworkPattern.rightWrongAlternationCount ?? 0)} sub="Right/wrong switches" />
-            <MetricTile label="Error Pattern Rate" value={`${Number((frameworkPattern.patternOfErrors as Record<string, unknown>)?.alternationRatePercent ?? 0).toFixed(1)}%`} sub="Alternating responses" />
-            <MetricTile label="Peak Window" value={String((frameworkFatigue.peakPerformanceWindow as Record<string, unknown>)?.windowIndex ?? "None")} sub={`${Number((frameworkFatigue.peakPerformanceWindow as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}% accuracy`} />
-            <MetricTile label="Accuracy Recovery" value={String(frameworkFatigue.accuracyRecovery ?? "None")} sub="Recovery window index" />
-            <MetricTile label="Fall Rate" value={`${Number(frameworkDifficulty.fallRatePercent ?? 0).toFixed(1)}%`} sub="First half vs second half" danger />
-            <MetricTile label="Consistency Spread" value={`${Number(frameworkDifficulty.performanceConsistencyPercent ?? 0).toFixed(1)}%`} sub="Difficulty accuracy variance" />
+            <MetricTile
+              label="Alternation Count" value={String(frameworkPattern.rightWrongAlternationCount ?? 0)} sub="Right/wrong switches"
+              formula="Count of consecutive attempted-question pairs where the result flips (correct→wrong or wrong→correct)"
+              calc={`${frameworkPattern.rightWrongAlternationCount ?? 0} flips across ${analytics.totalAttempted ?? 0} attempted questions`}
+            />
+            <MetricTile
+              label="Error Pattern Rate" value={`${Number((frameworkPattern.patternOfErrors as Record<string, unknown>)?.alternationRatePercent ?? 0).toFixed(1)}%`} sub="Alternating responses"
+              formula="Alternation Count ÷ (Attempted − 1) × 100"
+              calc={`${frameworkPattern.rightWrongAlternationCount ?? 0} ÷ ${Math.max((Number(analytics.totalAttempted) || 0) - 1, 0)} × 100 = ${Number((frameworkPattern.patternOfErrors as Record<string, unknown>)?.alternationRatePercent ?? 0).toFixed(1)}%`}
+            />
+            <MetricTile
+              label="Peak Window" value={String((frameworkFatigue.peakPerformanceWindow as Record<string, unknown>)?.windowIndex ?? "None")} sub={`${Number((frameworkFatigue.peakPerformanceWindow as Record<string, unknown>)?.accuracy ?? 0).toFixed(1)}% accuracy`}
+              formula="The 5-question rolling window with the highest accuracy"
+              calc={(frameworkFatigue.peakPerformanceWindow as Record<string, unknown>) ? `Window #${(frameworkFatigue.peakPerformanceWindow as Record<string, unknown>).windowIndex}, questions ${(frameworkFatigue.peakPerformanceWindow as Record<string, unknown>).startPosition}–${(frameworkFatigue.peakPerformanceWindow as Record<string, unknown>).endPosition}` : "No windows computed (need ≥5 attempted questions)"}
+            />
+            <MetricTile
+              label="Accuracy Recovery" value={String(frameworkFatigue.accuracyRecovery ?? "None")} sub="Recovery window index"
+              formula="Same as Recovery Window above: first window index bouncing back to ≥60% accuracy after a sub-40% drop"
+              calc={frameworkFatigue.accuracyRecovery != null ? `Window #${frameworkFatigue.accuracyRecovery}` : "No recovery needed/observed"}
+            />
+            <MetricTile
+              label="Fall Rate" value={`${Number(frameworkDifficulty.fallRatePercent ?? 0).toFixed(1)}%`} sub="First half vs second half" danger
+              formula="max(0, First-half accuracy − Second-half accuracy), split by question order"
+              calc={`Questions split into two halves by paper order → accuracy drop = ${Number(frameworkDifficulty.fallRatePercent ?? 0).toFixed(1)}%`}
+            />
+            <MetricTile
+              label="Consistency Spread" value={`${Number(frameworkDifficulty.performanceConsistencyPercent ?? 0).toFixed(1)}%`} sub="Difficulty accuracy variance"
+              formula="Standard deviation of accuracy across Easy/Medium/Hard buckets"
+              calc={`Std deviation of the three difficulty-level accuracies = ${Number(frameworkDifficulty.performanceConsistencyPercent ?? 0).toFixed(1)}%`}
+              note="Lower = you perform similarly regardless of difficulty; higher = performance swings a lot by difficulty."
+            />
             <MetricTile
               label="Streak Break Point"
               value={streakBreakPoint ? String(streakBreakPoint.label) : "None"}
               sub={streakBreakPoint ? `${streakBreakPoint.breakCount} good streaks broke here` : "No repeated break pattern"}
+              formula="The exam quartile (Q1–Q4) where most of your correct-answer streaks ended"
+              calc={streakBreakPoint ? `${streakBreakPoint.breakCount} of your good streaks broke in ${streakBreakPoint.label}` : "No repeating streak-break pattern found"}
             />
-            <MetricTile label="Topics Fatiguing" value={String(((frameworkFatigue.topicFatigue as unknown[]) || []).length)} sub="Accuracy drops within topic" danger />
+            <MetricTile
+              label="Topics Fatiguing" value={String(((frameworkFatigue.topicFatigue as unknown[]) || []).length)} sub="Accuracy drops within topic" danger
+              formula="Topics (≥2 attempts) where second-half accuracy is lower than first-half accuracy"
+              calc={`${((frameworkFatigue.topicFatigue as unknown[]) || []).length} topics show a within-topic accuracy decline`}
+            />
           </MetricPanel>
 
           <MetricPanel title="Early Momentum" icon={IconTarget} tone="emerald">
-            <MetricTile label="Foundation Time" value={`${Number(frameworkEarly.foundationTimeSeconds ?? 0).toFixed(0)}s`} sub="First answer time" />
-            <MetricTile label="First N Accuracy" value={`${Number(frameworkEarly.firstNAccuracyPercent ?? 0).toFixed(1)}%`} sub="Early attempt quality" />
-            <MetricTile label="Early Speed" value={`${Number(frameworkEarly.earlySpeedSeconds ?? 0).toFixed(0)}s`} sub="Avg first N time" />
-            <MetricTile label="Early Accuracy Stability" value={`${Number(frameworkEarly.earlyAccuracyStabilityPercent ?? 0).toFixed(1)}%`} sub={`Lower = steadier (±${Number(frameworkEarly.earlyTimeSpreadSeconds ?? 0).toFixed(0)}s time spread)`} />
-            <MetricTile label="Momentum Score" value={Number(frameworkEarly.momentumScore ?? 0).toFixed(1)} sub="Accuracy x speed" />
-            <MetricTile label="Median Time" value={`${Number(frameworkTime.medianTimePerQuestionSeconds ?? 0).toFixed(0)}s`} sub="Middle question time" />
+            <MetricTile
+              label="Foundation Time" value={`${Number(frameworkEarly.foundationTimeSeconds ?? 0).toFixed(0)}s`} sub="First answer time"
+              formula="Time spent to submit your very first answer of the exam (same value as First Attempt Time above)"
+              calc={`${Number(frameworkEarly.foundationTimeSeconds ?? 0).toFixed(0)}s`}
+            />
+            <MetricTile
+              label="First N Accuracy" value={`${Number(frameworkEarly.firstNAccuracyPercent ?? 0).toFixed(1)}%`} sub="Early attempt quality"
+              formula="Correct ÷ Attempted × 100, restricted to your first 10 attempted questions"
+              calc={`${Number(frameworkEarly.firstNAccuracyPercent ?? 0).toFixed(1)}% across the first ${Math.min(10, Number(analytics.totalAttempted) || 0)} questions you attempted`}
+            />
+            <MetricTile
+              label="Early Speed" value={`${Number(frameworkEarly.earlySpeedSeconds ?? 0).toFixed(0)}s`} sub="Avg first N time"
+              formula="Average time per question across your first 10 attempted questions"
+              calc={`${Number(frameworkEarly.earlySpeedSeconds ?? 0).toFixed(0)}s average`}
+            />
+            <MetricTile
+              label="Early Accuracy Stability" value={`${Number(frameworkEarly.earlyAccuracyStabilityPercent ?? 0).toFixed(1)}%`} sub={`Lower = steadier (±${Number(frameworkEarly.earlyTimeSpreadSeconds ?? 0).toFixed(0)}s time spread)`}
+              formula="Std deviation of rolling 3-question accuracy within your first 10 attempted questions"
+              calc={`${Number(frameworkEarly.earlyAccuracyStabilityPercent ?? 0).toFixed(1)}% — lower means your early-exam accuracy stayed steady rather than swinging`}
+            />
+            <MetricTile
+              label="Momentum Score" value={Number(frameworkEarly.momentumScore ?? 0).toFixed(1)} sub="Accuracy x speed"
+              formula="First-N Accuracy% × N ÷ (First-N total time in minutes)"
+              calc={`${Number(frameworkEarly.firstNAccuracyPercent ?? 0).toFixed(1)}% accuracy weighted by pace over your first questions = ${Number(frameworkEarly.momentumScore ?? 0).toFixed(1)}`}
+            />
+            <MetricTile
+              label="Median Time" value={`${Number(frameworkTime.medianTimePerQuestionSeconds ?? 0).toFixed(0)}s`} sub="Middle question time"
+              formula="Median (middle value) of time spent per attempted question"
+              calc={`Middle value of ${analytics.totalAttempted ?? 0} attempted questions' times = ${Number(frameworkTime.medianTimePerQuestionSeconds ?? 0).toFixed(0)}s`}
+            />
           </MetricPanel>
         </div>
       )}
@@ -1028,17 +1345,22 @@ export function AttemptAnalyticsView({
 // ─── Small reusable stat card ─────────────────────────────────────────────────
 
 function StatCard({
-  label, value, sub, color, valueSmall = false,
+  label, value, sub, color, valueSmall = false, formula, calc,
 }: {
   label: string;
   value: string | number;
   sub: string;
   color: string;
   valueSmall?: boolean;
+  formula?: string;
+  calc?: string;
 }) {
   return (
     <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-center flex flex-col justify-between transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400 flex items-center justify-center gap-1">
+        {label}
+        {formula && <FormulaInfo formula={formula} calculation={calc} />}
+      </p>
       <div className="my-1">
         <h2 className={`font-black tabular-nums leading-tight ${valueSmall ? "text-lg sm:text-xl" : "text-2xl sm:text-3xl"} ${color}`}>
           {value}
@@ -1089,15 +1411,26 @@ function MetricTile({
   value,
   sub,
   danger = false,
+  formula,
+  calc,
+  note,
 }: {
   label: string;
   value: string | number;
   sub: string;
   danger?: boolean;
+  /** General formula behind this metric, e.g. "Correct ÷ Attempted × 100". When set, an (i) icon reveals it. */
+  formula?: string;
+  /** This tile's actual substituted computation, e.g. "18 ÷ 22 × 100 = 81.8%". */
+  calc?: string;
+  note?: string;
 }) {
   return (
     <div className="min-h-[88px] rounded-xl border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between transition-all duration-200 hover:bg-white hover:border-slate-200 hover:shadow-md hover:-translate-y-0.5">
-      <p className="text-[9px] sm:text-[10px] font-extrabold uppercase text-slate-400 leading-snug">{label}</p>
+      <div className="flex items-start justify-between gap-1.5">
+        <p className="text-[9px] sm:text-[10px] font-extrabold uppercase text-slate-400 leading-snug">{label}</p>
+        {formula && <FormulaInfo formula={formula} calculation={calc} note={note} />}
+      </div>
       <p className={`text-lg sm:text-xl font-black tabular-nums leading-tight break-words ${danger ? "text-red-600" : "text-slate-900"}`}>
         {value}
       </p>

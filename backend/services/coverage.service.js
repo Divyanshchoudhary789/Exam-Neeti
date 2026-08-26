@@ -40,7 +40,27 @@ const roundTo = (val, decimals = 2) => parseFloat(Number(val).toFixed(decimals))
  * @param {ObjectId|string} attemptId  — stored in assessmentHistory for audit
  * @param {Array}           responses  — Attempt.responses array (plain objects)
  */
-const updateSyllabusProgress = async (studentId, sprintId, attemptId, responses) => {
+/**
+ * Concurrent submissions touching the same student+sprint progress doc (two exams in
+ * the same sprint submitted within milliseconds of each other) are a load-mutate-save
+ * cycle, which is vulnerable to a lost update: whichever `.save()` completes last would
+ * silently overwrite the other's topic counts. Mongoose's default optimistic-concurrency
+ * versioning (`__v`) turns that into a VersionError instead of silent data loss — this
+ * wrapper retries the whole read-modify-write on that specific error so a submission
+ * doesn't fail outright just because it raced another one.
+ */
+const updateSyllabusProgress = async (studentId, sprintId, attemptId, responses, retriesLeft = 3) => {
+  try {
+    return await updateSyllabusProgressOnce(studentId, sprintId, attemptId, responses);
+  } catch (err) {
+    if (err?.name === "VersionError" && retriesLeft > 0) {
+      return updateSyllabusProgress(studentId, sprintId, attemptId, responses, retriesLeft - 1);
+    }
+    throw err;
+  }
+};
+
+const updateSyllabusProgressOnce = async (studentId, sprintId, attemptId, responses) => {
   // ── 1. Build topic map from this attempt ─────────────────────────────────────
   const attemptTopicMap = {};
   for (const r of responses) {
@@ -204,12 +224,23 @@ const getCoverageMetrics = async (studentId, sprintId) => {
     const coveredChapters = new Set(
       allTopics.filter((t) => t.isCovered).map((t) => `${t.subject}__${t.chapter}`)
     ).size;
-    const coveragePercentage = totalTopics > 0 ? Math.round((coveredTopics / totalTopics) * 100) : 0;
+
+    // Each SyllabusProgress doc already carries correctly-computed (chapter/topic/weight
+    // -based, against THAT sprint's own syllabus denominator) coverage percentages — average
+    // those cached per-sprint values rather than re-deriving from the union of touched
+    // topics. Recomputing here would use "topics this student has touched" as its own
+    // denominator, which is always ~100% since every entry in a progress doc's `topics`
+    // array is, by construction (see updateSyllabusProgress), already covered — collapsing
+    // all three distinct formulas (chapter/topic/weight based) to the same wrong number.
+    const avgCached = (key) => roundTo(
+      allProgress.reduce((s, p) => s + (p[key] || 0), 0) / allProgress.length
+    );
+
     return {
-      syllabusCoverage:  coveragePercentage,
-      conceptCoverage:   coveragePercentage,
-      weightedCoverage:  coveragePercentage,
-      revisionCoverage:  totalTopics > 0 ? Math.round((revisedTopics / totalTopics) * 100) : 0,
+      syllabusCoverage:  avgCached("syllabusCoverage"),
+      conceptCoverage:   avgCached("conceptCoverage"),
+      weightedCoverage:  avgCached("weightedCoverage"),
+      revisionCoverage:  avgCached("revisionCoverage"),
       coveredTopics,
       totalTopics,
       revisedTopics,

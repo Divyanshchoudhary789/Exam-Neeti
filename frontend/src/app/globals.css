@@ -66,6 +66,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 .scrollbar-none                        { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar     { display: none; }
 
+/* Dark-surface scrollbar — the global scrollbar above is styled for the app's light
+   background; without this override, a scrollable dark element (e.g. the formula-info
+   popover) shows the light grey track/thumb as a mismatched line down its side. */
+.scrollbar-dark                        { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.25) transparent; }
+.scrollbar-dark::-webkit-scrollbar      { width: 5px; height: 5px; }
+.scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 9999px; }
+.scrollbar-dark::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
 /* ── Fade-in animation (used in forgot-password banners) ───── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-6px); }

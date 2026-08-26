@@ -534,6 +534,7 @@ exports.getStudentAttemptHistory = asyncHandler(async (req, res, next) => {
       attemptNumber:    idx + 1,
       attemptId:        attempt._id,
       exam:             attempt.exam,
+      sprint:           attempt.sprint,
       score:            attempt.score,
       totalMarks:       attempt.totalMarks,
       percentage:       attempt.percentage,

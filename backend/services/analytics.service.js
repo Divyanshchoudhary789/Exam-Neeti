@@ -378,12 +378,17 @@ const computeAnalytics = async (attempt) => {
     subjectTimeMap[r.subject].count++;
   });
 
+  // Normalize against the sum of the SAME responses' timeSpentSeconds (totalTimeAllResponses),
+  // not attempt.totalTimeSeconds (the attempt's stored wall-clock duration) — the two can
+  // differ (idle/pause time not attributed to any question), which would make these subject
+  // percentages not sum to 100% and be non-comparable with difficultyAccuracy/difficultySummary's
+  // percentageOfTotal below, which is already normalized against totalTimeAllResponses.
   const subjectTimeDistribution = Object.entries(subjectTimeMap).map(
     ([subject, data]) => ({
       subject,
       totalTimeSeconds: roundTo(data.totalTime),
       avgTimePerQuestion: roundTo(safeDiv(data.totalTime, data.count)),
-      percentageOfTotal: roundTo(safeDiv(data.totalTime, totalTimeSeconds) * 100),
+      percentageOfTotal: roundTo(safeDiv(data.totalTime, totalTimeAllResponses) * 100),
     })
   );
 

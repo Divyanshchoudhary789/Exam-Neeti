@@ -60,6 +60,10 @@ const stdDev = (values) => {
 };
 const accuracyFor = (items) => pct(items.filter((r) => r.isCorrect).length, items.filter((r) => r.isAttempted).length);
 const attemptedRateFor = (items) => pct(items.filter((r) => r.isAttempted).length, items.length);
+// Shared fallback for ROI-style (marks-per-minute) calculations when a response has no
+// recorded time — used by both computeROIMetrics and computeAttemptOrderQuality so the
+// same question doesn't get two different ROI values depending on which section computed it.
+const estimateTimeMinutes = (timeSpentSeconds) => Math.max((timeSpentSeconds || 60) / 60, 0.1);
 
 const loadFormulaParams = async (sprintId) => {
   const configs = await FormulaConfig.find({
@@ -82,9 +86,17 @@ const loadFormulaParams = async (sprintId) => {
  * 1. FOUNDATION METRICS
  */
 const computeFoundationMetrics = (responses, params) => {
+  // Sum each response's own recorded marks (marksAwarded, or marks/negativeMarks as a
+  // fallback) rather than a flat correct_marks/incorrect_marks default — questions can
+  // carry non-default marks (bonus/partial-credit), and other sections of this same
+  // document (difficulty.scoreContribution, subjectTopic.subjectWiseScore) already use
+  // the per-question values, so a flat-default score here would silently disagree with them.
   const totalScore = responses.reduce((sum, r) => {
     if (!r.isAttempted) return sum;
-    return sum + (r.isCorrect ? params.correct_marks : params.incorrect_marks);
+    if (Number.isFinite(r.marksAwarded)) return sum + r.marksAwarded;
+    if (r.isCorrect) return sum + (Number.isFinite(r.marks) ? r.marks : params.correct_marks);
+    const negative = Number.isFinite(r.negativeMarks) ? r.negativeMarks : Math.abs(params.incorrect_marks);
+    return sum - negative;
   }, 0);
 
   const attempted = responses.filter((r) => r.isAttempted).length;
@@ -232,9 +244,10 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
   const conceptErrors = [];
   const guesses = [];
 
+  const attemptedForAvg = responses.filter((r) => r.isAttempted);
   const avgTime = safeDiv(
-    responses.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0),
-    responses.filter((r) => r.isAttempted).length
+    attemptedForAvg.reduce((s, r) => s + (r.timeSpentSeconds || 0), 0),
+    attemptedForAvg.length
   );
 
   responses.forEach((r) => {
@@ -297,7 +310,7 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
  * Low ROI Attempts = Attempted Low ROI / Total Low ROI
  * Score Opportunity Index = Sum of all avoidable losses
  */
-const computeROIMetrics = (responses, params, historicalProbability = {}) => {
+const computeROIMetrics = (responses, params, historicalProbability = {}, sillyMistakeQuestionIds = new Set()) => {
   const roiMap = responses.map((r) => {
     const chapterKey = `${r.subject}_${r.chapter}`;
     const probMap = historicalProbability[chapterKey];
@@ -310,7 +323,7 @@ const computeROIMetrics = (responses, params, historicalProbability = {}) => {
       : (r.difficulty === "easy" ? 0.6 : r.difficulty === "medium" ? 0.45 : 0.3);
     const pWrong = 1 - pCorrect;
     const expectedMarks = params.correct_marks * pCorrect + params.incorrect_marks * pWrong;
-    const timeMinutes = Math.max((r.timeSpentSeconds || 60) / 60, 0.1);
+    const timeMinutes = estimateTimeMinutes(r.timeSpentSeconds);
     const roi = safeDiv(expectedMarks, timeMinutes);
 
     return { ...r, roi, pCorrect, expectedMarks };
@@ -327,7 +340,11 @@ const computeROIMetrics = (responses, params, historicalProbability = {}) => {
   const highROIAccuracy = roundTo(safeDiv(highROIAttempted.filter((r) => r.isCorrect).length, highROIAttempted.length) * 100);
 
   // Score Opportunity Index
-  const sillyMistakesLoss = responses.filter((r) => r.isAttempted && !r.isCorrect && r.difficulty === "easy").length * params.silly_mistake_reward;
+  // Reuses the SAME silly-mistake classification as errorClassification.sillyMistakes
+  // (confidence/history/time-based, see classifyErrors) rather than an independent
+  // wrong-and-easy proxy — otherwise this document would report two different counts
+  // both labelled "silly mistakes".
+  const sillyMistakesLoss = responses.filter((r) => r.isAttempted && !r.isCorrect && sillyMistakeQuestionIds.has(String(r.questionId))).length * params.silly_mistake_reward;
   const highROISkippedLoss = highROI.filter((r) => !r.isAttempted).length * params.high_roi_skip_penalty;
   const lowROIAttemptedLoss = lowROI.filter((r) => r.isAttempted && !r.isCorrect).length * params.low_roi_wrong_penalty;
   const guessingLoss = roiMap.filter((r) => r.isAttempted && !r.isCorrect && (r.timeSpentSeconds || 0) < 20).length * params.guess_penalty;
@@ -361,7 +378,7 @@ const computeFatigueCurve = (responses, params) => {
   const rollingWindows = [];
 
   // Sort responses by sequence position
-  const sorted = [...responses].filter((r) => r.isAttempted).sort((a, b) => (a.sequencePosition || a.slotPosition) - (b.sequencePosition || b.slotPosition));
+  const sorted = [...responses].filter((r) => r.isAttempted).sort((a, b) => (a.sequencePosition ?? a.slotPosition) - (b.sequencePosition ?? b.slotPosition));
 
   for (let i = 0; i <= sorted.length - windowSize; i++) {
     const window = sorted.slice(i, i + windowSize);
@@ -371,8 +388,8 @@ const computeFatigueCurve = (responses, params) => {
     rollingWindows.push({
       windowIndex: i,
       windowSize,
-      startPosition: window[0].sequencePosition || window[0].slotPosition,
-      endPosition: window[windowSize - 1].sequencePosition || window[windowSize - 1].slotPosition,
+      startPosition: window[0].sequencePosition ?? window[0].slotPosition,
+      endPosition: window[windowSize - 1].sequencePosition ?? window[windowSize - 1].slotPosition,
       accuracy,
       correct,
       total: windowSize,
@@ -430,7 +447,7 @@ const computeFatigueCurve = (responses, params) => {
  * 7. STREAK ANALYSIS
  */
 const computeStreaks = (responses) => {
-  const sorted = [...responses].filter((r) => r.isAttempted).sort((a, b) => (a.sequencePosition || a.slotPosition) - (b.sequencePosition || b.slotPosition));
+  const sorted = [...responses].filter((r) => r.isAttempted).sort((a, b) => (a.sequencePosition ?? a.slotPosition) - (b.sequencePosition ?? b.slotPosition));
 
   let goodStreaks = [];
   let badStreaks = [];
@@ -551,7 +568,7 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
 
     const pWrong       = 1 - pCorrect;
     const expectedMark = CORRECT_MARKS * pCorrect + INCORRECT_MARKS * pWrong;
-    const timeEstimateMinutes = Math.max((r.timeSpentSeconds > 0 ? r.timeSpentSeconds : 90) / 60, 0.1);
+    const timeEstimateMinutes = estimateTimeMinutes(r.timeSpentSeconds);
     const roi          = expectedMark > 0 ? expectedMark / timeEstimateMinutes : 0;
 
     // Easy bonus: extra weight for easy questions (quick wins)
@@ -589,14 +606,6 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
     );
   });
 
-  // Ideal rank: descending by priorityScore (rank 1 = highest priority)
-  const idealSorted = [...withPriority].sort(
-    (a, b) => b.priorityScore - a.priorityScore
-  );
-  idealSorted.forEach((q, idx) => {
-    q.idealRank = idx + 1;
-  });
-
   // Actual rank from sequencePosition — only sequenced (attempted) questions
   const sequenced = withPriority.filter(
     (q) => q.isAttempted && q.sequencePosition !== null && q.sequencePosition !== undefined
@@ -618,6 +627,18 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
     };
   }
 
+  // Ideal rank: descending by priorityScore, scoped to the SEQUENCED subset only
+  // (rank 1 = highest priority). Spearman's simplified d² formula requires both
+  // rankings to be permutations of the same 1..n — ranking idealRank against the
+  // full question set while actualRank only covers the sequenced subset would mix
+  // two differently-sized rank sets and can push ρ outside the valid [-1, 1] range.
+  const idealSorted = [...sequenced].sort(
+    (a, b) => b.priorityScore - a.priorityScore
+  );
+  idealSorted.forEach((q, idx) => {
+    q.idealRank = idx + 1;
+  });
+
   // Re-rank actual sequence: rank within sequenced questions by sequencePosition ascending
   const actualSorted = [...sequenced].sort(
     (a, b) => a.sequencePosition - b.sequencePosition
@@ -634,9 +655,9 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
   });
 
   // Compute Spearman ρ only over sequenced questions
-  // Build a map: slotPosition → idealRank (among ALL questions)
+  // Build a map: slotPosition → idealRank (within the sequenced subset)
   const idealRankMap = {};
-  withPriority.forEach((q) => {
+  sequenced.forEach((q) => {
     idealRankMap[q.slotPosition] = q.idealRank;
   });
 
@@ -759,7 +780,7 @@ const computeMetricsFramework = (
   const totalMinutes = Math.max(totalTime / 60, 0.01);
   const sortedBySlot = [...responses].sort((a, b) => (a.slotPosition || 0) - (b.slotPosition || 0));
   const sortedByAttempt = [...attempted].sort(
-    (a, b) => (a.sequencePosition || a.slotPosition || 0) - (b.sequencePosition || b.slotPosition || 0)
+    (a, b) => (a.sequencePosition ?? a.slotPosition ?? 0) - (b.sequencePosition ?? b.slotPosition ?? 0)
   );
 
   const firstN = sortedByAttempt.slice(0, Math.min(10, sortedByAttempt.length));
@@ -1180,7 +1201,10 @@ const computeAdvancedAnalytics = async (attempt, analyticsResultId) => {
   const errorClassification = classifyErrors(responses, params, historicalAccuracy);
 
   // 5. ROI Metrics
-  const roiMetrics = computeROIMetrics(responses, params, probabilityMap);
+  const sillyMistakeQuestionIds = new Set(
+    (errorClassification.sillyMistakeQuestions || []).map((q) => String(q.questionId))
+  );
+  const roiMetrics = computeROIMetrics(responses, params, probabilityMap, sillyMistakeQuestionIds);
 
   // 6. Fatigue Curve
   const fatigueCurve = computeFatigueCurve(responses, params);

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { RadialMeter } from "./Charts";
 
 // ==========================================
@@ -795,5 +796,188 @@ export function MiniStatCard({
         </div>
       )}
     </div>
+  );
+}
+
+// ==========================================
+// FORMULA INFO — "how is this number computed" popover
+// ==========================================
+/**
+ * Small (i) trigger that reveals the formula behind a metric and, when given,
+ * the actual values plugged in for this specific result — so a metric tile
+ * is self-documenting instead of an opaque number.
+ */
+const FORMULA_POPOVER_WIDTH = 272;
+const FORMULA_POPOVER_MARGIN = 10;
+
+export function FormulaInfo({
+  formula,
+  calculation,
+  note,
+}: {
+  /** The general formula, e.g. "Correct ÷ Attempted × 100" */
+  formula: string;
+  /** This result's actual substituted values, e.g. "18 ÷ 22 × 100 = 81.8%" */
+  calculation?: string;
+  /** Optional short clarifying note (data source, edge case, etc.) */
+  note?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  // Popover is positioned in viewport space (position: fixed) and clamped on open so it
+  // never runs off-screen — metric tiles sit in a grid, so a naive "anchored under the
+  // icon" popover would spill past the right edge for every rightmost-column tile.
+  // `ready` gates visibility until the FIRST layout pass has measured the popover's real
+  // (content-dependent) height — formula/calculation/note text varies a lot in length, so
+  // a guessed height would misjudge whether it fits below the trigger and clip off-screen.
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number; ready: boolean } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const reposition = (measuredHeight?: number) => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.min(FORMULA_POPOVER_WIDTH, vw - FORMULA_POPOVER_MARGIN * 2);
+    const left = Math.min(
+      Math.max(rect.left + rect.width / 2 - width / 2, FORMULA_POPOVER_MARGIN),
+      vw - width - FORMULA_POPOVER_MARGIN
+    );
+    const spaceBelow = vh - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const height = measuredHeight ?? 160; // first pass: reasonable guess, refined below
+    const openUp = height > spaceBelow && spaceAbove > spaceBelow;
+    // +6px buffer over the measured height: without it, content that just barely fits
+    // can still trigger `overflow-y-auto`'s scrollbar by a sub-pixel margin (rounding,
+    // or the scrollbar gutter itself shaving a few px off the content width and
+    // reflowing text slightly taller) — showing an unwanted scrollbar sliver for content
+    // that doesn't actually need to scroll.
+    const maxHeight = Math.max(Math.min(height + 6, openUp ? spaceAbove : spaceBelow), 80);
+    setPos(
+      openUp
+        ? { left, bottom: vh - rect.top + 8, maxHeight, ready: measuredHeight !== undefined }
+        : { left, top: rect.bottom + 8, maxHeight, ready: measuredHeight !== undefined }
+    );
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    reposition();
+    const onDocPointerDown = (e: Event) => {
+      const target = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    const onResize = () => reposition(popoverRef.current?.scrollHeight);
+    document.addEventListener("mousedown", onDocPointerDown);
+    document.addEventListener("touchstart", onDocPointerDown, { passive: true });
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("mousedown", onDocPointerDown);
+      document.removeEventListener("touchstart", onDocPointerDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onResize);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Second pass: now that the popover is in the DOM (first pass, invisible), measure its
+  // real content height and recompute the final, accurate position before it's shown.
+  useLayoutEffect(() => {
+    if (!open || !popoverRef.current || pos?.ready) return;
+    reposition(popoverRef.current.scrollHeight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pos]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className={`shrink-0 -m-1 p-1 group/finfo cursor-pointer`}
+        aria-label="How is this calculated"
+        aria-expanded={open}
+      >
+        <span
+          className={`flex items-center justify-center w-3.5 h-3.5 rounded-full transition-colors ${
+            open
+              ? "bg-indigo-600 text-white"
+              : "bg-slate-200 text-slate-500 group-hover/finfo:bg-indigo-500 group-hover/finfo:text-white"
+          }`}
+        >
+          <IconInfo className="w-2.5 h-2.5" />
+        </span>
+      </button>
+      {/* Portaled to document.body: metric tiles across this app use hover:-translate-y-*
+          utilities, and per the CSS spec an ancestor with an ACTIVE transform (including
+          one only applied on :hover — true here, since the user is hovering the tile to
+          reach this icon) becomes the containing block for `position: fixed` descendants.
+          Without the portal this popover would be positioned relative to that tiny hovered
+          tile instead of the viewport — appearing misplaced or invisible depending on
+          which tile was hovered when it opened. */}
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={popoverRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            left: pos.left,
+            top: pos.top,
+            bottom: pos.bottom,
+            width: Math.min(FORMULA_POPOVER_WIDTH, window.innerWidth - FORMULA_POPOVER_MARGIN * 2),
+            maxHeight: pos.maxHeight,
+            // visibility (not opacity/transition) gates the reveal — a CSS transition
+            // depends on the browser actually running a compositor frame to animate
+            // through, which is not guaranteed the instant this element mounts;
+            // visibility flips synchronously with no such dependency, so the popover
+            // is never left silently invisible.
+            visibility: pos.ready ? "visible" : "hidden",
+            pointerEvents: pos.ready ? "auto" : "none",
+          }}
+          className="z-50 overflow-y-auto scrollbar-dark p-3.5 rounded-xl bg-slate-900 text-white shadow-2xl ring-1 ring-white/10"
+        >
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="w-3.5 h-3.5 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
+              <IconInfo className="w-2.5 h-2.5" />
+            </span>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">How this is calculated</p>
+          </div>
+          <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Formula</p>
+          <p className="text-[11.5px] font-mono leading-snug text-slate-100 break-words">{formula}</p>
+          {calculation && (
+            <>
+              <p className="text-[9px] font-extrabold uppercase tracking-wider text-emerald-300 mt-2.5 mb-1">
+                Your numbers
+              </p>
+              <p className="text-[11.5px] font-mono leading-snug text-emerald-50 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-1.5 break-words">
+                {calculation}
+              </p>
+            </>
+          )}
+          {note && (
+            <p className="text-[10px] leading-snug text-slate-400 mt-2.5 pt-2.5 border-t border-white/10">
+              {note}
+            </p>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }

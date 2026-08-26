@@ -162,7 +162,7 @@ export function StudentAnalyticsModal({
                   <p className="text-[10px] text-slate-400 font-bold mt-0.5">Syllabus topics</p>
                 </div>
                 {coverageData ? (
-                  <RadialMeter value={Number(coverageData.coveragePercentage || coverageData.syllabusCoverage || 0)} size={52} strokeWidth={5.5} />
+                  <RadialMeter value={Number(coverageData.syllabusCoverage || 0)} size={52} strokeWidth={5.5} />
                 ) : (
                   <span className="text-xs font-black text-slate-300">N/A</span>
                 )}

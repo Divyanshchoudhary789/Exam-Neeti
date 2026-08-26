@@ -175,5 +175,10 @@ attemptSchema.index({ exam: 1 });
 attemptSchema.index({ batch: 1, sprint: 1 });
 attemptSchema.index({ status: 1 });
 attemptSchema.index({ analyticsComputed: 1 });
+// Supports the per-submission "prior attempts" history lookup in
+// advancedAnalytics.service.js (student + status filter, sorted by submittedAt desc) —
+// without this, Mongo must collect and in-memory-sort a student's full attempt history
+// on every submission, which can exceed the 32MB sort limit as attempts accumulate.
+attemptSchema.index({ student: 1, status: 1, submittedAt: -1 });
 
 module.exports = mongoose.model("Attempt", attemptSchema);
