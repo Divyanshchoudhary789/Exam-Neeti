@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { CommonModal, Spinner, IconEye, IconCheck, IconCross } from "../common/UIComponents";
+import { CommonModal, Spinner, IconEye, IconCheck, IconCross, IconAlertTriangle } from "../common/UIComponents";
 import { adminService } from "../../services/apiServices";
 import { MathRenderer } from "../common/MathRenderer";
 import { DynamicCustomFieldsSection } from "./CustomFieldInputs";
@@ -16,6 +16,31 @@ interface EditQuestionModalProps {
 }
 
 type OptionImages = Record<"A" | "B" | "C" | "D", File | null>;
+
+interface ConversionReviewEntry {
+  location: string;
+  originalImageUrl: string | null;
+  convertedLatex: string;
+  flagged: boolean;
+  verified: boolean;
+}
+
+interface ActivityLogEntry {
+  action: "created" | "edited" | "status_changed" | "bulk_uploaded";
+  byEmail: string;
+  byRole: string;
+  at: string;
+  meta?: { from?: string; to?: string; fileName?: string };
+}
+
+const LOCATION_LABELS: Record<string, string> = {
+  text: "Question Text", solution: "Solution",
+  option_A: "Option A", option_B: "Option B", option_C: "Option C", option_D: "Option D",
+};
+
+const ACTION_LABELS: Record<ActivityLogEntry["action"], string> = {
+  created: "Created", edited: "Edited", status_changed: "Status changed", bulk_uploaded: "Bulk uploaded",
+};
 
 function imgUrl(v: unknown): string | null {
   return (v as { url?: string } | undefined)?.url || null;
@@ -78,6 +103,8 @@ export function EditQuestionModal({
   const [optionImages, setOptionImages] = useState<OptionImages>({ A: null, B: null, C: null, D: null });
   const [submitting, setSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [verifiedIndexes, setVerifiedIndexes] = useState<Set<number>>(new Set());
+  const [showHistory, setShowHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const solFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +141,20 @@ export function EditQuestionModal({
   });
 
   const isDraft = String(questionData?.status || "active") === "draft";
+
+  const conversionReview = (questionData?.conversionReview as ConversionReviewEntry[] | undefined) || [];
+  const activityLog = (questionData?.activityLog as ActivityLogEntry[] | undefined) || [];
+  const unverifiedCount = conversionReview.length - verifiedIndexes.size;
+
+  useEffect(() => {
+    // Reset the checklist to whatever the server already has recorded as
+    // verified (normally all false — verification currently lives for the
+    // duration of this review session; see handleSubmit's activation guard).
+    const initial = new Set<number>();
+    conversionReview.forEach((c, i) => { if (c.verified) initial.add(i); });
+    setVerifiedIndexes(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionData]);
 
   // Preview URLs — a newly-selected (not-yet-uploaded) file always wins over
   // the existing saved image, so the preview shows exactly what will be
@@ -180,6 +221,14 @@ export function EditQuestionModal({
     if (!questionData?._id && !questionData?.id) {
       showToast("Invalid question reference", "error");
       return;
+    }
+
+    if (status === "active" && unverifiedCount > 0) {
+      const proceed = window.confirm(
+        `${unverifiedCount} auto-converted formula(s) haven't been checked against their original yet. ` +
+        `Activate anyway? (This question will become usable in exams immediately.)`
+      );
+      if (!proceed) return;
     }
 
     const qId = String(questionData._id || questionData.id);
@@ -263,17 +312,97 @@ export function EditQuestionModal({
           </div>
         )}
 
+        {conversionReview.length > 0 && (
+          <div className="space-y-2.5 bg-sky-50/60 border border-sky-200 rounded-2xl p-3.5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-black text-sky-800 flex items-center gap-1.5">
+                <IconAlertTriangle className="w-3.5 h-3.5" />
+                Verify Conversions
+                <span className="font-semibold text-sky-500">({conversionReview.length - unverifiedCount}/{conversionReview.length} checked)</span>
+              </p>
+            </div>
+            <p className="text-[11px] text-sky-700 font-medium leading-relaxed">
+              These formulas were auto-converted from the uploaded document. Compare each one against the original image
+              and tick it once you&apos;ve confirmed it&apos;s correct — fix the text field above directly if it isn&apos;t.
+            </p>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {conversionReview.map((c, i) => {
+                const checked = verifiedIndexes.has(i);
+                return (
+                  <div
+                    key={i}
+                    className={`flex flex-col sm:flex-row sm:items-center gap-2.5 p-2.5 rounded-xl border text-xs ${
+                      c.flagged ? "bg-red-50 border-red-200" : checked ? "bg-emerald-50 border-emerald-200" : "bg-white border-sky-100"
+                    }`}
+                  >
+                    <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setVerifiedIndexes((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(i); else next.delete(i);
+                          return next;
+                        })}
+                        className="w-4 h-4 rounded accent-sky-600"
+                      />
+                    </label>
+                    <span className="px-2 py-0.5 rounded-full border text-[9px] font-black uppercase bg-slate-100 text-slate-600 border-slate-200 shrink-0">
+                      {LOCATION_LABELS[c.location] || c.location}
+                    </span>
+                    {c.originalImageUrl ? (
+                      <img src={c.originalImageUrl} alt="Original equation" className="h-10 rounded-lg border border-slate-200 object-contain bg-white shrink-0" />
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium shrink-0 italic">native — no image</span>
+                    )}
+                    <span className="text-slate-300 shrink-0">→</span>
+                    <div className="flex-1 min-w-0 font-semibold text-slate-800">
+                      <MathRenderer text={`$${c.convertedLatex}$`} inline />
+                    </div>
+                    {c.flagged && <span className="text-[9px] font-black uppercase text-red-600 shrink-0">Needs fix</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
           <span className="text-xs font-bold text-slate-700">Question Editor</span>
-          <button
-            type="button"
-            onClick={() => setShowPreview(!showPreview)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold rounded-lg transition-all"
-          >
-            <IconEye className="w-3.5 h-3.5" />
-            <span>{showPreview ? "Hide Preview" : "Live Preview"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {activityLog.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowHistory(!showHistory)}
+                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold rounded-lg transition-all"
+              >
+                {showHistory ? "Hide History" : "History"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPreview(!showPreview)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-extrabold rounded-lg transition-all"
+            >
+              <IconEye className="w-3.5 h-3.5" />
+              <span>{showPreview ? "Hide Preview" : "Live Preview"}</span>
+            </button>
+          </div>
         </div>
+
+        {showHistory && (
+          <div className="space-y-1.5 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+            {activityLog.slice().reverse().map((a, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-1.5 text-slate-600">
+                <span className="font-bold text-slate-800">{ACTION_LABELS[a.action] || a.action}</span>
+                {a.meta?.from && a.meta?.to && <span className="text-slate-400">({a.meta.from} → {a.meta.to})</span>}
+                <span>by</span>
+                <span className="font-semibold">{a.byEmail || "unknown"}</span>
+                <span className="text-slate-400">· {new Date(a.at).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {showPreview && (
           <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200 space-y-3">

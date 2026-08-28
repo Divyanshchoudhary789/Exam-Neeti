@@ -354,13 +354,23 @@ export const adminService = {
     const res = await api.patch("/questions/bulk-deactivate", { ids });
     return res.data;
   },
-  /** Bulk-upload a .docx or .xlsx of questions — creates them as drafts. */
-  bulkUploadQuestions: async (file: File) => {
+  /**
+   * Starts a bulk-upload of a .docx or .xlsx of questions — creates them as
+   * drafts. Returns immediately with a batchId; processing (equation
+   * conversion, image uploads) continues in the background — poll
+   * getBulkUploadStatus(batchId) for the result.
+   */
+  bulkUploadQuestions: async (file: File): Promise<{ data: { batchId: string } }> => {
     const fd = new FormData();
     fd.append("file", file);
     const res = await api.post("/questions/bulk-upload", fd, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    return res.data;
+  },
+  /** Polls one bulk-upload job's progress/result. */
+  getBulkUploadStatus: async (batchId: string) => {
+    const res = await api.get(`/questions/bulk-upload/${batchId}/status`);
     return res.data;
   },
   /** Download the sample bulk-upload template (Word or Excel). */

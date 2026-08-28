@@ -64,6 +64,45 @@ async function parseQuestionsXlsx(buffer) {
     );
   }
 
+  // ── Anchored pictures (diagrams pasted into "Question Image" /
+  //    "Solution Image" columns) — Excel has no equivalent of Word's
+  //    inline-within-text equation objects, so this rich pipeline's Excel
+  //    side only adds IMAGE support; formulas still go through the
+  //    existing, already-accurate typed-shorthand/LaTeX pipeline
+  //    (processMathField) — unchanged, and unlike Word's legacy MathType
+  //    objects, this was already working correctly, so there is no OCR
+  //    step to add here. Best-effort: never throws — a workbook with no
+  //    images, or an ExcelJS version quirk reading them, degrades to
+  //    "no images found" rather than failing the whole upload.
+  const imagesByRow = new Map(); // rowNumber -> { questionImage?, solutionImage? }
+  try {
+    const questionImageCol = Number(Object.entries(columnKeys).find(([, k]) => k === "questionImage")?.[0]) || null;
+    const solutionImageCol = Number(Object.entries(columnKeys).find(([, k]) => k === "solutionImage")?.[0]) || null;
+
+    if (questionImageCol || solutionImageCol) {
+      const media = workbook.model.media || [];
+      for (const img of worksheet.getImages()) {
+        const mediaEntry = media[img.imageId] || media.find((m) => m?.index === Number(img.imageId));
+        if (!mediaEntry || !mediaEntry.buffer) continue;
+
+        // ExcelJS image anchors are 0-based fractional {col, row} — round
+        // the top-left corner to the nearest 1-based cell.
+        const anchorRow = Math.round(img.range.tl.row) + 1;
+        const anchorCol = Math.round(img.range.tl.col) + 1;
+
+        const entry = imagesByRow.get(anchorRow) || {};
+        if (questionImageCol && Math.abs(anchorCol - questionImageCol) <= 1) {
+          entry.questionImage = { buffer: mediaEntry.buffer, ext: mediaEntry.extension };
+        } else if (solutionImageCol && Math.abs(anchorCol - solutionImageCol) <= 1) {
+          entry.solutionImage = { buffer: mediaEntry.buffer, ext: mediaEntry.extension };
+        }
+        imagesByRow.set(anchorRow, entry);
+      }
+    }
+  } catch {
+    // Image extraction is a best-effort enhancement — never block text parsing over it.
+  }
+
   const rows = [];
   const totalRows = worksheet.rowCount;
 
@@ -79,6 +118,10 @@ async function parseQuestionsXlsx(buffer) {
       rawRow[key] = text;
       if (text !== "") hasAnyValue = true;
     }
+
+    const images = imagesByRow.get(rowNumber);
+    if (images?.questionImage) { rawRow._questionImageFile = images.questionImage; hasAnyValue = true; }
+    if (images?.solutionImage) { rawRow._solutionImageFile = images.solutionImage; hasAnyValue = true; }
 
     if (!hasAnyValue) continue; // fully blank row — skip silently
     rows.push(rawRow);

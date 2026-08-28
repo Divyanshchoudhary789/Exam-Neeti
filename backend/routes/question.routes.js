@@ -74,10 +74,17 @@ router.get("/distinct", questionController.getDistinctValues);
 router.patch("/bulk-deactivate", questionController.bulkDeactivate);
 
 // POST /questions/bulk-upload — multipart, single .docx/.xlsx file field "file"
+// Returns 202 + a batchId immediately; processing continues in the background.
 router.post(
   "/bulk-upload",
   bulkQuestionUpload,
   questionController.bulkUploadQuestions
+);
+
+// GET /questions/bulk-upload/:batchId/status — poll while processing
+router.get(
+  "/bulk-upload/:batchId/status",
+  questionController.getBulkUploadStatus
 );
 
 // GET /questions/template?format=docx|xlsx

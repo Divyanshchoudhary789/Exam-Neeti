@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useRef, useState } from "react";
-import { CommonModal, Spinner, IconUpload, IconCheck, IconCross, IconAlertTriangle } from "../common/UIComponents";
+import React, { useEffect, useRef, useState } from "react";
+import { CommonModal, Spinner, IconUpload, IconCheck, IconCross, IconAlertTriangle, IconDownload } from "../common/UIComponents";
 import { adminService } from "../../services/apiServices";
 
 interface BulkUploadQuestionsModalProps {
@@ -17,18 +17,46 @@ interface BulkUploadResult {
   created: string[];
   skippedDuplicates: Array<{ row: number; reason: string }>;
   failed: Array<{ row: number; errors: string[] }>;
+  flaggedForReview: number;
+}
+
+interface JobProgress {
+  processed: number;
+  total: number;
+  stage: "parsing" | "converting_equations" | "uploading_images" | "saving" | "done";
 }
 
 const ACCEPTED_EXTENSIONS = [".docx", ".xlsx"];
+const POLL_INTERVAL_MS = 2000;
+
+const STAGE_LABELS: Record<JobProgress["stage"], string> = {
+  parsing: "Reading the file…",
+  converting_equations: "Converting formulas…",
+  uploading_images: "Uploading images…",
+  saving: "Saving questions…",
+  done: "Done",
+};
 
 export function BulkUploadQuestionsModal({ isOpen, onClose, onSuccess, showToast }: BulkUploadQuestionsModalProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(false); // initial POST in flight
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<JobProgress | null>(null);
   const [result, setResult] = useState<BulkUploadResult | null>(null);
+  const [downloadingFormat, setDownloadingFormat] = useState<"docx" | "xlsx" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
+  };
 
   const reset = () => {
+    stopPolling();
     setFile(null);
+    setUploading(false);
+    setBatchId(null);
+    setProgress(null);
     setResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -37,6 +65,8 @@ export function BulkUploadQuestionsModal({ isOpen, onClose, onSuccess, showToast
     reset();
     onClose();
   };
+
+  useEffect(() => stopPolling, []); // cleanup on unmount
 
   const handleFileChange = (f: File | null) => {
     if (f && !ACCEPTED_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext))) {
@@ -47,42 +77,115 @@ export function BulkUploadQuestionsModal({ isOpen, onClose, onSuccess, showToast
     setResult(null);
   };
 
+  const pollStatus = (id: string) => {
+    pollTimer.current = setInterval(async () => {
+      try {
+        const res = await adminService.getBulkUploadStatus(id);
+        const data = (res?.data || res) as {
+          status: "processing" | "done" | "failed";
+          progress: JobProgress;
+          result?: BulkUploadResult;
+          errorMessage?: string;
+        };
+        setProgress(data.progress);
+
+        if (data.status === "done") {
+          stopPolling();
+          const r = data.result as BulkUploadResult;
+          setResult(r);
+          if (r.createdCount > 0) {
+            showToast(`${r.createdCount} question(s) added as drafts — review them below.`, "success");
+            onSuccess();
+          } else {
+            showToast("No questions were added — see the report below.", "error");
+          }
+        } else if (data.status === "failed") {
+          stopPolling();
+          showToast(data.errorMessage || "Bulk upload failed while processing.", "error");
+          setBatchId(null);
+        }
+      } catch {
+        // A transient network hiccup while polling shouldn't kill the flow —
+        // just try again on the next tick.
+      }
+    }, POLL_INTERVAL_MS);
+  };
+
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
     try {
       const res = await adminService.bulkUploadQuestions(file);
-      const data = (res?.data || res) as BulkUploadResult;
-      setResult(data);
-      if (data.createdCount > 0) {
-        showToast(`${data.createdCount} question(s) added as drafts — review them below.`, "success");
-        onSuccess();
-      } else {
-        showToast("No questions were added — see the report below.", "error");
-      }
+      const data = (res?.data || res) as { batchId: string };
+      setBatchId(data.batchId);
+      setProgress({ processed: 0, total: 0, stage: "parsing" });
+      pollStatus(data.batchId);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
         (err as { message?: string }).message ||
-        "Bulk upload failed";
+        "Bulk upload failed to start";
       showToast(msg, "error");
     } finally {
       setUploading(false);
     }
   };
 
+  const handleDownloadTemplate = async (format: "docx" | "xlsx") => {
+    setDownloadingFormat(format);
+    try {
+      const { objectUrl, filename } = await adminService.downloadQuestionTemplate(format);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to download template", "error");
+    } finally {
+      setDownloadingFormat(null);
+    }
+  };
+
+  const isProcessing = batchId !== null && result === null;
+  const pct = progress && progress.total > 0 ? Math.min(100, Math.round((progress.processed / progress.total) * 100)) : null;
+
   return (
     <CommonModal isOpen={isOpen} onClose={handleClose} title="Bulk Upload Questions" maxWidth="max-w-2xl">
       <div className="space-y-4">
-        <p className="text-xs text-slate-500 font-medium leading-relaxed">
-          Upload a filled-in copy of the sample template (.docx or .xlsx). Every question must already have any
-          formulas written as LaTeX (<code>$...$</code>) — this file should not contain images. Every row is added
-          to the bank as a <b>draft</b>; review each one on the &quot;My Questions&quot; page (add images, fix anything)
-          before activating it for use in exams.
-        </p>
-
-        {!result && (
+        {!batchId && !result && (
           <>
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              Upload a filled-in copy of the sample template (.docx or .xlsx) — either the structured table format, or a
+              naturally-formatted exam paper with embedded equations and images (download a sample below to see both,
+              with worked examples). Every question is added to the bank as a <b>draft</b> — review each one on the
+              &quot;My Questions&quot; page (verify any auto-converted formula, add anything missing) before activating
+              it for use in exams.
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleDownloadTemplate("docx")}
+                disabled={downloadingFormat !== null}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                {downloadingFormat === "docx" ? <Spinner className="w-3.5 h-3.5" /> : <IconDownload className="w-3.5 h-3.5" />}
+                <span>Sample Word File</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadTemplate("xlsx")}
+                disabled={downloadingFormat !== null}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                {downloadingFormat === "xlsx" ? <Spinner className="w-3.5 h-3.5" /> : <IconDownload className="w-3.5 h-3.5" />}
+                <span>Sample Excel File</span>
+              </button>
+            </div>
+
             <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center">
               <input
                 ref={fileInputRef}
@@ -99,14 +202,35 @@ export function BulkUploadQuestionsModal({ isOpen, onClose, onSuccess, showToast
               onClick={handleUpload}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
-              {uploading ? <Spinner className="w-4 h-4 text-white" /> : <><IconUpload className="w-4 h-4" /><span>Upload & Parse</span></>}
+              {uploading ? <Spinner className="w-4 h-4 text-white" /> : <><IconUpload className="w-4 h-4" /><span>Upload & Process</span></>}
             </button>
           </>
         )}
 
+        {isProcessing && (
+          <div className="py-8 flex flex-col items-center gap-4 text-center">
+            <Spinner className="w-8 h-8 text-indigo-600" />
+            <div>
+              <p className="text-sm font-bold text-slate-800">{progress ? STAGE_LABELS[progress.stage] : "Processing…"}</p>
+              {progress && progress.total > 0 && (
+                <p className="text-xs text-slate-500 font-medium mt-1">{progress.processed} / {progress.total}</p>
+              )}
+            </div>
+            {pct !== null && (
+              <div className="w-full max-w-xs h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-600 transition-all duration-500" style={{ width: `${pct}%` }} />
+              </div>
+            )}
+            <p className="text-[11px] text-slate-400 font-medium max-w-sm">
+              Large files with many formulas can take a minute or two — you can close this and check back on the
+              &quot;My Questions&quot; Draft tab, the upload will keep processing.
+            </p>
+          </div>
+        )}
+
         {result && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
                 <p className="text-xl font-black text-emerald-700">{result.createdCount}</p>
                 <p className="text-[10px] font-bold uppercase text-emerald-600">Added as Draft</p>
@@ -119,7 +243,19 @@ export function BulkUploadQuestionsModal({ isOpen, onClose, onSuccess, showToast
                 <p className="text-xl font-black text-red-700">{result.failed.length}</p>
                 <p className="text-[10px] font-bold uppercase text-red-600">Failed</p>
               </div>
+              <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-center">
+                <p className="text-xl font-black text-sky-700">{result.flaggedForReview}</p>
+                <p className="text-[10px] font-bold uppercase text-sky-600">Formulas To Verify</p>
+              </div>
             </div>
+
+            {result.flaggedForReview > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs font-semibold text-sky-700">
+                <IconAlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{result.flaggedForReview} auto-converted formula(s) need a quick visual check — open a draft
+                  question&apos;s &quot;Verify Conversions&quot; section to compare each one against the original.</span>
+              </div>
+            )}
 
             {result.failed.length > 0 && (
               <div className="space-y-2">
@@ -152,7 +288,7 @@ export function BulkUploadQuestionsModal({ isOpen, onClose, onSuccess, showToast
             {result.createdCount > 0 && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700">
                 <IconCheck className="w-4 h-4 shrink-0" />
-                <span>Go to the Draft tab below to review, add images, and activate these questions.</span>
+                <span>Go to the Draft tab below to review, verify formulas, and activate these questions.</span>
               </div>
             )}
 

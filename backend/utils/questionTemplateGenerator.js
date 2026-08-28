@@ -72,6 +72,17 @@ const LATEX_CHEATSHEET = [
   ["<=, >=",     "\\leq, \\geq"],
 ];
 
+// The rich-format worked example: this is the SAME question convention as
+// the reference exam paper this pipeline was built against — a metadata
+// table (classification fields ONLY, no question text) followed by natural
+// "Q. ... / (1)..(4) / Sol. (N) ..." prose. See questionBlockMarkers.js and
+// questionDocxParser.js's parseRichQuestionsDocx for the exact rules.
+const RICH_EXAMPLE_METADATA = {
+  subject: "physics", classLevel: "XI", chapter: "Laws of Motion",
+  topic: "Newton's Second Law", questionCategory: "Conceptual",
+  questionVariant: "Direct application", difficulty: "easy", idealTimeSeconds: "45",
+};
+
 // ─── xlsx ──────────────────────────────────────────────────────────────────────
 
 function colLetter(idx1) {
@@ -100,8 +111,8 @@ async function generateQuestionsXlsxBuffer() {
   [
     "Fill in the \"Questions\" sheet — one row per question. Do not rename or remove sheets.",
     "Fields marked * are required. Leave optional fields blank if not applicable.",
-    "Any formula MUST already be written as LaTeX wrapped in $...$ (e.g. $\\frac{1}{2}mv^2$) — do not use Word's equation editor.",
-    "Do NOT put images in this file. Add question/option/solution images later on the \"My Questions\" review page after uploading.",
+    "Formulas: type them as LaTeX wrapped in $...$ (e.g. $\\frac{1}{2}mv^2$) or the shorthand below — directly in the Question Text / Option / Solution Text cells. Excel has no equivalent of Word's inline equation objects, so this typed-formula approach is what the parser reads (and it's already fully accurate — no OCR/AI involved for text).",
+    "Images: paste/insert a picture directly into a cell in the \"Question Image\" or \"Solution Image\" column, on the SAME row as that question. It will be uploaded automatically and attached to that question. Leave these columns empty if a question has no diagram.",
     "Two example rows are already filled in on the Questions sheet — replace them with your own questions (or delete them) before uploading.",
   ].forEach((line) => instructions.addRow(["", `• ${line}`]));
 
@@ -213,23 +224,39 @@ async function generateQuestionsDocxBuffer() {
         properties: {},
         children: [
           new Paragraph({ text: "Exam Neeti — Bulk Question Upload Template", heading: HeadingLevel.TITLE }),
-          new Paragraph({ text: "How to use this file", heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }),
-          bullet("Each question must be exactly ONE 2-column table (Field | Value), in the exact format shown below. Do not merge cells or change the field labels."),
-          bullet("Fields marked * are required. Leave the value cell blank for optional fields you don't need."),
-          bullet("Any formula MUST already be written as LaTeX wrapped in $...$ (e.g. $\\frac{1}{2}mv^2$) — do not use Word's equation editor (Insert > Equation), and do not paste MathType objects."),
-          bullet("Do NOT put images in this file. Add question/option/solution images later on the \"My Questions\" review page after uploading."),
+          new Paragraph({ text: "Two supported formats — use whichever fits how you already write papers", heading: HeadingLevel.HEADING_1, spacing: { before: 200 } }),
+          bullet("Format A — Structured table (Example 1 & 2 below): each question is one 2-column (Field | Value) table with EVERY field, including Question Text/Options/Solution, as rows in that same table. Formulas here must be typed as LaTeX ($...$) — no Word equation objects."),
+          bullet("Format B — Natural exam-paper style (Example 3 below): a metadata table with only the classification fields (Subject/Class/Chapter/Topic/.../Difficulty), followed by the question written the way you'd normally type an exam paper — \"Q.\", four numbered options, \"Sol. (N)\" with the correct option number, then the worked solution."),
+          bullet("Format B accepts formulas EITHER typed as LaTeX/shorthand OR inserted directly as real equations (Word's Insert > Equation, or MathType/Equation Editor) right inside the question/option/solution text — the system reads and converts these automatically."),
+          bullet("Format B also accepts diagram/photo images pasted directly into the question or solution text, in the right place — no separate upload step needed."),
           bullet(`Allowed Subject values: ${Object.values(SUBJECTS).join(", ")}`),
           bullet(`Allowed Class Level values: ${Object.values(CLASS_LEVELS).join(", ")}`),
           bullet(`Allowed Difficulty values: ${Object.values(DIFFICULTY).join(", ")}`),
           bullet("Correct Answer must be A, B, C, or D."),
-          new Paragraph({ text: "Two worked examples follow — copy a table, fill in your own values, and repeat for every question. Delete these two example tables (or leave them; the parser treats every table as one question) before uploading your real set.", spacing: { before: 100, after: 300 } }),
+          bullet("Every bulk-uploaded question lands as a DRAFT for review (add/fix anything, verify any auto-converted formula) before it's usable in an exam — nothing goes live automatically."),
+          new Paragraph({ text: "Delete whichever example(s) don't match your format before uploading your real set — you can mix both formats in one file if you want.", spacing: { before: 100, after: 300 } }),
 
-          new Paragraph({ text: "Example Question 1 (plain text, no formulas)", heading: HeadingLevel.HEADING_2 }),
+          new Paragraph({ text: "Example Question 1 — Format A, plain text, no formulas", heading: HeadingLevel.HEADING_2 }),
           exampleTable(EXAMPLES[0]),
           new Paragraph({ text: "", spacing: { after: 300 } }),
 
-          new Paragraph({ text: "Example Question 2 (with inline LaTeX formulas)", heading: HeadingLevel.HEADING_2 }),
+          new Paragraph({ text: "Example Question 2 — Format A, with inline LaTeX formulas", heading: HeadingLevel.HEADING_2 }),
           exampleTable(EXAMPLES[1]),
+          new Paragraph({ text: "", spacing: { after: 300 } }),
+
+          new Paragraph({ text: "Example Question 3 — Format B, natural exam-paper style", heading: HeadingLevel.HEADING_2 }),
+          new Table({
+            columnWidths: [LABEL_COL_WIDTH, VALUE_COL_WIDTH],
+            rows: FIELD_DEFS
+              .filter((f) => ["subject","classLevel","chapter","topic","questionCategory","questionVariant","difficulty","idealTimeSeconds"].includes(f.key))
+              .map((f) => fieldRow(f.label, RICH_EXAMPLE_METADATA[f.key])),
+          }),
+          new Paragraph({ text: "" }),
+          new Paragraph({ text: "Q.   A block of mass 2 kg is pushed with a force of 10 N on a frictionless surface. What is its acceleration? (Insert a real equation here for F = ma if you like — typing it as shown also works.)", spacing: { before: 100 } }),
+          new Paragraph({ text: "(1) 3 m/s²          (2) 5 m/s²" }),
+          new Paragraph({ text: "(3) 8 m/s²          (4) 10 m/s²" }),
+          new Paragraph({ text: "Sol.     (2).", spacing: { before: 100 } }),
+          new Paragraph({ text: "By Newton's second law, F = ma, so a = F/m = 10/2 = 5 m/s²." }),
         ],
       },
     ],

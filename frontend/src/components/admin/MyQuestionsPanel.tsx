@@ -199,6 +199,9 @@ export function MyQuestionsPanel({ showToast }: MyQuestionsPanelProps) {
             const status = String(q.status || "active");
             const diff = String(q.difficulty || "Medium");
             const diffColors: Record<string, string> = { easy: "bg-emerald-50 text-emerald-700 border-emerald-200", medium: "bg-amber-50 text-amber-700 border-amber-200", hard: "bg-red-50 text-red-700 border-red-200" };
+            const conversionReview = (q.conversionReview as Array<{ flagged?: boolean }> | undefined) || [];
+            const flaggedCount = conversionReview.filter((c) => c.flagged).length;
+            const createdByEmail = (q.createdBy as { email?: string } | undefined)?.email || "";
             return (
               <div key={qId} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-200 hover:shadow-md transition-all shadow-sm">
                 <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-100">
@@ -206,8 +209,16 @@ export function MyQuestionsPanel({ showToast }: MyQuestionsPanelProps) {
                     status === "draft" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
                   }`}>{status}</span>
                   <span className="text-xs font-bold text-slate-700">{String(q.subject || "")} · {String(q.chapter || "General")}{q.topic ? ` · ${String(q.topic)}` : ""}</span>
+                  {flaggedCount > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase bg-sky-50 text-sky-700 border-sky-200">
+                      {flaggedCount} to verify
+                    </span>
+                  )}
                   <span className={`ml-auto px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${diffColors[diff.toLowerCase()] || "bg-slate-100 text-slate-600 border-slate-200"}`}>{diff}</span>
                 </div>
+                {createdByEmail && (
+                  <p className="text-[10px] text-slate-400 font-semibold pt-2">Added by {createdByEmail}</p>
+                )}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
                   <p className="text-xs font-semibold text-slate-800 leading-relaxed line-clamp-2 flex-1">
                     <MathRenderer text={String(q.text || "Question text...")} />

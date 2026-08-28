@@ -41,8 +41,16 @@ const { createQuestionSchema }       = require("../validators/question.validator
 const { validateAndNormalizeCustomFields } = require("../utils/customFieldValidation");
 const QuestionFieldDefinition        = require("../models/QuestionFieldDefinition.model");
 const { parseQuestionsXlsx }         = require("../utils/questionXlsxParser");
-const { parseQuestionsDocx }         = require("../utils/questionDocxParser");
+const {
+  parseQuestionsDocx,
+  parseRichQuestionsDocx,
+  detectDocxTemplateFormat,
+}                                     = require("../utils/questionDocxParser");
 const { getQuestionTemplateBuffer }  = require("../utils/questionTemplateGenerator");
+const {
+  resolveDocxEquationsAndImages,
+  resolveXlsxImages,
+}                                     = require("../services/bulkUploadOrchestrator.service");
 const { ROLES }                      = require("../config/constants");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,6 +73,16 @@ const assertOwnsQuestion = (req, question) => {
     throw new AppError("You can only modify questions you created.", 403);
   }
 };
+
+/** Builds one activityLog entry from the authenticated requester. */
+const makeActivityEntry = (req, action, meta = {}) => ({
+  action,
+  byUserId: req.user.id,
+  byEmail:  req.user.email,
+  byRole:   req.user.role,
+  at:       new Date(),
+  meta,
+});
 
 /**
  * Uploads a file buffer to Cloudinary if it exists in req.files[fieldName].
@@ -248,6 +266,7 @@ exports.createQuestion = asyncHandler(async (req, res, next) => {
     createdBy:        { userId: req.user.id, email: req.user.email },
     patternSlotTags:  [],
     usageLog:         [],
+    activityLog:      [makeActivityEntry(req, "created")],
   });
 
   return sendSuccess(res, 201, "Question created successfully.", { question });
@@ -339,6 +358,7 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
 
   const body  = req.body;
   const files = req.files || {};
+  const oldStatus = question.status;
 
   // ── 1. Math processing for incoming text fields ────────────────────────────
   if (body.text !== undefined) {
@@ -499,6 +519,22 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
 
   question.contentHash = newHash;
 
+  // ── 9. Activity log — "edited" for any real content change, plus a
+  //    dedicated "status_changed" entry when draft/active actually flips
+  //    (the one entry MyQuestionsPanel's review workflow cares most about:
+  //    who activated this question, and when). ──────────────────────────
+  const otherFieldsTouched = Object.keys(body).some(
+    (k) => k !== "status" && !k.startsWith("remove")
+  ) || Object.keys(files).length > 0;
+  if (otherFieldsTouched) {
+    question.activityLog.push(makeActivityEntry(req, "edited"));
+  }
+  if (body.status !== undefined && body.status !== oldStatus) {
+    question.activityLog.push(
+      makeActivityEntry(req, "status_changed", { from: oldStatus, to: body.status })
+    );
+  }
+
   await question.save();
 
   return sendSuccess(res, 200, "Question updated successfully.", { question });
@@ -646,6 +682,13 @@ exports.getDistinctValues = asyncHandler(async (req, res, next) => {
 
 const MAX_BULK_ROWS = 200;
 
+// Default marks/negative-marks for bulk-uploaded questions whose source
+// document doesn't specify them per-question (confirmed against the real
+// reference exam paper — its metadata table has no Marks field at all).
+// Used ONLY as a fallback; an explicit value in the document always wins.
+const BULK_UPLOAD_DEFAULT_MARKS = 4;
+const BULK_UPLOAD_DEFAULT_NEGATIVE_MARKS = 1;
+
 /**
  * Normalises a free-typed class level ("xi", "XI", "Dropper", ...) to the
  * exact enum casing the schema expects. Unrecognised input passes through
@@ -686,11 +729,19 @@ function buildCandidateFromRawRow(row) {
       { key: "D", text: (row.optionD || "").trim() },
     ],
     correctAnswer: (row.correctAnswer || "").toUpperCase().trim(),
-    marks: row.marks,
+    // Real exam-paper source documents often don't carry per-question marks
+    // in their metadata (only Subject/Chapter/Difficulty/... — verified
+    // against the reference document). Per-file explicit values always win;
+    // BULK_UPLOAD_DEFAULT_MARKS/NEGATIVE_MARKS below are the fallback only
+    // when the document genuinely has none.
+    marks:
+      row.marks && String(row.marks).trim() !== ""
+        ? row.marks
+        : BULK_UPLOAD_DEFAULT_MARKS,
     negativeMarks:
       row.negativeMarks && String(row.negativeMarks).trim() !== ""
         ? row.negativeMarks
-        : 0,
+        : BULK_UPLOAD_DEFAULT_NEGATIVE_MARKS,
     solution: {
       text: (row.solutionText || "").trim(),
       hasLatex: false,
@@ -701,19 +752,110 @@ function buildCandidateFromRawRow(row) {
 }
 
 /**
+ * Splices `@@EQ_n@@` placeholders back into text as `$latex$`, AFTER the
+ * shorthand→LaTeX pipeline has already run on the placeholder-containing
+ * text (never before — running the shorthand converter over ALREADY-VALID
+ * LaTeX from Gemini/OMML would double-escape backslash commands, e.g.
+ * `\omega` -> `\\omega`, silently corrupting the equation. Discovered and
+ * fixed during implementation by tracing exactly what processMathField's
+ * "shorthand inside $...$ is also converted" mode 1 behaviour does to
+ * already-backslashed input).
+ *
+ * Only rich-docx rows ever contain `@@EQ_n@@` tokens — for plain-template
+ * docx and xlsx rows this is a no-op passthrough (no regressions there).
+ *
+ * @param {string} rawTextWithPlaceholders
+ * @param {string} fieldName
+ * @param {Map}    equationResolution
+ * @param {Array}  conversionReview   mutated: one entry pushed per equation spliced in
+ * @param {string} location           "text" | "option_A".."option_D" | "solution"
+ */
+function resolveTextWithEquations(rawTextWithPlaceholders, fieldName, equationResolution, conversionReview, location) {
+  if (!rawTextWithPlaceholders) return { text: "", hasLatex: false };
+
+  // IMPORTANT: split the placeholders OUT before calling processMathField,
+  // rather than running it over the whole placeholder-containing string.
+  // Discovered via end-to-end testing against the real reference document:
+  // processMathField's natural-sentence math auto-detector (and its
+  // pure-math-expression mode) both key off exactly the kind of token shape
+  // a placeholder like "@@EQ_3@@" has (digits/underscore next to letters)
+  // and WRAP/MUTATE it — e.g. inserting a "$" in the middle — which then
+  // breaks the exact-string match this function needs to splice the real
+  // LaTeX in, silently leaving a corrupted "@@$EQ_3$@@" token stored as
+  // question text instead of the equation. Splitting first means the
+  // placeholder text is never in the same string the shorthand
+  // converter/auto-detector ever looks at, so there is nothing for it to
+  // misfire on — only genuine surrounding prose goes through
+  // processMathField, and equation LaTeX is spliced in completely
+  // untouched afterwards.
+  const parts = rawTextWithPlaceholders.split(/@@EQ_(\d+)@@/);
+  let hasLatex = false;
+  let out = "";
+
+  // processMathField trims each segment's own leading/trailing whitespace
+  // (correct for its normal single-call-per-field use elsewhere) — called
+  // per-segment here, that would otherwise glue "velocity" directly onto
+  // "$F=ma$" with no space. Re-insert exactly one space between pieces
+  // where neither side already provides one and the next piece isn't
+  // closing punctuation (so "... is $F=ma$." doesn't become "... is $F=ma$ .").
+  const append = (piece) => {
+    if (!piece) return;
+    if (out && !/\s$/.test(out) && !/^[\s.,;:!?)\]]/.test(piece)) out += " ";
+    out += piece;
+  };
+
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      if (!parts[i]) continue;
+      const processed = processMathField(parts[i], fieldName);
+      append(processed.text);
+      hasLatex = hasLatex || processed.hasLatex;
+    } else {
+      const res = equationResolution.get(parts[i]);
+      if (!res) continue;
+      conversionReview.push({
+        location,
+        originalImageUrl: res.originalImageUrl,
+        originalImagePublicId: null,
+        convertedLatex: res.latex,
+        flagged: res.flagged,
+        verified: false,
+      });
+      if (res.latex) { append(`$${res.latex}$`); hasLatex = true; }
+    }
+  }
+
+  return { text: out.trim(), hasLatex };
+}
+
+/**
  * POST /questions/bulk-upload
  *
- * Parses an uploaded .docx or .xlsx file (template format only — see
- * questionDocxParser.js / questionXlsxParser.js) into rows, validates each
- * row through the SAME Joi schema + math pipeline the single-question create
- * flow uses, and inserts every valid, non-duplicate row as a "draft"
- * question (no images — those get added later during review). One bad row
- * never aborts the batch: every row succeeds, is skipped as a duplicate, or
- * fails independently, and all three outcomes are reported back so the
- * admin knows exactly what to fix and re-upload.
+ * Accepts a .docx or .xlsx file in one of THREE supported shapes (parser
+ * auto-detects which, per file):
+ *   1. Plain template (questionDocxParser.parseQuestionsDocx / plain xlsx) —
+ *      formulas must already be typed as LaTeX, no images. Original,
+ *      unchanged behaviour.
+ *   2. Rich .docx (questionDocxParser.parseRichQuestionsDocx) — a naturally
+ *      formatted exam paper with embedded MathType/native-Word equations
+ *      and diagram images, matching the reference document this feature
+ *      was built and validated against.
+ *   3. .xlsx with image columns — same header-driven parsing as (1), plus
+ *      "Question Image"/"Solution Image" columns for anchored pictures.
+ *
+ * File parsing (fast, in-process, no external calls) happens SYNCHRONOUSLY
+ * here — a corrupt file or a file with zero/too-many questions is rejected
+ * immediately with a normal 400. Everything slow and external (rasterizing
+ * equation images, calling Gemini, uploading to Cloudinary, and the DB
+ * write) runs in the BACKGROUND via BulkUploadJob — a document with 100+
+ * equations can easily take past a normal request timeout, and this is
+ * also just the right shape for a server handling multiple concurrent
+ * uploads. The frontend polls GET /questions/bulk-upload/:batchId/status.
  */
 exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
   const QuestionModel = getQuestionModel(req);
+  const JobModel = req.app.get("BulkUploadJobModel");
+  if (!JobModel) return next(new AppError("Bulk upload is temporarily unavailable (question bank not connected).", 503));
 
   if (!req.file) {
     return next(new AppError('No file uploaded. Attach a .docx or .xlsx file as "file".', 400));
@@ -721,26 +863,115 @@ exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
 
   const isXlsx = req.file.mimetype ===
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const format = isXlsx ? "xlsx" : "docx";
 
-  const rawRows = isXlsx
-    ? await parseQuestionsXlsx(req.file.buffer)
-    : await parseQuestionsDocx(req.file.buffer);
+  let rawRows, structuralFailed = [], richContext = null, isRich = false;
+  try {
+    if (isXlsx) {
+      rawRows = await parseQuestionsXlsx(req.file.buffer);
+    } else {
+      const templateFormat = await detectDocxTemplateFormat(req.file.buffer);
+      if (templateFormat === "plain") {
+        rawRows = await parseQuestionsDocx(req.file.buffer);
+      } else {
+        const rich = await parseRichQuestionsDocx(req.file.buffer);
+        rawRows = rich.rows;
+        structuralFailed = rich.failed;
+        richContext = rich;
+        isRich = true;
+      }
+    }
+  } catch (err) {
+    return next(err); // AppError from the parsers — 400 with a specific message
+  }
 
-  if (rawRows.length > MAX_BULK_ROWS) {
+  const totalRows = rawRows.length + structuralFailed.length;
+  if (totalRows === 0) {
+    return next(new AppError("No questions found in this file.", 400));
+  }
+  if (totalRows > MAX_BULK_ROWS) {
     return next(new AppError(
-      `Too many questions in one file (${rawRows.length}). Maximum ${MAX_BULK_ROWS} per upload.`,
+      `Too many questions in one file (${totalRows}). Maximum ${MAX_BULK_ROWS} per upload.`,
       400
     ));
   }
 
-  const batchId    = new mongoose.Types.ObjectId();
-  const uploadedAt = new Date();
+  const batchId = new mongoose.Types.ObjectId();
+  const job = await JobModel.create({
+    batchId,
+    uploaderId:    req.user.id,
+    uploaderEmail: req.user.email,
+    fileName:      req.file.originalname,
+    format,
+    status:        "processing",
+    progress:      { processed: 0, total: rawRows.length, stage: "parsing" },
+  });
 
-  const docsToInsert       = [];
-  const rowNumbers         = []; // parallel to docsToInsert — maps back to source row for error reporting
-  const failed             = [];
-  const skippedDuplicates  = [];
-  const seenHashes         = new Map(); // contentHash -> rowNumber, catches duplicates WITHIN this file
+  // Fire-and-forget: the HTTP response does not wait on this. A crash here
+  // must never take down the process — always caught and written to the
+  // job doc so the frontend's poll sees status:"failed" instead of hanging.
+  runBulkUploadJob({
+    QuestionModel, JobModel, jobId: job._id, batchId,
+    rawRows, structuralFailed, richContext, isRich, format,
+    fileName: req.file.originalname,
+    user: { id: req.user.id, email: req.user.email, role: req.user.role },
+  }).catch(async (err) => {
+    console.error("[BulkUpload] background job crashed:", err);
+    await JobModel.updateOne(
+      { _id: job._id },
+      { status: "failed", errorMessage: err.message || "Unexpected error during processing." }
+    ).catch(() => {});
+  });
+
+  return sendSuccess(res, 202, "Bulk upload started — processing in the background.", {
+    batchId: String(batchId),
+  });
+});
+
+/**
+ * The actual bulk-upload work — everything after file parsing. Runs
+ * detached from the request/response cycle; all progress/results are
+ * written to the BulkUploadJob document for polling.
+ */
+async function runBulkUploadJob({
+  QuestionModel, JobModel, jobId, batchId,
+  rawRows, structuralFailed, richContext, isRich, format,
+  fileName, user,
+}) {
+  const uploadedAt = new Date();
+  const onProgress = async (stage, processed, total) => {
+    await JobModel.updateOne(
+      { _id: jobId },
+      { "progress.stage": stage, "progress.processed": processed, "progress.total": total }
+    ).catch(() => {});
+  };
+
+  // ── Resolve equations + images (external I/O) ─────────────────────────
+  let equationResolution = new Map();
+  let questionImages = new Map();
+  let solutionImages = new Map();
+
+  if (isRich) {
+    const resolved = await resolveDocxEquationsAndImages(richContext, onProgress);
+    equationResolution = resolved.equationResolution;
+    questionImages = resolved.questionImages;
+    solutionImages = resolved.solutionImages;
+  } else if (format === "xlsx") {
+    const resolved = await resolveXlsxImages(rawRows, onProgress);
+    questionImages = resolved.questionImages;
+    solutionImages = resolved.solutionImages;
+  }
+
+  await onProgress("saving", 0, rawRows.length);
+
+  // ── Per-row: build candidate → Joi validate → math process → hash → dedup ──
+  const failed            = structuralFailed.map((f) => ({ row: f.row, errors: [f.reason] }));
+  const skippedDuplicates = [];
+  const docsToInsert      = [];
+  const rowNumbers        = [];
+  const seenHashes        = new Map();
+  let flaggedForReview    = 0;
+  let processedCount      = 0;
 
   for (const rawRow of rawRows) {
     const rowNumber = rawRow._rowNumber;
@@ -753,82 +984,73 @@ exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
     });
 
     if (error) {
-      failed.push({
-        row: rowNumber,
-        errors: error.details.map((d) => d.message.replace(/"/g, "'")),
-      });
+      failed.push({ row: rowNumber, errors: error.details.map((d) => d.message.replace(/"/g, "'")) });
+      processedCount++; await onProgress("saving", processedCount, rawRows.length);
       continue;
     }
 
     try {
-      const processedText = processMathField(value.text, "Question Text");
-      const processedSol  = processMathField(value.solution?.text, "Solution Text");
+      const conversionReview = [];
+      const processedText = isRich
+        ? resolveTextWithEquations(value.text, "Question Text", equationResolution, conversionReview, "text")
+        : processMathField(value.text, "Question Text");
+      const processedSol = isRich
+        ? resolveTextWithEquations(value.solution?.text || "", "Solution Text", equationResolution, conversionReview, "solution")
+        : processMathField(value.solution?.text, "Solution Text");
       const processedOptions = value.options.map((opt) => ({
         key: opt.key,
-        text: processMathField(opt.text, `Option ${opt.key}`).text,
+        text: isRich
+          ? resolveTextWithEquations(opt.text, `Option ${opt.key}`, equationResolution, conversionReview, `option_${opt.key}`).text
+          : processMathField(opt.text, `Option ${opt.key}`).text,
       }));
 
       const contentHash = computeContentHash({
-        subject:    value.subject,
-        classLevel: value.classLevel,
-        chapter:    value.chapter,
-        topic:      value.topic,
-        text:       processedText.text,
+        subject: value.subject, classLevel: value.classLevel,
+        chapter: value.chapter, topic: value.topic, text: processedText.text,
       });
 
       if (seenHashes.has(contentHash)) {
-        skippedDuplicates.push({
-          row: rowNumber,
-          reason: `Duplicate of row ${seenHashes.get(contentHash)} in this same file.`,
-        });
+        skippedDuplicates.push({ row: rowNumber, reason: `Duplicate of row ${seenHashes.get(contentHash)} in this same file.` });
+        processedCount++; await onProgress("saving", processedCount, rawRows.length);
         continue;
       }
       seenHashes.set(contentHash, rowNumber);
 
+      const rowFlagged = conversionReview.filter((c) => c.flagged).length;
+      flaggedForReview += rowFlagged;
+
+      const qImg = questionImages.get(rowNumber) || null;
+      const sImgs = solutionImages.get(rowNumber) || [];
+
       docsToInsert.push({
-        subject:          value.subject,
-        classLevel:       value.classLevel,
-        chapter:          value.chapter,
-        topic:            value.topic,
-        questionCategory: value.questionCategory || "",
-        questionVariant:  value.questionVariant  || "",
-        difficulty:       value.difficulty,
-        idealTimeSeconds: value.idealTimeSeconds ?? null,
-        questionType:     value.questionType || "mcq",
-        text:             processedText.text,
-        hasLatex:         processedText.hasLatex,
-        questionImage:    { url: null, publicId: null },
-        options: processedOptions.map((o) => ({
-          key: o.key,
-          text: o.text,
-          image: { url: null, publicId: null },
-        })),
-        correctAnswer:    value.correctAnswer,
-        marks:            value.marks,
-        negativeMarks:    value.negativeMarks ?? 0,
+        subject: value.subject, classLevel: value.classLevel, chapter: value.chapter, topic: value.topic,
+        questionCategory: value.questionCategory || "", questionVariant: value.questionVariant || "",
+        difficulty: value.difficulty, idealTimeSeconds: value.idealTimeSeconds ?? null,
+        questionType: value.questionType || "mcq",
+        text: processedText.text, hasLatex: processedText.hasLatex,
+        questionImage: qImg || { url: null, publicId: null },
+        options: processedOptions.map((o) => ({ key: o.key, text: o.text, image: { url: null, publicId: null } })),
+        correctAnswer: value.correctAnswer, marks: value.marks, negativeMarks: value.negativeMarks ?? 0,
         solution: {
-          text:     processedSol.text,
-          hasLatex: processedSol.hasLatex,
-          image:    { url: null, publicId: null },
-          images:   [],
+          text: processedSol.text, hasLatex: processedSol.hasLatex,
+          image: { url: null, publicId: null }, images: sImgs,
         },
-        contentHash,
-        sourceRef:       value.sourceRef || "",
-        isActive:        true,
-        status:          "draft",
-        createdBy:       { userId: req.user.id, email: req.user.email },
-        uploadBatch:     { batchId, fileName: req.file.originalname, uploadedAt },
-        patternSlotTags: [],
-        usageLog:        [],
+        contentHash, sourceRef: value.sourceRef || "",
+        isActive: true, status: "draft",
+        createdBy: { userId: user.id, email: user.email },
+        uploadBatch: { batchId, fileName, uploadedAt },
+        patternSlotTags: [], usageLog: [],
+        activityLog: [{ action: "bulk_uploaded", byUserId: user.id, byEmail: user.email, byRole: user.role || "", at: uploadedAt, meta: { batchId: String(batchId), fileName } }],
+        conversionReview,
       });
       rowNumbers.push(rowNumber);
     } catch (err) {
-      // processMathField throws AppError with a field-scoped, actionable message
       failed.push({ row: rowNumber, errors: [err.message || "Invalid data."] });
     }
+    processedCount++; await onProgress("saving", processedCount, rawRows.length);
   }
 
-  // ── One dedup query against the DB (not one findOne per row) ───────────────
+  // ── One dedup query against the DB (not one findOne per row) ───────────
   if (docsToInsert.length > 0) {
     const hashes = docsToInsert.map((d) => d.contentHash);
     const existingHashes = new Set(
@@ -839,41 +1061,29 @@ exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
       const keptRowNumbers = [];
       docsToInsert.forEach((doc, idx) => {
         if (existingHashes.has(doc.contentHash)) {
-          skippedDuplicates.push({
-            row: rowNumbers[idx],
-            reason: "A question with identical classification and text already exists in the bank.",
-          });
+          skippedDuplicates.push({ row: rowNumbers[idx], reason: "A question with identical classification and text already exists in the bank." });
         } else {
           keptDocs.push(doc);
           keptRowNumbers.push(rowNumbers[idx]);
         }
       });
-      docsToInsert.length = 0;
-      docsToInsert.push(...keptDocs);
-      rowNumbers.length = 0;
-      rowNumbers.push(...keptRowNumbers);
+      docsToInsert.length = 0; docsToInsert.push(...keptDocs);
+      rowNumbers.length = 0; rowNumbers.push(...keptRowNumbers);
     }
   }
 
-  // ── One bulk write ──────────────────────────────────────────────────────────
+  // ── One bulk write ───────────────────────────────────────────────────
   let createdIds = [];
   if (docsToInsert.length > 0) {
     try {
       const inserted = await QuestionModel.insertMany(docsToInsert, { ordered: false });
       createdIds = inserted.map((d) => d._id);
     } catch (err) {
-      // Rare race: a duplicate contentHash slipped in between the distinct()
-      // check above and this write. Mongoose surfaces this as a bulk-write
-      // error with writeErrors[].index (position in docsToInsert) and
-      // insertedDocs (the ones that DID succeed).
       if (err.writeErrors) {
         const failedIdx = new Set(err.writeErrors.map((we) => we.index));
         docsToInsert.forEach((doc, idx) => {
           if (failedIdx.has(idx)) {
-            skippedDuplicates.push({
-              row: rowNumbers[idx],
-              reason: "A question with identical classification and text already exists in the bank.",
-            });
+            skippedDuplicates.push({ row: rowNumbers[idx], reason: "A question with identical classification and text already exists in the bank." });
           }
         });
         createdIds = (err.insertedDocs || []).map((d) => d._id);
@@ -883,12 +1093,44 @@ exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
     }
   }
 
-  return sendSuccess(res, 201, "Bulk upload processed.", {
-    totalRows:    rawRows.length,
-    createdCount: createdIds.length,
-    created:      createdIds,
-    skippedDuplicates,
-    failed,
+  await JobModel.updateOne({ _id: jobId }, {
+    status: "done",
+    "progress.stage": "done",
+    "progress.processed": rawRows.length,
+    result: {
+      totalRows: rawRows.length + structuralFailed.length,
+      createdCount: createdIds.length,
+      created: createdIds,
+      skippedDuplicates,
+      failed,
+      flaggedForReview,
+    },
+  });
+}
+
+/**
+ * GET /questions/bulk-upload/:batchId/status
+ * Polled by the frontend while a bulk upload is processing.
+ */
+exports.getBulkUploadStatus = asyncHandler(async (req, res, next) => {
+  const JobModel = req.app.get("BulkUploadJobModel");
+  if (!JobModel) return next(new AppError("Bulk upload is temporarily unavailable.", 503));
+
+  const job = await JobModel.findOne({ batchId: req.params.batchId }).lean();
+  if (!job) return next(new AppError("Bulk upload job not found.", 404));
+
+  // Same ownership rule as everything else in this file: admin sees only
+  // their own uploads, super_admin unrestricted.
+  if (req.user.role === ROLES.ADMIN && String(job.uploaderId) !== String(req.user.id)) {
+    return next(new AppError("You can only check the status of your own uploads.", 403));
+  }
+
+  return sendSuccess(res, 200, "Bulk upload job status.", {
+    batchId: String(job.batchId),
+    status: job.status,
+    progress: job.progress,
+    result: job.status === "done" ? job.result : undefined,
+    errorMessage: job.status === "failed" ? job.errorMessage : undefined,
   });
 });
 

@@ -33,6 +33,11 @@ const FIELD_DEFS = [
   { key: "negativeMarks",    label: "Negative Marks",               required: false },
   { key: "solutionText",     label: "Solution Text",                required: false },
   { key: "sourceRef",        label: "Source Reference",             required: false },
+  // Image columns — no cell TEXT expected; a picture anchored inside that
+  // row's cell in this column is what gets extracted and uploaded to
+  // Cloudinary. See questionXlsxParser.js's image-matching logic.
+  { key: "questionImage",    label: "Question Image (optional)",    required: false },
+  { key: "solutionImage",    label: "Solution Image (optional)",    required: false },
 ];
 
 /** Lowercase, strip everything but letters/digits — makes matching tolerant

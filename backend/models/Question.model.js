@@ -321,6 +321,61 @@ const questionSchema = new mongoose.Schema(
       of: mongoose.Schema.Types.Mixed,
       default: () => ({}),
     },
+
+    // ── Activity / audit trail ──────────────────────────────────────────────
+    /**
+     * activityLog — append-only history of who did what to THIS question and
+     * when. Kept on the document itself (not the shared AdminAuditLog model)
+     * because Question lives on a separate Mongoose connection from User —
+     * same reasoning as createdBy being denormalized (userId + email) rather
+     * than a real populate()able ref. Every mutation path in
+     * question.controller.js pushes exactly one entry here.
+     */
+    activityLog: {
+      type: [
+        {
+          action: {
+            type: String,
+            enum: ["created", "edited", "status_changed", "bulk_uploaded"],
+            required: true,
+          },
+          byUserId: { type: mongoose.Schema.Types.ObjectId, default: null },
+          byEmail:  { type: String, default: "" },
+          byRole:   { type: String, default: "" },
+          at:       { type: Date, default: Date.now },
+          // e.g. { from: "draft", to: "active" } for status_changed
+          meta:     { type: mongoose.Schema.Types.Mixed, default: {} },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
+
+    // ── AI-conversion review aid (bulk upload only) ─────────────────────────
+    /**
+     * conversionReview — one entry per equation the bulk-upload pipeline sent
+     * to Gemini for OCR→LaTeX conversion, so the reviewing admin can see the
+     * ORIGINAL rendered equation image next to what was stored, and fix it
+     * before flipping status to "active". Empty for manually-created
+     * questions and for old-template bulk uploads with no embedded formulas.
+     * `flagged` = Gemini/KaTeX validation failed for that one equation — the
+     * question still saved as a draft, just with that spot needing manual
+     * attention (never silently wrong).
+     */
+    conversionReview: {
+      type: [
+        {
+          location: { type: String, default: "" }, // "text" | "option_A".."option_D" | "solution"
+          originalImageUrl: { type: String, default: null },
+          originalImagePublicId: { type: String, default: null },
+          convertedLatex:   { type: String, default: "" },
+          flagged:  { type: Boolean, default: false },
+          verified: { type: Boolean, default: false },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,

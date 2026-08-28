@@ -11,6 +11,7 @@ const mainRouter = require("./routes/main.router");
 const errorHandler = require("./middleware/errorHandler");
 const { apiLimiter } = require("./middleware/rateLimiter");
 const { createQuestionModel } = require("./models/Question.model");
+const { createBulkUploadJobModel } = require("./models/BulkUploadJob.model");
 const AppError = require("./utils/AppError");
 
 // ─── Startup: Validate required environment variables ─────────────────────────
@@ -196,6 +197,7 @@ const startServer = async () => {
       );
       QuestionModel = createQuestionModel(questionBankConn);
       app.set("QuestionModel", QuestionModel);
+      app.set("BulkUploadJobModel", createBulkUploadJobModel(questionBankConn));
       console.log("[App] Question model bound to Question Bank DB.");
     } else {
       console.warn(

@@ -1,17 +1,26 @@
 services:
   - type: web
     name: examneeti-backend
-    env: node
+    # Docker (not the plain Node buildpack) — the rich bulk-upload pipeline
+    # needs LibreOffice on the server (see ./Dockerfile for why); Render's
+    # managed Node runtime has no apt access to install it otherwise. The
+    # app still runs fine without it (that one feature just degrades
+    # gracefully), so switching back to `env: node` is safe if this image
+    # ever becomes inconvenient — nothing else depends on Docker.
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     region: singapore
+    # Free plan RAM is tight for LibreOffice + Node running together —
+    # fine for light dev/testing, but bump to Starter/Standard if bulk
+    # uploads start failing/timing out under real use.
     plan: free
-    buildCommand: npm install
-    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000
+        value: 8080
       - key: TRUST_PROXY
         value: true
       - key: MONGO_URI
@@ -50,3 +59,15 @@ services:
         sync: false
       - key: COOKIE_SECRET
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_MAX_CONCURRENCY
+        value: 3
+      - key: GEMINI_TIMEOUT_MS
+        value: 30000
+      - key: LIBREOFFICE_BIN
+        value: soffice
+      - key: LIBREOFFICE_TIMEOUT_MS
+        value: 120000
