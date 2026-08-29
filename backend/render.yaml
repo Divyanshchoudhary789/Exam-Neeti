@@ -70,4 +70,15 @@ services:
       - key: LIBREOFFICE_BIN
         value: soffice
       - key: LIBREOFFICE_TIMEOUT_MS
-        value: 120000
+        value: 60000
+      # Small on purpose for the free/tight-RAM plan — LibreOffice is a full
+      # office suite process (~150-300MB) regardless of chunk size; a large
+      # chunk risks the OS OOM-killing the WHOLE service (exit 137), not
+      # just the request. Raise this once on a plan with more RAM headroom.
+      - key: LIBREOFFICE_CHUNK_SIZE
+        value: 10
+      # Conservative for the free plan's 512MB RAM — a real document with
+      # 226 equations OOM-killed the whole service (exit 137) before the
+      # chunking/SIGKILL fixes above. Raise once on a plan with more RAM.
+      - key: MAX_BULK_EQUATIONS
+        value: 250

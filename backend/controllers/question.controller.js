@@ -685,6 +685,12 @@ exports.getDistinctValues = asyncHandler(async (req, res, next) => {
 
 const MAX_BULK_ROWS = 200;
 
+// Hard ceiling on embedded equations in one rich-docx upload — see the
+// check at its call site for why. Configurable per-environment: raise it
+// on a host with real memory headroom (VPS), lower it further if still
+// running the free/tight-RAM Render tier.
+const MAX_BULK_EQUATIONS = Number(process.env.MAX_BULK_EQUATIONS || 400);
+
 // Default marks/negative-marks for bulk-uploaded questions whose source
 // document doesn't specify them per-question (confirmed against the real
 // reference exam paper — its metadata table has no Marks field at all).
@@ -906,6 +912,25 @@ exports.bulkUploadQuestions = asyncHandler(async (req, res, next) => {
       `Too many questions in one file (${totalRows}). Maximum ${MAX_BULK_ROWS} per upload.`,
       400
     ));
+  }
+
+  // Fail FAST with a clear message rather than let a huge equation count
+  // OOM-kill the whole server (LibreOffice is a full office-suite process —
+  // confirmed on Render's free plan: a 226-equation document brought the
+  // whole service down with exit 137, not just this one request). Rejected
+  // here, before any LibreOffice/Gemini work starts, so it costs nothing —
+  // splitting one very equation-heavy paper into 2-3 smaller files and
+  // uploading them separately works fine.
+  if (isRich) {
+    const equationCount = rawRows.reduce((sum, r) => sum + (r._equations?.length || 0), 0);
+    if (equationCount > MAX_BULK_EQUATIONS) {
+      return next(new AppError(
+        `This document has ${equationCount} embedded equations — that's too many to convert in one upload ` +
+        `(maximum ${MAX_BULK_EQUATIONS}) and risks overloading the server. Please split it into smaller files ` +
+        `(e.g. by question range) and upload each one separately.`,
+        400
+      ));
+    }
   }
 
   const batchId = new mongoose.Types.ObjectId();
@@ -1140,17 +1165,36 @@ async function runBulkUploadJob({
  * GET /questions/bulk-upload/:batchId/status
  * Polled by the frontend while a bulk upload is processing.
  */
+// If the server process dies mid-job (e.g. an OOM kill on a memory-tight
+// host — exit 137 — takes the whole container down, not just the request),
+// nothing is left to ever write "failed" to that job document; it stays
+// "processing" in the DB forever and the frontend's poll spins
+// indefinitely. Self-heal it here at read-time instead of needing a
+// separate background sweeper: if a job hasn't been touched in this long
+// while still "processing", something clearly isn't coming back to finish
+// it.
+const STALE_JOB_MS = 10 * 60 * 1000; // 10 minutes with no progress update
+
 exports.getBulkUploadStatus = asyncHandler(async (req, res, next) => {
   const JobModel = req.app.get("BulkUploadJobModel");
   if (!JobModel) return next(new AppError("Bulk upload is temporarily unavailable.", 503));
 
-  const job = await JobModel.findOne({ batchId: req.params.batchId }).lean();
+  let job = await JobModel.findOne({ batchId: req.params.batchId }).lean();
   if (!job) return next(new AppError("Bulk upload job not found.", 404));
 
   // Same ownership rule as everything else in this file: admin sees only
   // their own uploads, super_admin unrestricted.
   if (req.user.role === ROLES.ADMIN && String(job.uploaderId) !== String(req.user.id)) {
     return next(new AppError("You can only check the status of your own uploads.", 403));
+  }
+
+  if (job.status === "processing" && Date.now() - new Date(job.updatedAt).getTime() > STALE_JOB_MS) {
+    const errorMessage =
+      "This upload stopped making progress and appears to have been interrupted (e.g. a server restart) " +
+      "before finishing. No partial data was left in an inconsistent state — please re-upload the file. " +
+      "If this keeps happening on large documents, the server may need more memory for this feature.";
+    await JobModel.updateOne({ _id: job._id, status: "processing" }, { status: "failed", errorMessage }).catch(() => {});
+    job = { ...job, status: "failed", errorMessage };
   }
 
   return sendSuccess(res, 200, "Bulk upload job status.", {

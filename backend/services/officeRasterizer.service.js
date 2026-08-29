@@ -43,8 +43,15 @@ const crypto = require("crypto");
 const execFileAsync = promisify(execFile);
 
 const LIBREOFFICE_BIN = process.env.LIBREOFFICE_BIN || "soffice";
-const CONVERT_TIMEOUT_MS = Number(process.env.LIBREOFFICE_TIMEOUT_MS || 120000);
-const CHUNK_SIZE = Number(process.env.LIBREOFFICE_CHUNK_SIZE || 25);
+const CONVERT_TIMEOUT_MS = Number(process.env.LIBREOFFICE_TIMEOUT_MS || 60000);
+// Kept small on purpose: LibreOffice itself (a full office suite process)
+// typically needs 150-300MB RAM per instance regardless of chunk size — on
+// a memory-constrained host (Render's free tier is 512MB total, shared
+// with Node) a large chunk risks the OS OOM-killer taking down the WHOLE
+// service (exit 137), not just the request. Smaller chunks bound the
+// damage to one chunk's worth of files if something goes wrong, and give
+// more frequent progress checkpoints besides.
+const CHUNK_SIZE = Number(process.env.LIBREOFFICE_CHUNK_SIZE || 10);
 
 /**
  * Rasterizes ONE chunk. Never throws — a chunk that fails entirely (e.g.
@@ -85,7 +92,12 @@ async function rasterizeChunk(images) {
           outDir,
           ...inputFiles,
         ],
-        { timeout: CONVERT_TIMEOUT_MS, maxBuffer: 1024 * 1024 * 10 }
+        // killSignal SIGKILL (not Node's default SIGTERM): a stuck/hung
+        // soffice process can ignore SIGTERM entirely and keep holding its
+        // memory past the timeout — on a RAM-constrained host that's
+        // exactly how one bad chunk turns into a whole-service OOM kill for
+        // everyone, not just this upload. SIGKILL cannot be ignored.
+        { timeout: CONVERT_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 1024 * 1024 * 10 }
       );
     } catch (err) {
       // LibreOffice can partially succeed even when it exits non-zero (e.g.
