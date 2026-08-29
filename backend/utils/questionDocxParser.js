@@ -82,22 +82,95 @@ function extractCellText(tcXml) {
 /** Parses one <w:tbl> block into a raw field-key → value object.
  *  Returns null if the table has no recognisable fields (e.g. a decorative
  *  or instructions table that isn't a question table). */
+// Fields that only ever appear as their OWN dedicated label cell (e.g. a
+// "Question Text" cell followed by the actual question in the next cell) —
+// NEVER as a "Label: value" pair squeezed inside one cell of free-flowing
+// prose. Excluding them from the intra-cell colon-split pass (below) avoids
+// a real regression risk: question/solution text occasionally contains a
+// literal colon ("Given: v = 10 m/s") that would otherwise falsely look
+// like a "Label: value" metadata pair.
+const COLON_SPLIT_EXCLUDED_KEYS = new Set([
+  "questionText", "optionA", "optionB", "optionC", "optionD",
+  "correctAnswer", "solutionText", "sourceRef",
+]);
+
+const NUMERIC_KEYS = new Set(["idealTimeSeconds", "marks", "negativeMarks"]);
+
+/** Strips a numeric field's value down to just its leading number (handles
+ *  "90 sec", "4 marks", "90sec" etc. — real documents rarely write these as
+ *  a bare number). Non-numeric fields pass through trimmed, unchanged. */
+function cleanFieldValue(key, value) {
+  const trimmed = String(value || "").trim();
+  if (!NUMERIC_KEYS.has(key)) return trimmed;
+  const m = /-?\d+(\.\d+)?/.exec(trimmed);
+  return m ? m[0] : trimmed;
+}
+
+/**
+ * Parses one <w:tbl> block into a raw field-key → value object.
+ *
+ * Column-position agnostic by design (found necessary against real
+ * documents, which don't all use the same 2-column Field|Value shape):
+ *   - 2-column tables:              Field | Value
+ *   - 3-column tables:              Category | Field | Value
+ *   - "Label: Value" packed into a single cell (e.g. "Difficulty: Hard"),
+ *     sometimes alongside ANOTHER such pair in a sibling cell on the same
+ *     row (e.g. "Ideal time: 90 sec") instead of its own row.
+ *
+ * Returns null if the table has no recognisable fields (e.g. a decorative
+ * or instructions table, or — for the rich-format parser — an options grid
+ * table, which intentionally has none of these labels; see
+ * parseRichQuestionsDocx's table-vs-metadata classification).
+ */
 function parseTable(tblXml, tableIndex) {
   const rows = extractBlocks(tblXml, "tr");
   const rawRow = { _rowNumber: tableIndex };
   let matchedAny = false;
 
   for (const rowXml of rows) {
-    const cells = extractBlocks(rowXml, "tc");
-    if (cells.length !== 2) continue; // not a Field|Value row — skip
+    const cells = extractBlocks(rowXml, "tc").map(extractCellText);
+    if (cells.length < 2) continue;
 
-    const label = extractCellText(cells[0]);
-    const value = extractCellText(cells[1]);
-    const key = resolveFieldKey(label);
-    if (!key) continue;
+    // A cell can hold several stacked lines (one real document packs
+    // "Subject / Class / Chapter / Concept" as 4 lines in one cell, with
+    // the matching 4 values stacked in the NEXT cell) — blank spacer lines
+    // between them are dropped so only the meaningful lines are compared.
+    const cellLines = cells.map((c) => c.split("\n").map((s) => s.trim()).filter(Boolean));
 
-    rawRow[key] = value;
-    matchedAny = true;
+    // Pass 1: intra-LINE "Label: value" pairs — highest-confidence signal
+    // (self-contained on one line), resolved first so pass 2 never
+    // overwrites a value this finds.
+    cellLines.forEach((lines) => {
+      lines.forEach((line) => {
+        const m = /^([^:：]{2,40})[:：]\s*(.+)$/.exec(line);
+        if (!m) return;
+        const key = resolveFieldKey(m[1]);
+        if (!key || COLON_SPLIT_EXCLUDED_KEYS.has(key)) return;
+        rawRow[key] = cleanFieldValue(key, m[2]);
+        matchedAny = true;
+      });
+    });
+
+    // Pass 2: the LAST two cells of the row, paired line-by-line (label
+    // lines <-> value lines at the same position). Deliberately NOT every
+    // adjacent pair — an earlier column (when present) is a "Category"
+    // grouping cell (e.g. "Basic information", "Difficulty" used as a
+    // SECTION name, not a field label) and must never be read as a label
+    // for its neighbour; only the rightmost two columns are actually
+    // label|value. This also covers the plain 2-column case unchanged
+    // (there the last two cells ARE cells[0]/cells[1]).
+    if (cells.length >= 2) {
+      const labelLines = cellLines[cellLines.length - 2];
+      const valueLines = cellLines[cellLines.length - 1];
+      labelLines.forEach((label, li) => {
+        const key = resolveFieldKey(label);
+        if (!key || rawRow[key] !== undefined) return; // don't overwrite pass 1
+        const value = valueLines[li] !== undefined ? valueLines[li] : valueLines[0];
+        if (!value) return;
+        rawRow[key] = cleanFieldValue(key, value);
+        matchedAny = true;
+      });
+    }
   }
 
   return matchedAny ? rawRow : null;
@@ -169,6 +242,7 @@ const {
   stripQuestionMarker,
   stripSolutionMarker,
   stripOptionMarker,
+  isDecorativeSeparator,
 } = require("./questionBlockMarkers");
 const { convertOmmlToLatex } = require("./ommlToLatex");
 const { validateLatex } = require("./mathParser");
@@ -272,108 +346,175 @@ function renderSegment(tokens, collector, idGen) {
  * { error } object if the Q./options/Sol. structure can't be confidently
  * found — never a guess.
  */
-function parseQuestionProse(paragraphXmls, idGen) {
-  const collector = { equations: [], images: [] };
-  const paraTexts = []; // plain-text (placeholders only) per paragraph, for marker detection
-  const paraTokens = [];
-  for (const pXml of paragraphXmls) {
-    const tokens = tokenizeParagraph(pXml);
-    paraTokens.push(tokens);
-    // Peek text ignoring equation/image tokens, just for marker matching.
-    paraTexts.push(tokens.filter((t) => t.type === "text").map((t) => t.value).join("").trim());
-  }
+/**
+ * Extracts options from a TABLE laid out as an options grid (e.g. a 2x2
+ * "(a)/(b)/(c)/(d)" cell layout) — the alternative to tab-separated inline
+ * text some documents use instead. Each cell is expected to hold exactly
+ * one marked option, in any row/column arrangement (1x4, 4x1, 2x2, ...).
+ */
+function extractOptionsFromTable(tblXml, collector, idGen) {
+  const optionsByNumber = {};
+  for (const rowXml of extractBlocks(tblXml, "tr")) {
+    for (const cellXml of extractBlocks(rowXml, "tc")) {
+      const cellTokens = [];
+      for (const pXml of extractBlocks(cellXml, "p")) cellTokens.push(...tokenizeParagraph(pXml));
 
-  // ── Locate Q. / options / Sol. boundaries ────────────────────────────────
+      const peekText = renderSegment(cellTokens, { equations: [], images: [] }, () => "peek");
+      const marker = stripOptionMarker(peekText);
+      if (!marker || optionsByNumber[marker.number]) continue;
+
+      const rendered = renderSegment(cellTokens, collector, idGen);
+      const stripped = stripOptionMarker(rendered);
+      optionsByNumber[marker.number] = (stripped ? stripped.rest : rendered).trim();
+    }
+  }
+  return optionsByNumber;
+}
+
+/**
+ * Parses one question's content — a mix of paragraphs and (occasionally) an
+ * embedded options table, in document order — into its Q./options/Sol.
+ * parts. Table-vs-paragraph options handling is auto-detected: whichever
+ * comes first after the question text (a table, or a paragraph starting
+ * with a "(1)"/"(a)" marker) is treated as where the options are.
+ *
+ * @param {Array<{type:"para"|"table", xml:string}>} blocks
+ * @param {() => string} idGen
+ */
+function parseQuestionProse(blocks, idGen) {
+  const collector = { equations: [], images: [] };
+
+  // Precompute paragraph tokens/text once; table blocks stay as raw xml
+  // (extractOptionsFromTable tokenizes their cells itself, on demand).
+  const items = blocks.map((b) => {
+    if (b.type !== "para") return { type: "table", xml: b.xml };
+    const tokens = tokenizeParagraph(b.xml);
+    const text = tokens.filter((t) => t.type === "text").map((t) => t.value).join("").trim();
+    return { type: "para", xml: b.xml, tokens, text };
+  });
+
+  // ── Q. marker — only paragraphs can carry it ─────────────────────────────
   let qStart = -1;
-  for (let i = 0; i < paraTexts.length; i++) {
-    if (stripQuestionMarker(paraTexts[i]) !== null) { qStart = i; break; }
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type === "para" && stripQuestionMarker(items[i].text) !== null) { qStart = i; break; }
   }
   if (qStart === -1) return { error: "Could not find a question marker (\"Q.\") in this block." };
 
+  // ── Where do options start? First TABLE, or first paragraph whose first
+  //    tab-segment matches a "(1)"/"(a)" marker — whichever comes first.
+  //    Starts searching at qStart+1, NEVER qStart itself: a question
+  //    numbered "Q1." contains "1." right in its own marker, which would
+  //    otherwise false-match as an option marker on the SAME paragraph and
+  //    collapse the question text to nothing (found via real-document
+  //    testing — a document numbering its questions "Q1./Q2./..." instead
+  //    of a bare "Q." triggered this exact collision). ────────────────────
   let optStart = -1;
-  for (let i = qStart; i < paraTexts.length; i++) {
-    const firstSeg = paraTexts[i].split("\t")[0] || paraTexts[i];
+  for (let i = qStart + 1; i < items.length; i++) {
+    const item = items[i];
+    if (item.type === "table") { optStart = i; break; }
+    const firstSeg = item.text.split("\t")[0] || item.text;
     if (stripOptionMarker(firstSeg) !== null) { optStart = i; break; }
   }
   if (optStart === -1) return { error: "Could not find option markers (\"(1)\"..\"(4)\") after the question text." };
 
-  let solStart = -1;
-  for (let i = optStart; i < paraTexts.length; i++) {
-    if (stripSolutionMarker(paraTexts[i]) !== null) { solStart = i; break; }
-  }
-  if (solStart === -1) return { error: "Could not find a solution marker (\"Sol. (N)\") with the correct option number." };
-
-  // ── Question text: qStart..optStart-1, marker stripped from the first ───
+  // ── Question text: qStart..optStart-1 ────────────────────────────────────
   let questionOut = "";
   for (let i = qStart; i < optStart; i++) {
-    let tokens = paraTokens[i];
+    const item = items[i];
+    if (item.type !== "para") continue;
     if (i === qStart) {
       // Strip the leading "Q." marker from the rendered text after the fact
       // (simplest correct way given the marker can span run boundaries).
-      const rendered = renderSegment(tokens, collector, idGen);
+      const rendered = renderSegment(item.tokens, collector, idGen);
       const stripped = stripQuestionMarker(rendered);
       questionOut += (stripped !== null ? stripped : rendered);
     } else {
-      questionOut += "\n" + renderSegment(tokens, collector, idGen);
+      questionOut += "\n" + renderSegment(item.tokens, collector, idGen);
     }
   }
   questionOut = questionOut.trim();
   if (!questionOut) return { error: "Question text is empty after removing the \"Q.\" marker." };
 
-  // ── Options: optStart..solStart-1, tab-split, "(N)" per segment ─────────
-  // Stateful, not independent-per-segment: some documents insert an EXTRA
-  // tab stop between the "(N)" marker and its actual content (column
-  // alignment in the original Word doc), which splits one option across two
-  // tab-segments — a marker-only segment followed by a marker-less content
-  // segment. Track "the option currently awaiting content" and attach any
-  // marker-less segment to it, instead of silently dropping that content.
-  const optionsByNumber = {};
-  let pendingOption = null; // option number whose content isn't confirmed yet
-  for (let i = optStart; i < solStart; i++) {
-    const segments = splitOnTabs(paraTokens[i]);
-    for (const seg of segments) {
-      const renderedFull = renderSegment(seg, { equations: [], images: [] }, () => "peek");
-      const marker = stripOptionMarker(renderedFull);
+  // ── Options — table layout or tab-separated-paragraph layout ────────────
+  let optionsByNumber;
+  let afterOptions;
 
-      if (marker && !optionsByNumber[marker.number]) {
-        const rendered = renderSegment(seg, collector, idGen);
-        const strippedMarker = stripOptionMarker(rendered);
-        const content = (strippedMarker ? strippedMarker.rest : rendered).trim();
-        optionsByNumber[marker.number] = content; // may be "" — filled in below if so
-        pendingOption = content ? null : marker.number;
-        continue;
+  if (items[optStart].type === "table") {
+    optionsByNumber = extractOptionsFromTable(items[optStart].xml, collector, idGen);
+    afterOptions = optStart + 1;
+  } else {
+    // Stateful, not independent-per-segment: some documents insert an EXTRA
+    // tab stop between the "(N)" marker and its actual content (column
+    // alignment in the original Word doc), which splits one option across
+    // two tab-segments — a marker-only segment followed by a marker-less
+    // content segment. Track "the option currently awaiting content" and
+    // attach any marker-less segment to it, instead of silently dropping it.
+    // Bounded by the next TABLE or the Sol. marker, whichever comes first.
+    let optionsEnd = items.length;
+    for (let i = optStart; i < items.length; i++) {
+      if (items[i].type === "table" || (items[i].type === "para" && stripSolutionMarker(items[i].text) !== null)) {
+        optionsEnd = i;
+        break;
       }
+    }
 
-      // No marker in this segment — if an option is still waiting for its
-      // content (the "extra tab stop" case), attach it here.
-      if (pendingOption !== null) {
-        const rendered = renderSegment(seg, collector, idGen).trim();
-        if (rendered) {
-          optionsByNumber[pendingOption] =
-            (optionsByNumber[pendingOption] ? optionsByNumber[pendingOption] + " " : "") + rendered;
-          pendingOption = null;
+    optionsByNumber = {};
+    let pendingOption = null;
+    for (let i = optStart; i < optionsEnd; i++) {
+      const item = items[i];
+      if (item.type !== "para") continue;
+      const segments = splitOnTabs(item.tokens);
+      for (const seg of segments) {
+        const renderedFull = renderSegment(seg, { equations: [], images: [] }, () => "peek");
+        const marker = stripOptionMarker(renderedFull);
+
+        if (marker && !optionsByNumber[marker.number]) {
+          const rendered = renderSegment(seg, collector, idGen);
+          const strippedMarker = stripOptionMarker(rendered);
+          const content = (strippedMarker ? strippedMarker.rest : rendered).trim();
+          optionsByNumber[marker.number] = content; // may be "" — filled in below if so
+          pendingOption = content ? null : marker.number;
+          continue;
+        }
+
+        if (pendingOption !== null) {
+          const rendered = renderSegment(seg, collector, idGen).trim();
+          if (rendered) {
+            optionsByNumber[pendingOption] =
+              (optionsByNumber[pendingOption] ? optionsByNumber[pendingOption] + " " : "") + rendered;
+            pendingOption = null;
+          }
         }
       }
     }
+    afterOptions = optionsEnd;
   }
+
   const missingOptions = [1, 2, 3, 4].filter((n) => !optionsByNumber[n]);
   if (missingOptions.length > 0) {
     return { error: `Missing option(s) ${missingOptions.join(", ")} — expected exactly 4 numbered options.` };
   }
 
-  // ── Solution: solStart..end, marker gives correctAnswer directly ────────
-  const solMarkerMatch = stripSolutionMarker(paraTexts[solStart]);
+  // ── Sol. marker — search forward from right after the options ───────────
+  let solStart = -1;
+  for (let i = afterOptions; i < items.length; i++) {
+    if (items[i].type === "para" && stripSolutionMarker(items[i].text) !== null) { solStart = i; break; }
+  }
+  if (solStart === -1) return { error: "Could not find a solution marker (\"Sol. (N)\") with the correct option number." };
+
+  const solMarkerMatch = stripSolutionMarker(items[solStart].text);
   const correctAnswer = OPTION_KEYS[solMarkerMatch.optionNumber - 1];
 
   let solutionOut = "";
-  for (let i = solStart; i < paraTokens.length; i++) {
-    const tokens = paraTokens[i];
+  for (let i = solStart; i < items.length; i++) {
+    const item = items[i];
+    if (item.type !== "para") continue; // a stray table after the solution (shouldn't happen) is ignored, not an error
     if (i === solStart) {
-      const rendered = renderSegment(tokens, collector, idGen);
+      const rendered = renderSegment(item.tokens, collector, idGen);
       const stripped = stripSolutionMarker(rendered);
       solutionOut += stripped ? stripped.rest : rendered;
     } else {
-      solutionOut += "\n" + renderSegment(tokens, collector, idGen);
+      solutionOut += "\n" + renderSegment(item.tokens, collector, idGen);
     }
   }
   solutionOut = solutionOut.trim();
@@ -381,8 +522,9 @@ function parseQuestionProse(paragraphXmls, idGen) {
   // ── Content images: before solStart → question image; after → solution images
   const questionImageRIds = [];
   const solutionImageRIds = [];
-  for (let i = qStart; i < paraTokens.length; i++) {
-    for (const t of paraTokens[i]) {
+  for (let i = qStart; i < items.length; i++) {
+    if (items[i].type !== "para") continue;
+    for (const t of items[i].tokens) {
       if (t.type !== "contentImage") continue;
       if (i < solStart) questionImageRIds.push(t.rId);
       else solutionImageRIds.push(t.rId);
@@ -394,7 +536,7 @@ function parseQuestionProse(paragraphXmls, idGen) {
     optionsByNumber,
     correctAnswer,
     solutionOut,
-    equations: collector.equations, // [{id, rId}]
+    equations: collector.equations, // [{id, rId, native, ...}]
     questionImageRIds,
     solutionImageRIds,
   };
@@ -456,30 +598,48 @@ async function parseRichQuestionsDocx(buffer) {
     else blocks.push({ type: "para", xml: bm[2] });
   }
 
-  // ── Group into per-question chunks: each table starts a new question ────
+  // ── Group into per-question chunks ───────────────────────────────────────
+  // A table starts a NEW question only if it actually looks like a metadata
+  // table (resolves at least one Subject/Chapter/Difficulty/... field) — see
+  // parseTable(). Some real documents lay a question's OPTIONS out as a
+  // table too (a 2x2 or 1x4 grid of "(a)/(b)/(c)/(d)" cells instead of
+  // tab-separated text); that table has none of the metadata labels, so it
+  // correctly falls through to being attached as CONTENT of the current
+  // question instead of starting a bogus extra one — this is what
+  // parseQuestionProse's table-aware options scan (below) then picks up.
+  //
   // A paragraph containing ONLY "4." / "12." (Word's manual question-number
   // label, typed as its own paragraph right before the NEXT question's
-  // metadata table) is not part of THIS question's solution — drop it as
-  // noise, or it silently bleeds into the previous question's solution text.
+  // metadata table) or a purely decorative divider line ("―――――") is not
+  // real content — drop it as noise, or it silently bleeds into the
+  // previous question's solution text.
   const PURE_NUMBER_LABEL_RE = /^\s*\d+\s*\.?\s*$/;
-  function isPureNumberLabelParagraph(pXml) {
-    const textOnly = tokenizeParagraph(pXml)
-      .filter((t) => t.type === "text")
-      .map((t) => t.value)
-      .join("")
-      .trim();
-    return textOnly !== "" && PURE_NUMBER_LABEL_RE.test(textOnly);
+  function paragraphPlainText(pXml) {
+    return tokenizeParagraph(pXml).filter((t) => t.type === "text").map((t) => t.value).join("").trim();
+  }
+  function isNoiseParagraph(pXml) {
+    const text = paragraphPlainText(pXml);
+    if (text === "") return false; // empty paragraphs are handled naturally elsewhere, not noise to drop
+    return PURE_NUMBER_LABEL_RE.test(text) || isDecorativeSeparator(text);
   }
 
   const groups = [];
   for (const block of blocks) {
     if (block.type === "table") {
-      groups.push({ tableXml: block.xml, paraXmls: [] });
+      const looksLikeMetadata = parseTable(block.xml, 0) !== null;
+      if (looksLikeMetadata) {
+        groups.push({ tableXml: block.xml, blocks: [] });
+        continue;
+      }
+      // Not a metadata table — content belonging to the CURRENT question
+      // (e.g. an options grid). Ignored if it appears before any metadata
+      // table at all (title-page decoration).
+      if (groups.length > 0) groups[groups.length - 1].blocks.push({ type: "table", xml: block.xml });
     } else if (groups.length > 0) {
-      if (isPureNumberLabelParagraph(block.xml)) continue;
-      groups[groups.length - 1].paraXmls.push(block.xml);
+      if (isNoiseParagraph(block.xml)) continue;
+      groups[groups.length - 1].blocks.push({ type: "para", xml: block.xml });
     }
-    // paragraphs before the first table (title/instructions) are ignored
+    // content before the first metadata table (title/instructions) is ignored
   }
 
   if (groups.length === 0) {
@@ -498,7 +658,7 @@ async function parseRichQuestionsDocx(buffer) {
     const rowNumber = idx + 1;
     const metadata = parseTable(group.tableXml, rowNumber) || { _rowNumber: rowNumber };
 
-    const parsed = parseQuestionProse(group.paraXmls, idGen);
+    const parsed = parseQuestionProse(group.blocks, idGen);
     if (parsed.error) {
       failed.push({ row: rowNumber, reason: parsed.error });
       return;

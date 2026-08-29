@@ -40,18 +40,40 @@ const FIELD_DEFS = [
   { key: "solutionImage",    label: "Solution Image (optional)",    required: false },
 ];
 
+/**
+ * Extra label variants seen in real teacher-authored documents, beyond the
+ * field's own canonical key/label — discovered by testing against actual
+ * uploaded papers (not guessed). E.g. one real document used "Concept" for
+ * what this schema calls "Topic", "Question type" for "Question Category",
+ * and combined "Ideal time: 90 sec" wording. Keep adding here as new real
+ * documents surface new variants — this list is the single place that
+ * controls how tolerant label-matching is.
+ */
+const LABEL_ALIASES = {
+  topic:            ["concept"],
+  questionCategory: ["question type", "category"],
+  questionVariant:  ["variant"],
+  idealTimeSeconds: ["ideal time", "time", "time limit"],
+  classLevel:       ["class"],
+  marks:            ["mark", "positive marks"],
+  negativeMarks:    ["negative mark", "penalty"],
+};
+
 /** Lowercase, strip everything but letters/digits — makes matching tolerant
  *  of "Subject *", "subject", "Subject", extra spaces, etc. */
 function normalizeLabel(s) {
   return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Build a lookup from BOTH the normalized key and the normalized label to
-// the canonical key, so a header can match either form.
+// Build a lookup from the normalized key, the normalized label, AND every
+// alias, to the canonical key — so a header can match any of these forms.
 const KEY_LOOKUP = {};
 for (const f of FIELD_DEFS) {
   KEY_LOOKUP[normalizeLabel(f.key)] = f.key;
   KEY_LOOKUP[normalizeLabel(f.label)] = f.key;
+  for (const alias of LABEL_ALIASES[f.key] || []) {
+    KEY_LOOKUP[normalizeLabel(alias)] = f.key;
+  }
 }
 
 /**
