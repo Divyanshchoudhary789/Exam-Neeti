@@ -57,8 +57,21 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
 
   // ── Legacy MathType (OLE) equations — fetch preview image, rasterize,
   //    Gemini-transcribe, upload the crop to Cloudinary for the review UI.
+  //
+  // Progress reporting: rasterizing + Gemini-transcribing 200+ equations can
+  // take several minutes. Each of the three sub-phases below now reports
+  // incrementally (not just once at the start) — without this, a real
+  // 226-equation document sat at "0/226" for the ENTIRE duration of both
+  // rasterization and transcription (many minutes), which is
+  // indistinguishable from a hang even though it was working correctly.
+  // Combined into one running counter against an approximate 3x total
+  // (rasterize + transcribe + crop-upload are three passes over roughly the
+  // same set) — exact precision doesn't matter, visible MOVEMENT does.
   if (oleEquationRefs.length > 0) {
-    await onProgress("converting_equations", 0, oleEquationRefs.length);
+    const totalSteps = oleEquationRefs.length * 3;
+    let stepsDone = 0;
+    const bumpProgress = (n) => { stepsDone += n; return onProgress("converting_equations", stepsDone, totalSteps); };
+    await bumpProgress(0);
 
     const mediaResults = await Promise.all(
       oleEquationRefs.map(async (eq) => ({ eq, media: await getMediaBuffer(eq.rId) }))
@@ -92,10 +105,14 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
     // actually needed rasterization end up flagged for manual entry.
     let pngById = new Map();
     try {
-      pngById = await rasterizeToPng(rasterizable);
+      pngById = await rasterizeToPng(rasterizable, (processed) => {
+        stepsDone = processed; // phase 1 of 3 — absolute count, not additive
+        return onProgress("converting_equations", stepsDone, totalSteps);
+      });
     } catch (err) {
       console.error("[BulkUpload] rasterizeToPng failed for the whole batch:", err.message);
     }
+    stepsDone = oleEquationRefs.length; // rasterize phase done regardless of partial failures — move to phase 2
 
     const toTranscribe = [];
     for (const { id } of rasterizable) {
@@ -108,16 +125,20 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
       });
     }
 
-    const latexResults = await transcribeEquationsToLatex(toTranscribe);
+    const latexResults = await transcribeEquationsToLatex(toTranscribe, (completed) => {
+      stepsDone = oleEquationRefs.length + completed; // phase 2 of 3
+      return onProgress("converting_equations", stepsDone, totalSteps);
+    });
+    stepsDone = oleEquationRefs.length * 2; // phase 2 done — move to phase 3
 
     // Upload every successfully-rasterized equation's crop to Cloudinary so
     // the review UI can show "original vs converted" — including ones that
     // converted fine, since verifying against the source is the whole point.
-    let processed = 0;
+    let uploaded = 0;
     const uploadOutcomes = await runWithConcurrencyLimit(toTranscribe, 5, async ({ id, pngBuffer }) => {
       const upload = await uploadToCloudinary(pngBuffer, "examneeti/questions/equation-review").catch(() => null);
-      processed++;
-      await onProgress("converting_equations", processed, oleEquationRefs.length);
+      uploaded++;
+      await onProgress("converting_equations", oleEquationRefs.length * 2 + uploaded, totalSteps);
       return { id, upload };
     });
 

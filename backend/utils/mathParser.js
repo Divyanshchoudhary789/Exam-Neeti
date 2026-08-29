@@ -522,6 +522,67 @@ function processMathField(value, fieldName) {
   }
 }
 
+// ─── Conservative variant — Mode A ONLY, no auto-detection ────────────────────
+
+/**
+ * Same job as processText, but NEVER auto-detects "this looks like math" in
+ * plain prose (Mode B "pure math expression" / Mode C "natural sentence,
+ * find the math spans") — only ever honours EXPLICIT $...$ / $$...$$
+ * delimiters (Mode A), otherwise returns the input completely untouched.
+ *
+ * Why this exists: Mode B/C's heuristics are tuned for admin-TYPED
+ * shorthand ("KE = frac(1,2)mv^2") where the whole field IS the formula.
+ * Real exam-paper prose pulled from a rich bulk-upload document is a
+ * different animal — sentences like "the RMS current (I_rms)... resonant
+ * frequency (ω_0)... cos φ..." trip the auto-detector into wrapping
+ * fragments across sentence boundaries with unbalanced $ delimiters,
+ * silently corrupting the stored text (confirmed against a real uploaded
+ * document — "rad/s." got auto-rewritten into "\frac{rad}{s.}", among
+ * other breakage). The rich bulk-upload pipeline's plain-text segments
+ * (everything that ISN'T an already-resolved, already-validated equation
+ * spliced in separately — see question.controller.js's
+ * resolveTextWithEquations) use this instead of processMathField.
+ *
+ * @param {string} input
+ * @returns {{ text: string, hasLatex: boolean }}
+ */
+function processTextConservative(input) {
+  if (input == null) return { text: "", hasLatex: false };
+  if (typeof input !== "string") return { text: String(input), hasLatex: false };
+
+  const trimmed = input.trim();
+  if (!trimmed) return { text: trimmed, hasLatex: false };
+
+  // Explicit $ delimiters are deliberate intent — honour them exactly like
+  // processText's Mode A does. Anything without $ is left completely alone.
+  if (trimmed.includes("$")) return processText(trimmed);
+  return { text: trimmed, hasLatex: false };
+}
+
+/**
+ * processMathField's conservative counterpart — see processTextConservative.
+ * Still runs KaTeX validation over any $ fragments the document itself
+ * already contained (an author who explicitly typed LaTeX still gets it
+ * checked), it just never invents new $ wrapping around plain prose.
+ */
+function processMathFieldConservative(value, fieldName) {
+  if (!value && value !== 0) return { text: "", hasLatex: false };
+  try {
+    const result = processTextConservative(String(value));
+    const fragRe = /\$\$?([\s\S]+?)\$\$?/g;
+    let m;
+    while ((m = fragRe.exec(result.text)) !== null) {
+      validateLatexFragment(m[1], value);
+    }
+    return result;
+  } catch (err) {
+    throw new AppError(
+      `Invalid math in field "${fieldName}": ${err.message}`,
+      400
+    );
+  }
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -531,4 +592,6 @@ module.exports = {
   validateLatex,
   validateLatexFragment,
   processMathField,
+  processTextConservative,
+  processMathFieldConservative,
 };

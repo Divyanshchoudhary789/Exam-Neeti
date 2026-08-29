@@ -35,7 +35,10 @@ const asyncHandler  = require("../utils/asyncHandler");
 const { sendSuccess, sendPaginated } = require("../utils/response");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 const { uploadToCloudinary, deleteFromCloudinary }  = require("../middleware/upload");
-const { processAndValidateText, validateLatex, processMathField } = require("../utils/mathParser");
+const {
+  processAndValidateText, validateLatex, processMathField,
+  processMathFieldConservative,
+} = require("../utils/mathParser");
 const { computeContentHash }         = require("../utils/questionHash");
 const { createQuestionSchema }       = require("../validators/question.validator");
 const { validateAndNormalizeCustomFields } = require("../utils/customFieldValidation");
@@ -807,7 +810,16 @@ function resolveTextWithEquations(rawTextWithPlaceholders, fieldName, equationRe
   for (let i = 0; i < parts.length; i++) {
     if (i % 2 === 0) {
       if (!parts[i]) continue;
-      const processed = processMathField(parts[i], fieldName);
+      // Conservative, NOT processMathField: this is prose pulled from a
+      // real exam-paper document, not admin-typed shorthand — the full
+      // auto-detector over-matches sentences like "the RMS current
+      // (I_rms)... resonant frequency (ω_0)" and corrupts them with
+      // unbalanced $ delimiters (confirmed against a real document; see
+      // processMathFieldConservative's doc comment for specifics). Genuine
+      // equations already went through Gemini/OMML and are spliced in
+      // separately below, already-validated — this call only ever touches
+      // the surrounding plain text.
+      const processed = processMathFieldConservative(parts[i], fieldName);
       append(processed.text);
       hasLatex = hasLatex || processed.hasLatex;
     } else {
@@ -939,7 +951,23 @@ async function runBulkUploadJob({
   fileName, user,
 }) {
   const uploadedAt = new Date();
+
+  // Throttled: a 200+ equation document fires this callback once per
+  // equation across rasterize/convert/upload — writing to Mongo on every
+  // single one adds needless load and latency for no visible benefit past
+  // what the frontend's own 2s poll interval can show anyway. Always write
+  // the FIRST update for a stage (so the frontend sees the stage change
+  // immediately) and the final one (processed >= total), throttle the rest.
+  let lastProgressWriteAt = 0;
+  let lastProgressStage = null;
+  const PROGRESS_THROTTLE_MS = 800;
   const onProgress = async (stage, processed, total) => {
+    const now = Date.now();
+    const isFirstForStage = stage !== lastProgressStage;
+    const isFinal = total > 0 && processed >= total;
+    if (!isFirstForStage && !isFinal && now - lastProgressWriteAt < PROGRESS_THROTTLE_MS) return;
+    lastProgressWriteAt = now;
+    lastProgressStage = stage;
     await JobModel.updateOne(
       { _id: jobId },
       { "progress.stage": stage, "progress.processed": processed, "progress.total": total }

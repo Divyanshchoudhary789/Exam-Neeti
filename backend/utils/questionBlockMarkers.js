@@ -43,7 +43,7 @@ function stripQuestionMarker(text) {
 // The correct option may be given as a number (1-4) or a letter (a-d) —
 // captures whichever, the caller gets a normalised 1-4 either way.
 const SOLUTION_MARKER_RE =
-  /^\s*(?:Sol(?:ution)?|Ans(?:wer)?)\s*[.:)]?\s*\(?\s*([1-4]|[a-dA-D])\s*\)?\s*\.?\s*/i;
+  /^\s*(?:Sol(?:ution)?|Ans(?:wer)?)\s*[.:)]?\s*\(?\s*([1-4]|[a-dA-D])\s*\)?\s*[.:]?\s*/i;
 
 /**
  * @param {string} text

@@ -398,7 +398,16 @@ function parseQuestionProse(blocks, idGen) {
   for (let i = 0; i < items.length; i++) {
     if (items[i].type === "para" && stripQuestionMarker(items[i].text) !== null) { qStart = i; break; }
   }
-  if (qStart === -1) return { error: "Could not find a question marker (\"Q.\") in this block." };
+  if (qStart === -1) {
+    // No explicit "Q."/"Q1." marker found anywhere — some real documents
+    // just start the question text directly after the metadata table, with
+    // no marker at all (confirmed against a real uploaded document). The
+    // metadata table itself is already a strong enough "a new question
+    // starts here" signal, so fall back to the first non-empty paragraph in
+    // this block rather than failing the row outright.
+    qStart = items.findIndex((it) => it.type === "para" && it.text !== "");
+    if (qStart === -1) return { error: "This question block has no text content at all." };
+  }
 
   // ── Where do options start? First TABLE, or first paragraph whose first
   //    tab-segment matches a "(1)"/"(a)" marker — whichever comes first.

@@ -134,16 +134,26 @@ async function transcribeOne(id, pngBuffer) {
  * never blocks the rest of a document.
  *
  * @param {Array<{ id: string, pngBuffer: Buffer }>} equations
+ * @param {(completed:number, total:number) => Promise<void>} [onProgress]
+ *   Called after each individual equation finishes (success or failure) —
+ *   use this for bulk-upload job progress instead of waiting on the whole
+ *   batch at once (a 200+ equation document can take several minutes here).
  * @returns {Promise<Map<string, { latex: string, flagged: boolean, reason: string|null }>>}
  */
-async function transcribeEquationsToLatex(equations) {
+async function transcribeEquationsToLatex(equations, onProgress = async () => {}) {
   const results = new Map();
   if (!equations || equations.length === 0) return results;
 
+  let completed = 0;
   const outcomes = await runWithConcurrencyLimit(
     equations,
     GEMINI_MAX_CONCURRENCY,
-    (eq) => transcribeOne(eq.id, eq.pngBuffer)
+    async (eq) => {
+      const result = await transcribeOne(eq.id, eq.pngBuffer);
+      completed++;
+      await onProgress(completed, equations.length);
+      return result;
+    }
   );
 
   outcomes.forEach((outcome, idx) => {
