@@ -32,6 +32,7 @@ export function CreateSyllabusModal({
   const [chapterOrder, setChapterOrder] = useState<number>(1);
   const [topicOrder, setTopicOrder] = useState<number>(1);
   const [weight, setWeight] = useState<number>(1.0);
+  const [topicWeightage, setTopicWeightage] = useState<string>(""); // "" = not set
   const [isActive, setIsActive] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -46,6 +47,7 @@ export function CreateSyllabusModal({
       setChapterOrder(1);
       setTopicOrder(1);
       setWeight(1.0);
+      setTopicWeightage("");
       setIsActive(true);
       setErrorMsg("");
     }
@@ -79,6 +81,7 @@ export function CreateSyllabusModal({
         chapterOrder: Number(chapterOrder) || 1,
         topicOrder: Number(topicOrder) || 1,
         weight: Number(weight),
+        topicWeightage: topicWeightage ? Number(topicWeightage) : null,
         isActive,
       });
 
@@ -183,7 +186,7 @@ export function CreateSyllabusModal({
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Topic Order
@@ -209,10 +212,14 @@ export function CreateSyllabusModal({
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             />
           </div>
+        </div>
 
+        {/* Two DIFFERENT concepts, kept visually separate on purpose so they
+            don't get confused with each other. */}
+        <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-200/60">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Weight (0.1-10)
+              Coverage Weight (0.1-10)
             </label>
             <input
               type="number"
@@ -221,8 +228,27 @@ export function CreateSyllabusModal({
               max="10.0"
               value={weight}
               onChange={(e) => setWeight(parseFloat(e.target.value) || 1.0)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             />
+            <p className="text-[10px] text-slate-400 font-medium mt-1">Used only for the Weighted Coverage % analytics.</p>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Topic Weightage
+            </label>
+            <CustomSelect
+              value={topicWeightage}
+              onChange={(val) => setTopicWeightage(val)}
+              options={[
+                { value: "", label: "Not set" },
+                { value: "1", label: "1 — High Priority" },
+                { value: "2", label: "2 — Medium Priority" },
+                { value: "3", label: "3 — Low Priority" },
+              ]}
+              className="w-full"
+            />
+            <p className="text-[10px] text-slate-400 font-medium mt-1">Weightage Framework — for test-generation strategy.</p>
           </div>
         </div>
 
