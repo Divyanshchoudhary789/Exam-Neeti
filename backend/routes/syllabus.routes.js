@@ -18,6 +18,10 @@ const updateTopicWeightSchema = Joi.object({
   }),
 });
 
+// Weightage Framework — 1 (High) / 2 (Medium) / 3 (Low). null explicitly
+// clears a value back to "not set" — allow(null) matters, don't drop it.
+const weightageValue = Joi.number().valid(1, 2, 3).allow(null);
+
 const createTopicSchema = Joi.object({
   subject: Joi.string().valid("physics", "chemistry", "biology", "Physics", "Chemistry", "Biology").required().messages({
     "any.required": "Subject is required.",
@@ -39,6 +43,7 @@ const createTopicSchema = Joi.object({
   topicOrder: Joi.number().min(1).default(1),
   chapterOrder: Joi.number().min(1).default(1),
   weight: Joi.number().min(0.1).max(10).default(1.0),
+  topicWeightage: weightageValue.optional(),
   isActive: Joi.boolean().default(true),
 });
 
@@ -58,8 +63,29 @@ const updateTopicSchema = Joi.object({
   topicOrder: Joi.number().min(1).optional(),
   chapterOrder: Joi.number().min(1).optional(),
   weight: Joi.number().min(0.1).max(10).optional(),
+  topicWeightage: weightageValue.optional(),
   isActive: Joi.boolean().optional(),
 });
+
+const updateChapterWeightageSchema = Joi.object({
+  subject: Joi.string().valid("physics", "chemistry", "biology", "Physics", "Chemistry", "Biology").required(),
+  classLevel: Joi.string().valid("XI", "XII", "dropper").required(),
+  chapter: Joi.string().trim().required(),
+  chapterWeightage: Joi.number().valid(1, 2, 3).required().messages({
+    "any.required": "Chapter Weightage is required.",
+    "any.only":     "Chapter Weightage must be 1 (High), 2 (Medium), or 3 (Low).",
+  }),
+});
+
+const subtopicSchema = Joi.object({
+  name: Joi.string().trim().min(1).required(),
+  weightage: weightageValue.optional(),
+});
+
+const updateSubtopicSchema = Joi.object({
+  name: Joi.string().trim().min(1).optional(),
+  weightage: weightageValue.optional(),
+}).min(1);
 
 router.use(authenticate);
 
@@ -128,6 +154,40 @@ router.patch(
   authorize(ROLES.ADMIN),
   validate(updateTopicWeightSchema),
   syllabusController.updateTopicWeight
+);
+
+// ── Weightage Framework ──────────────────────────────────────────────────────
+
+// PATCH /syllabus/chapters/weightage — set Chapter Weightage across every
+// topic in that chapter at once.
+router.patch(
+  "/chapters/weightage",
+  authorize(ROLES.ADMIN),
+  validate(updateChapterWeightageSchema),
+  syllabusController.updateChapterWeightage
+);
+
+// POST /syllabus/topics/:id/subtopics — add a subtopic to a topic
+router.post(
+  "/topics/:id/subtopics",
+  authorize(ROLES.ADMIN),
+  validate(subtopicSchema),
+  syllabusController.addSubtopic
+);
+
+// PATCH /syllabus/topics/:id/subtopics/:subtopicId — edit a subtopic
+router.patch(
+  "/topics/:id/subtopics/:subtopicId",
+  authorize(ROLES.ADMIN),
+  validate(updateSubtopicSchema),
+  syllabusController.updateSubtopic
+);
+
+// DELETE /syllabus/topics/:id/subtopics/:subtopicId — remove a subtopic
+router.delete(
+  "/topics/:id/subtopics/:subtopicId",
+  authorize(ROLES.ADMIN),
+  syllabusController.deleteSubtopic
 );
 
 // GET /syllabus/coverage/student/:studentId/:sprintId

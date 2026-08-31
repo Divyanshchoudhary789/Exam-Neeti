@@ -51,10 +51,17 @@ async function parseQuestionsXlsx(buffer) {
   }
 
   const headerRow = worksheet.getRow(1);
-  const columnKeys = {}; // columnIndex -> canonical field key
+  const columnKeys = {};      // columnIndex -> canonical (fixed-schema) field key
+  const customColumns = {};   // columnIndex -> raw header label (admin-defined custom fields)
   headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    const key = resolveFieldKey(cellText(cell));
+    const header = cellText(cell);
+    const key = resolveFieldKey(header);
     if (key) columnKeys[colNumber] = key;
+    // Not one of the fixed schema fields — could be a runtime-defined
+    // custom field (e.g. "Sub Topic", "Chapter Weightage"); the caller
+    // matches these against the live QuestionFieldDefinition list, since
+    // this parser only knows the static field set.
+    else if (header) customColumns[colNumber] = header;
   });
 
   if (Object.keys(columnKeys).length === 0) {
@@ -117,6 +124,14 @@ async function parseQuestionsXlsx(buffer) {
       const text = cellText(row.getCell(Number(colNumber)));
       rawRow[key] = text;
       if (text !== "") hasAnyValue = true;
+    }
+
+    for (const [colNumber, label] of Object.entries(customColumns)) {
+      const text = cellText(row.getCell(Number(colNumber)));
+      if (text === "") continue;
+      rawRow._customFieldCandidates = rawRow._customFieldCandidates || {};
+      rawRow._customFieldCandidates[label] = text;
+      hasAnyValue = true;
     }
 
     const images = imagesByRow.get(rowNumber);

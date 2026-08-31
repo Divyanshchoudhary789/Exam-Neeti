@@ -43,6 +43,7 @@ const { computeContentHash }         = require("../utils/questionHash");
 const { createQuestionSchema }       = require("../validators/question.validator");
 const { validateAndNormalizeCustomFields } = require("../utils/customFieldValidation");
 const QuestionFieldDefinition        = require("../models/QuestionFieldDefinition.model");
+const { normalizeLabel }             = require("../utils/questionTemplateFields");
 const { parseQuestionsXlsx }         = require("../utils/questionXlsxParser");
 const {
   parseQuestionsDocx,
@@ -712,6 +713,44 @@ function normalizeClassLevel(v) {
 }
 
 /**
+ * Bulk-upload custom fields — e.g. "Sub Topic", "Chapter Weightage".
+ *
+ * The parsers (questionDocxParser.js / questionXlsxParser.js) can't resolve
+ * these themselves: which fields are "real" is admin-configured at RUNTIME
+ * via QuestionFieldDefinition, not part of the static template field list.
+ * So the parsers just collect every unrecognised metadata-table
+ * row/spreadsheet-column as `row._customFieldCandidates` (raw label ->
+ * value), and THIS is where they get matched against the live active
+ * definitions and normalised — the exact same validation the single-question
+ * create/update flow already runs, just fed from a document's raw labels
+ * instead of a client-supplied `key`.
+ *
+ * Matching is label-normalised (case/whitespace/punctuation-insensitive —
+ * same normalizeLabel() the fixed template fields already use), so
+ * "Sub Topic", "Subtopic", "sub-topic" etc. all resolve to the same
+ * definition. A candidate that matches nothing is simply ignored — it's
+ * either genuine document noise or a field that hasn't been defined yet in
+ * Manage Fields, not an error worth failing the row over.
+ */
+function buildCustomFieldLabelMap(fieldDefinitions) {
+  const map = {};
+  for (const def of fieldDefinitions) {
+    map[normalizeLabel(def.label)] = def.key;
+    map[normalizeLabel(def.key)] = def.key;
+  }
+  return map;
+}
+
+function resolveCustomFieldsFromCandidates(candidates, labelMap) {
+  const rawByKey = {};
+  for (const [rawLabel, value] of Object.entries(candidates || {})) {
+    const key = labelMap[normalizeLabel(rawLabel)];
+    if (key) rawByKey[key] = value;
+  }
+  return rawByKey;
+}
+
+/**
  * Reshapes one flat parsed row (field:string) into a createQuestionSchema-
  * shaped candidate. Joi + processMathField validate/convert it next — this
  * function only reshapes, it does not validate.
@@ -1019,6 +1058,12 @@ async function runBulkUploadJob({
 
   await onProgress("saving", 0, rawRows.length);
 
+  // Fetched ONCE for the whole batch (not per-row) — see
+  // buildCustomFieldLabelMap's doc comment for why this has to happen here
+  // rather than in the parsers themselves.
+  const activeFieldDefs = await QuestionFieldDefinition.find({ isActive: true }).lean();
+  const customFieldLabelMap = buildCustomFieldLabelMap(activeFieldDefs);
+
   // ── Per-row: build candidate → Joi validate → math process → hash → dedup ──
   const failed            = structuralFailed.map((f) => ({ row: f.row, errors: [f.reason] }));
   const skippedDuplicates = [];
@@ -1078,6 +1123,15 @@ async function runBulkUploadJob({
       const sImgs = solutionImages.get(rowNumber) || [];
       const oImgs = optionImages.get(rowNumber) || {};
 
+      // Admin-defined custom fields (e.g. "Sub Topic", "Chapter Weightage")
+      // pulled from whatever the document's metadata table/columns had that
+      // wasn't one of the fixed schema fields — see buildCustomFieldLabelMap.
+      // Throws (caught below, fails just this row) if a value doesn't fit
+      // its field's type — e.g. a "select" field given a value outside its
+      // configured options.
+      const rawCustomFields = resolveCustomFieldsFromCandidates(rawRow._customFieldCandidates, customFieldLabelMap);
+      const customFields = validateAndNormalizeCustomFields(rawCustomFields, activeFieldDefs);
+
       docsToInsert.push({
         subject: value.subject, classLevel: value.classLevel, chapter: value.chapter, topic: value.topic,
         questionCategory: value.questionCategory || "", questionVariant: value.questionVariant || "",
@@ -1092,6 +1146,7 @@ async function runBulkUploadJob({
           image: { url: null, publicId: null }, images: sImgs,
         },
         contentHash, sourceRef: value.sourceRef || "",
+        customFields,
         isActive: true, status: "draft",
         createdBy: { userId: user.id, email: user.email },
         uploadBatch: { batchId, fileName, uploadedAt },

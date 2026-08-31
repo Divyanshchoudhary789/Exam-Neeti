@@ -15,6 +15,7 @@ export interface EditSyllabusTopicData {
   topicOrder?: number;
   chapterOrder?: number;
   weight?: number;
+  topicWeightage?: 1 | 2 | 3 | null;
   isActive?: boolean;
 }
 
@@ -39,6 +40,7 @@ export function EditSyllabusModal({
   const [chapterOrder, setChapterOrder] = useState<number>(1);
   const [topicOrder, setTopicOrder] = useState<number>(1);
   const [weight, setWeight] = useState<number>(1.0);
+  const [topicWeightage, setTopicWeightage] = useState<string>(""); // "" = not set
   const [isActive, setIsActive] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -53,6 +55,7 @@ export function EditSyllabusModal({
       setChapterOrder(topicData.chapterOrder !== undefined ? topicData.chapterOrder : 1);
       setTopicOrder(topicData.topicOrder !== undefined ? topicData.topicOrder : 1);
       setWeight(topicData.weight !== undefined ? topicData.weight : 1.0);
+      setTopicWeightage(topicData.topicWeightage ? String(topicData.topicWeightage) : "");
       setIsActive(topicData.isActive !== false);
       setErrorMsg("");
     }
@@ -88,6 +91,7 @@ export function EditSyllabusModal({
         chapterOrder: Number(chapterOrder) || 1,
         topicOrder: Number(topicOrder) || 1,
         weight: Number(weight),
+        topicWeightage: topicWeightage ? Number(topicWeightage) : null,
         isActive,
       });
 
@@ -190,6 +194,26 @@ export function EditSyllabusModal({
             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             required
           />
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Topic Weightage
+          </label>
+          <CustomSelect
+            value={topicWeightage}
+            onChange={(val) => setTopicWeightage(val)}
+            options={[
+              { value: "", label: "Not set" },
+              { value: "1", label: "1 — High Priority" },
+              { value: "2", label: "2 — Medium Priority" },
+              { value: "3", label: "3 — Low Priority" },
+            ]}
+            className="w-full"
+          />
+          <p className="text-[10px] text-slate-400 font-medium mt-1">
+            Taxonomy-level priority scoring for test-generation strategy — separate from Weight (used for coverage %).
+          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">

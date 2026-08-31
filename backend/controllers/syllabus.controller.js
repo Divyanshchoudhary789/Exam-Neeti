@@ -43,13 +43,17 @@ exports.getSyllabus = asyncHandler(async (req, res) => {
     const ch = t.chapter;
     if (!tree[sk])        tree[sk] = {};
     if (!tree[sk][ck])    tree[sk][ck] = {};
-    if (!tree[sk][ck][ch]) tree[sk][ck][ch] = { unitCode: t.unitCode, chapterOrder: t.chapterOrder, topics: [] };
+    if (!tree[sk][ck][ch]) {
+      tree[sk][ck][ch] = { unitCode: t.unitCode, chapterOrder: t.chapterOrder, chapterWeightage: t.chapterWeightage ?? null, topics: [] };
+    }
     tree[sk][ck][ch].topics.push({
       topic: t.topic,
       topicOrder: t.topicOrder,
       chapterOrder: t.chapterOrder,
       unitCode: t.unitCode,
       weight: t.weight,
+      topicWeightage: t.topicWeightage ?? null,
+      subtopics: t.subtopics || [],
       isActive: t.isActive !== false,
       _id: t._id,
     });
@@ -65,6 +69,7 @@ exports.getSyllabus = asyncHandler(async (req, res) => {
           classLevel:   level,
           unitCode:     data.unitCode,
           chapterOrder: data.chapterOrder,
+          chapterWeightage: data.chapterWeightage,
           chapter:      chapterName,
           topics:       data.topics.sort((a, b) => a.topicOrder - b.topicOrder),
           topicCount:   data.topics.length,
@@ -174,7 +179,7 @@ exports.getBlueprintEntry = asyncHandler(async (req, res, next) => {
 // ─── POST /syllabus/topics — Admin: create new topic ────────────────────────
 
 exports.createTopic = asyncHandler(async (req, res, next) => {
-  const { subject, classLevel, unitCode, chapter, topic, topicOrder, chapterOrder, weight, isActive } = req.body;
+  const { subject, classLevel, unitCode, chapter, topic, topicOrder, chapterOrder, weight, topicWeightage, isActive } = req.body;
 
   const normalizedSubject = String(subject).toLowerCase();
 
@@ -189,6 +194,14 @@ exports.createTopic = asyncHandler(async (req, res, next) => {
     return next(new AppError("Topic already exists in this chapter and class level.", 400));
   }
 
+  // A new topic in an EXISTING chapter should inherit that chapter's
+  // already-set weightage (if any) — otherwise every fresh topic would
+  // silently disagree with its siblings until an admin manually re-applies
+  // the chapter-wide value.
+  const sibling = await SyllabusConfig.findOne({
+    subject: normalizedSubject, classLevel, chapter: chapter.trim(), chapterWeightage: { $ne: null },
+  }).select("chapterWeightage").lean();
+
   const newTopic = await SyllabusConfig.create({
     subject: normalizedSubject,
     classLevel,
@@ -198,6 +211,8 @@ exports.createTopic = asyncHandler(async (req, res, next) => {
     topicOrder: topicOrder !== undefined ? Number(topicOrder) : 1,
     chapterOrder: chapterOrder !== undefined ? Number(chapterOrder) : 1,
     weight: weight !== undefined ? Number(weight) : 1.0,
+    topicWeightage: topicWeightage !== undefined ? Number(topicWeightage) : null,
+    chapterWeightage: sibling ? sibling.chapterWeightage : null,
     isActive: isActive !== undefined ? Boolean(isActive) : true,
   });
 
@@ -213,7 +228,7 @@ exports.updateTopic = asyncHandler(async (req, res, next) => {
   const existingTopic = await SyllabusConfig.findById(topicId);
   if (!existingTopic) return next(new AppError("Syllabus topic not found.", 404));
 
-  const { subject, classLevel, unitCode, chapter, topic, topicOrder, chapterOrder, weight, isActive } = req.body;
+  const { subject, classLevel, unitCode, chapter, topic, topicOrder, chapterOrder, weight, topicWeightage, isActive } = req.body;
 
   if (subject) existingTopic.subject = String(subject).toLowerCase();
   if (classLevel) existingTopic.classLevel = classLevel;
@@ -223,6 +238,8 @@ exports.updateTopic = asyncHandler(async (req, res, next) => {
   if (topicOrder !== undefined) existingTopic.topicOrder = Number(topicOrder);
   if (chapterOrder !== undefined) existingTopic.chapterOrder = Number(chapterOrder);
   if (weight !== undefined) existingTopic.weight = Number(weight);
+  // null explicitly clears it back to "not set" — only skip on true undefined.
+  if (topicWeightage !== undefined) existingTopic.topicWeightage = topicWeightage === null ? null : Number(topicWeightage);
   if (isActive !== undefined) existingTopic.isActive = Boolean(isActive);
 
   // Check unique index conflict if details changed
@@ -341,6 +358,111 @@ exports.updateTopicWeight = asyncHandler(async (req, res, next) => {
   if (!topic) return next(new AppError("Syllabus topic not found.", 404));
 
   return sendSuccess(res, 200, "Topic weight updated.", { topic });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Weightage Framework — 1 (High) / 2 (Medium) / 3 (Low) priority.
+// Taxonomy-level only (never tagged on individual questions) — see
+// SyllabusConfig.model.js's own comment for the full rationale.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── PATCH /syllabus/chapters/weightage — Admin: set weightage for a WHOLE chapter
+
+/**
+ * Chapter Weightage is stored redundantly on every topic document that
+ * shares a (subject, classLevel, chapter) — there's no separate "chapter"
+ * collection in this model. Updating it here (matched by name, not by one
+ * topic's _id) keeps every topic under the chapter in agreement; editing it
+ * through a single topic's record would NOT do that, which is exactly why
+ * this is a dedicated endpoint instead of a field on updateTopic.
+ */
+exports.updateChapterWeightage = asyncHandler(async (req, res, next) => {
+  const { subject, classLevel, chapter, chapterWeightage } = req.body;
+
+  if (![1, 2, 3].includes(Number(chapterWeightage))) {
+    return next(new AppError("Chapter Weightage must be 1 (High), 2 (Medium), or 3 (Low).", 400));
+  }
+  if (!subject || !classLevel || !chapter) {
+    return next(new AppError("subject, classLevel, and chapter are all required.", 400));
+  }
+
+  const result = await SyllabusConfig.updateMany(
+    { subject: String(subject).toLowerCase(), classLevel, chapter: String(chapter).trim() },
+    { chapterWeightage: Number(chapterWeightage) }
+  );
+
+  if (result.matchedCount === 0) {
+    return next(new AppError("No topics found for this subject/class level/chapter.", 404));
+  }
+
+  return sendSuccess(res, 200, `Chapter Weightage updated across ${result.modifiedCount} topic(s).`, {
+    matchedCount: result.matchedCount,
+    modifiedCount: result.modifiedCount,
+  });
+});
+
+// ─── Subtopics — managed within one topic document's subtopics[] array ─────
+
+// POST /syllabus/topics/:id/subtopics
+exports.addSubtopic = asyncHandler(async (req, res, next) => {
+  const topicId = toObjectId(req.params.id);
+  if (!topicId) return next(new AppError("Invalid topic ID.", 400));
+
+  const { name, weightage } = req.body;
+  if (!name || !String(name).trim()) return next(new AppError("Subtopic name is required.", 400));
+  if (weightage !== undefined && weightage !== null && ![1, 2, 3].includes(Number(weightage))) {
+    return next(new AppError("Subtopic Weightage must be 1 (High), 2 (Medium), or 3 (Low).", 400));
+  }
+
+  const topicDoc = await SyllabusConfig.findByIdAndUpdate(
+    topicId,
+    { $push: { subtopics: { name: String(name).trim(), weightage: weightage != null ? Number(weightage) : null } } },
+    { new: true, runValidators: true }
+  );
+  if (!topicDoc) return next(new AppError("Syllabus topic not found.", 404));
+
+  return sendSuccess(res, 201, "Subtopic added.", { topic: topicDoc });
+});
+
+// PATCH /syllabus/topics/:id/subtopics/:subtopicId
+exports.updateSubtopic = asyncHandler(async (req, res, next) => {
+  const topicId = toObjectId(req.params.id);
+  const subtopicId = toObjectId(req.params.subtopicId);
+  if (!topicId || !subtopicId) return next(new AppError("Invalid topic or subtopic ID.", 400));
+
+  const { name, weightage } = req.body;
+  if (weightage !== undefined && weightage !== null && ![1, 2, 3].includes(Number(weightage))) {
+    return next(new AppError("Subtopic Weightage must be 1 (High), 2 (Medium), or 3 (Low).", 400));
+  }
+
+  const topicDoc = await SyllabusConfig.findOne({ _id: topicId, "subtopics._id": subtopicId });
+  if (!topicDoc) return next(new AppError("Subtopic not found.", 404));
+
+  const sub = topicDoc.subtopics.id(subtopicId);
+  if (name !== undefined) {
+    if (!String(name).trim()) return next(new AppError("Subtopic name cannot be empty.", 400));
+    sub.name = String(name).trim();
+  }
+  if (weightage !== undefined) sub.weightage = weightage === null ? null : Number(weightage);
+
+  await topicDoc.save();
+  return sendSuccess(res, 200, "Subtopic updated.", { topic: topicDoc });
+});
+
+// DELETE /syllabus/topics/:id/subtopics/:subtopicId
+exports.deleteSubtopic = asyncHandler(async (req, res, next) => {
+  const topicId = toObjectId(req.params.id);
+  const subtopicId = toObjectId(req.params.subtopicId);
+  if (!topicId || !subtopicId) return next(new AppError("Invalid topic or subtopic ID.", 400));
+
+  const topicDoc = await SyllabusConfig.findByIdAndUpdate(
+    topicId,
+    { $pull: { subtopics: { _id: subtopicId } } },
+    { new: true }
+  );
+  if (!topicDoc) return next(new AppError("Syllabus topic not found.", 404));
+
+  return sendSuccess(res, 200, "Subtopic deleted.", { topic: topicDoc });
 });
 
 // ─── GET /syllabus/coverage/me/:sprintId — Student: own coverage ─────────────

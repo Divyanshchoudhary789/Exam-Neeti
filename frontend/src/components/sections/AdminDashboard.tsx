@@ -424,6 +424,80 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     }
   };
 
+  // ── Weightage Framework (Chapter/Topic/Sub-Topic, 1=High/2=Medium/3=Low) ──
+  // Taxonomy-level only — never tagged on individual questions.
+
+  const handleUpdateChapterWeightage = async (subject: string, classLevel: string, chapter: string, weightage: 1 | 2 | 3) => {
+    try {
+      await adminService.updateChapterWeightage(subject, classLevel, chapter, weightage);
+      showToast("Chapter Weightage updated for every topic in this chapter!", "success");
+      loadSyllabus();
+      setSelectedChapterForTopics((prev) => (prev ? { ...prev, chapterWeightage: weightage } : null));
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to update Chapter Weightage", "error");
+    }
+  };
+
+  const handleUpdateTopicWeightage = async (topicId: string, weightage: 1 | 2 | 3 | null) => {
+    try {
+      await adminService.updateTopicWeightage(topicId, weightage);
+      showToast("Topic Weightage updated!", "success");
+      loadSyllabus();
+      setSelectedChapterForTopics((prev) =>
+        prev ? { ...prev, topics: (prev.topics || []).map((t) => (String(t._id || t.id) === topicId ? { ...t, topicWeightage: weightage } : t)) } : null
+      );
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to update Topic Weightage", "error");
+    }
+  };
+
+  const handleAddSubtopic = async (topicId: string, name: string, weightage: 1 | 2 | 3 | null) => {
+    try {
+      const res = await adminService.addSubtopic(topicId, name, weightage);
+      const updated = res?.data?.topic || res?.topic;
+      showToast("Subtopic added!", "success");
+      loadSyllabus();
+      setSelectedChapterForTopics((prev) =>
+        prev ? { ...prev, topics: (prev.topics || []).map((t) => (String(t._id || t.id) === topicId ? { ...t, subtopics: updated?.subtopics || t.subtopics } : t)) } : null
+      );
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to add subtopic", "error");
+    }
+  };
+
+  const handleUpdateSubtopic = async (topicId: string, subtopicId: string, data: { name?: string; weightage?: 1 | 2 | 3 | null }) => {
+    try {
+      const res = await adminService.updateSubtopic(topicId, subtopicId, data);
+      const updated = res?.data?.topic || res?.topic;
+      loadSyllabus();
+      setSelectedChapterForTopics((prev) =>
+        prev ? { ...prev, topics: (prev.topics || []).map((t) => (String(t._id || t.id) === topicId ? { ...t, subtopics: updated?.subtopics || t.subtopics } : t)) } : null
+      );
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to update subtopic", "error");
+    }
+  };
+
+  const handleDeleteSubtopic = async (topicId: string, subtopicId: string) => {
+    try {
+      await adminService.deleteSubtopic(topicId, subtopicId);
+      showToast("Subtopic deleted!", "success");
+      loadSyllabus();
+      setSelectedChapterForTopics((prev) =>
+        prev
+          ? {
+              ...prev,
+              topics: (prev.topics || []).map((t) =>
+                String(t._id || t.id) === topicId ? { ...t, subtopics: (t.subtopics || []).filter((s) => s._id !== subtopicId) } : t
+              ),
+            }
+          : null
+      );
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to delete subtopic", "error");
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserBatchId) {
@@ -1883,6 +1957,11 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         }}
         onDeleteTopicClick={(id, name) => handleDeleteSyllabusTopic(id, name)}
         onToggleTopicActive={(id) => handleToggleSyllabusTopicActive(id)}
+        onUpdateChapterWeightage={(subject, classLevel, chapter, weightage) => handleUpdateChapterWeightage(subject, classLevel, chapter, weightage)}
+        onUpdateTopicWeightage={(id, weightage) => handleUpdateTopicWeightage(id, weightage)}
+        onAddSubtopic={(topicId, name, weightage) => handleAddSubtopic(topicId, name, weightage)}
+        onUpdateSubtopic={(topicId, subtopicId, data) => handleUpdateSubtopic(topicId, subtopicId, data)}
+        onDeleteSubtopic={(topicId, subtopicId) => handleDeleteSubtopic(topicId, subtopicId)}
       />
 
       {/* Create Syllabus Modal */}

@@ -514,6 +514,28 @@ export const adminService = {
     const res = await api.patch(`/syllabus/topics/${id}`, { weight });
     return res.data;
   },
+  /** Weightage Framework — 1 (High) / 2 (Medium) / 3 (Low). Taxonomy-level,
+   *  never tagged on individual questions. */
+  updateChapterWeightage: async (subject: string, classLevel: string, chapter: string, chapterWeightage: 1 | 2 | 3) => {
+    const res = await api.patch("/syllabus/chapters/weightage", { subject, classLevel, chapter, chapterWeightage });
+    return res.data;
+  },
+  updateTopicWeightage: async (id: string, topicWeightage: 1 | 2 | 3 | null) => {
+    const res = await api.put(`/syllabus/topics/${id}`, { topicWeightage });
+    return res.data;
+  },
+  addSubtopic: async (topicId: string, name: string, weightage?: 1 | 2 | 3 | null) => {
+    const res = await api.post(`/syllabus/topics/${topicId}/subtopics`, { name, weightage });
+    return res.data;
+  },
+  updateSubtopic: async (topicId: string, subtopicId: string, data: { name?: string; weightage?: 1 | 2 | 3 | null }) => {
+    const res = await api.patch(`/syllabus/topics/${topicId}/subtopics/${subtopicId}`, data);
+    return res.data;
+  },
+  deleteSubtopic: async (topicId: string, subtopicId: string) => {
+    const res = await api.delete(`/syllabus/topics/${topicId}/subtopics/${subtopicId}`);
+    return res.data;
+  },
   getStudentCoverage: async (studentId: string, sprintId: string) => {
     const res = await api.get(`/syllabus/coverage/student/${studentId}/${sprintId}`);
     return res.data;

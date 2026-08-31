@@ -145,7 +145,19 @@ function parseTable(tblXml, tableIndex) {
         const m = /^([^:：]{2,40})[:：]\s*(.+)$/.exec(line);
         if (!m) return;
         const key = resolveFieldKey(m[1]);
-        if (!key || COLON_SPLIT_EXCLUDED_KEYS.has(key)) return;
+        if (!key) {
+          // Not one of the FIXED schema fields — keep the raw label/value
+          // anyway. Admin-defined custom fields (e.g. "Sub Topic",
+          // "Chapter Weightage") are configured at RUNTIME via
+          // QuestionFieldDefinition, so this parser (which only knows the
+          // static field list) can't resolve them itself — the caller
+          // matches these against the live definitions and only THEN
+          // decides what's a real custom field vs. actual document noise.
+          rawRow._customFieldCandidates = rawRow._customFieldCandidates || {};
+          rawRow._customFieldCandidates[m[1].trim()] = m[2].trim();
+          return;
+        }
+        if (COLON_SPLIT_EXCLUDED_KEYS.has(key)) return;
         rawRow[key] = cleanFieldValue(key, m[2]);
         matchedAny = true;
       });
@@ -163,9 +175,19 @@ function parseTable(tblXml, tableIndex) {
       const labelLines = cellLines[cellLines.length - 2];
       const valueLines = cellLines[cellLines.length - 1];
       labelLines.forEach((label, li) => {
-        const key = resolveFieldKey(label);
-        if (!key || rawRow[key] !== undefined) return; // don't overwrite pass 1
         const value = valueLines[li] !== undefined ? valueLines[li] : valueLines[0];
+        const key = resolveFieldKey(label);
+        if (!key) {
+          // See the matching comment in Pass 1 — same runtime-defined
+          // custom-field deferral, just reached via the stacked
+          // label-column/value-column table layout instead of "Label: value".
+          if (value && rawRow._customFieldCandidates?.[label.trim()] === undefined) {
+            rawRow._customFieldCandidates = rawRow._customFieldCandidates || {};
+            rawRow._customFieldCandidates[label.trim()] = value.trim();
+          }
+          return;
+        }
+        if (rawRow[key] !== undefined) return; // don't overwrite pass 1
         if (!value) return;
         rawRow[key] = cleanFieldValue(key, value);
         matchedAny = true;

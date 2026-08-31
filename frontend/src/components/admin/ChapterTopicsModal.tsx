@@ -3,6 +3,12 @@
 import React, { useState } from "react";
 import { CommonModal, IconEdit, IconSearch, IconFileText, IconCheck, IconCross, IconPlus, IconTrash } from "../common/UIComponents";
 
+export interface SubtopicItem {
+  _id: string;
+  name: string;
+  weightage?: 1 | 2 | 3 | null;
+}
+
 export interface TopicItem {
   _id?: string;
   id?: string;
@@ -10,6 +16,8 @@ export interface TopicItem {
   name?: string;
   weight?: number;
   weightage?: number;
+  topicWeightage?: 1 | 2 | 3 | null;
+  subtopics?: SubtopicItem[];
   questionCount?: number;
   conceptCoverage?: number;
   unitCode?: string;
@@ -27,7 +35,28 @@ export interface ChapterData {
   subject?: string;
   classLevel?: string;
   unitCode?: string;
+  chapterWeightage?: 1 | 2 | 3 | null;
   topics?: TopicItem[];
+}
+
+// Weightage Framework — 1 (High) / 2 (Medium) / 3 (Low), same scale at
+// chapter/topic/subtopic level. Taxonomy-only, never tagged on questions.
+const WEIGHTAGE_LABELS: Record<number, string> = { 1: "High", 2: "Medium", 3: "Low" };
+const WEIGHTAGE_COLORS: Record<number, string> = {
+  1: "bg-red-50 text-red-700 border-red-200",
+  2: "bg-amber-50 text-amber-700 border-amber-200",
+  3: "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+function WeightageBadge({ value }: { value?: number | null }) {
+  if (!value) {
+    return <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold bg-slate-50 text-slate-400 border-slate-200">Not set</span>;
+  }
+  return (
+    <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase ${WEIGHTAGE_COLORS[value] || WEIGHTAGE_COLORS[2]}`}>
+      {value} · {WEIGHTAGE_LABELS[value] || ""}
+    </span>
+  );
 }
 
 interface ChapterTopicsModalProps {
@@ -39,6 +68,11 @@ interface ChapterTopicsModalProps {
   onEditTopicClick?: (topic: TopicItem) => void;
   onDeleteTopicClick?: (topicId: string, topicName: string) => void;
   onToggleTopicActive?: (topicId: string) => void;
+  onUpdateChapterWeightage?: (subject: string, classLevel: string, chapter: string, weightage: 1 | 2 | 3) => void;
+  onUpdateTopicWeightage?: (topicId: string, weightage: 1 | 2 | 3 | null) => void;
+  onAddSubtopic?: (topicId: string, name: string, weightage: 1 | 2 | 3 | null) => void;
+  onUpdateSubtopic?: (topicId: string, subtopicId: string, data: { name?: string; weightage?: 1 | 2 | 3 | null }) => void;
+  onDeleteSubtopic?: (topicId: string, subtopicId: string) => void;
 }
 
 export function ChapterTopicsModal({
@@ -50,10 +84,19 @@ export function ChapterTopicsModal({
   onEditTopicClick,
   onDeleteTopicClick,
   onToggleTopicActive,
+  onUpdateChapterWeightage,
+  onUpdateTopicWeightage,
+  onAddSubtopic,
+  onUpdateSubtopic,
+  onDeleteSubtopic,
 }: ChapterTopicsModalProps) {
   const [topicSearch, setTopicSearch] = useState("");
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [editWeightVal, setEditWeightVal] = useState<string>("");
+  const [editingChapterWeightage, setEditingChapterWeightage] = useState(false);
+  const [expandedSubtopicsFor, setExpandedSubtopicsFor] = useState<string | null>(null);
+  const [newSubtopicName, setNewSubtopicName] = useState("");
+  const [newSubtopicWeightage, setNewSubtopicWeightage] = useState<string>("");
 
   if (!chapterData) return null;
 
@@ -136,6 +179,47 @@ export function ChapterTopicsModal({
 
           <h3 className="text-lg font-black text-slate-900 leading-snug">{chapterTitle}</h3>
 
+          {/* Chapter Weightage — applies to EVERY topic in this chapter at once (taxonomy-level, not per-question) */}
+          {onUpdateChapterWeightage && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-extrabold uppercase text-slate-400">Chapter Weightage</span>
+              {editingChapterWeightage ? (
+                <div className="flex items-center gap-1.5 bg-indigo-50 p-1.5 rounded-xl border border-indigo-200">
+                  {[1, 2, 3].map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => {
+                        onUpdateChapterWeightage(subject, classLevel, chapterTitle, w as 1 | 2 | 3);
+                        setEditingChapterWeightage(false);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border cursor-pointer transition-all ${WEIGHTAGE_COLORS[w]} hover:opacity-75`}
+                    >
+                      {w} · {WEIGHTAGE_LABELS[w]}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setEditingChapterWeightage(false)}
+                    className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition-colors cursor-pointer"
+                    title="Cancel"
+                  >
+                    <IconCross className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingChapterWeightage(true)}
+                  className="flex items-center gap-1.5 cursor-pointer"
+                  title="Sets this for every topic in the chapter — click to change"
+                >
+                  <WeightageBadge value={chapterData.chapterWeightage} />
+                  <IconEdit className="w-3 h-3 text-slate-400" />
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-200/60 text-center">
             <div className="p-2.5 bg-white rounded-xl border border-slate-200/60">
@@ -198,8 +282,8 @@ export function ChapterTopicsModal({
               };
 
               return (
+                <React.Fragment key={topId}>
                 <div
-                  key={topId}
                   className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     isTopicActive
                       ? "bg-white border-slate-200/80 hover:border-indigo-300 hover:shadow-sm"
@@ -228,7 +312,35 @@ export function ChapterTopicsModal({
                   </div>
 
                   {/* Actions & Weight Controls */}
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto flex-wrap">
+                    {/* Topic Weightage (Weightage Framework — separate from Weight below) */}
+                    {onUpdateTopicWeightage && (
+                      <select
+                        value={top.topicWeightage ?? ""}
+                        onChange={(e) => onUpdateTopicWeightage(topId, e.target.value ? (Number(e.target.value) as 1 | 2 | 3) : null)}
+                        className={`px-2 py-1.5 rounded-xl text-[10px] font-bold border cursor-pointer focus:outline-none ${top.topicWeightage ? WEIGHTAGE_COLORS[top.topicWeightage] : "bg-slate-50 text-slate-400 border-slate-200"}`}
+                        title="Topic Weightage (taxonomy priority, not per-question)"
+                      >
+                        <option value="">Weightage: —</option>
+                        <option value="1">1 · High</option>
+                        <option value="2">2 · Medium</option>
+                        <option value="3">3 · Low</option>
+                      </select>
+                    )}
+
+                    {/* Subtopics toggle */}
+                    {(onAddSubtopic || (top.subtopics && top.subtopics.length > 0)) && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSubtopicsFor(expandedSubtopicsFor === topId ? null : topId)}
+                        className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                          expandedSubtopicsFor === topId ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300"
+                        }`}
+                      >
+                        Subtopics ({(top.subtopics || []).length})
+                      </button>
+                    )}
+
                     {/* Weight Controls */}
                     {isEditingWeight ? (
                       <div className="flex items-center gap-1.5 bg-indigo-50 p-1.5 rounded-xl border border-indigo-200">
@@ -312,6 +424,81 @@ export function ChapterTopicsModal({
                     )}
                   </div>
                 </div>
+
+                {/* Subtopics panel — admin-managed, each with its own 1-3 Weightage */}
+                {expandedSubtopicsFor === topId && (
+                  <div className="ml-4 sm:ml-10 p-3 rounded-xl bg-indigo-50/40 border border-indigo-100 space-y-2">
+                    {(top.subtopics || []).length === 0 && (
+                      <p className="text-[11px] text-slate-400 font-medium">No subtopics yet.</p>
+                    )}
+                    {(top.subtopics || []).map((sub) => (
+                      <div key={sub._id} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200">
+                        <span className="flex-1 text-xs font-semibold text-slate-800">{sub.name}</span>
+                        {onUpdateSubtopic ? (
+                          <select
+                            value={sub.weightage ?? ""}
+                            onChange={(e) =>
+                              onUpdateSubtopic(topId, sub._id, { weightage: e.target.value ? (Number(e.target.value) as 1 | 2 | 3) : null })
+                            }
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold border cursor-pointer focus:outline-none ${sub.weightage ? WEIGHTAGE_COLORS[sub.weightage] : "bg-slate-50 text-slate-400 border-slate-200"}`}
+                          >
+                            <option value="">Weightage: —</option>
+                            <option value="1">1 · High</option>
+                            <option value="2">2 · Medium</option>
+                            <option value="3">3 · Low</option>
+                          </select>
+                        ) : (
+                          <WeightageBadge value={sub.weightage} />
+                        )}
+                        {onDeleteSubtopic && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteSubtopic(topId, sub._id)}
+                            className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-100 rounded-lg transition-all cursor-pointer"
+                            title="Delete subtopic"
+                          >
+                            <IconTrash className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {onAddSubtopic && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          placeholder="New subtopic name..."
+                          value={expandedSubtopicsFor === topId ? newSubtopicName : ""}
+                          onChange={(e) => setNewSubtopicName(e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                        <select
+                          value={newSubtopicWeightage}
+                          onChange={(e) => setNewSubtopicWeightage(e.target.value)}
+                          className="px-2 py-1.5 rounded-lg text-[10px] font-bold border border-slate-200 bg-white cursor-pointer focus:outline-none"
+                        >
+                          <option value="">Weightage: —</option>
+                          <option value="1">1 · High</option>
+                          <option value="2">2 · Medium</option>
+                          <option value="3">3 · Low</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!newSubtopicName.trim()}
+                          onClick={() => {
+                            onAddSubtopic(topId, newSubtopicName.trim(), newSubtopicWeightage ? (Number(newSubtopicWeightage) as 1 | 2 | 3) : null);
+                            setNewSubtopicName("");
+                            setNewSubtopicWeightage("");
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all"
+                        >
+                          <IconPlus className="w-3 h-3" /> Add
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                </React.Fragment>
               );
             })}
           </div>
