@@ -80,7 +80,14 @@ function WeightageSelect({
   title?: string;
 }) {
   return (
-    <div title={title} className="w-[168px] shrink-0">
+    // No fixed width on mobile — a hardcoded px width doesn't shrink, which
+    // is exactly what was forcing rows sideways on narrow real devices
+    // (confirmed against production: long real topic names + this pill
+    // together overflowed and the modal's body silently scrolled
+    // horizontally instead of wrapping). `min-w-0` lets it shrink below its
+    // content size when needed; CustomSelect's own label already truncates
+    // with an ellipsis, so shrinking never clips it mid-character.
+    <div title={title} className="min-w-0 flex-1 basis-[130px] sm:flex-none sm:basis-auto sm:w-[168px]">
       <CustomSelect
         value={value ? String(value) : ""}
         onChange={(val) => onChange(val ? (Number(val) as 1 | 2 | 3) : null)}
@@ -495,9 +502,15 @@ export function ChapterTopicsModal({
                           placeholder="New subtopic name..."
                           value={expandedSubtopicsFor === topId ? newSubtopicName : ""}
                           onChange={(e) => setNewSubtopicName(e.target.value)}
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          className="min-w-0 flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                         />
-                        <div className="flex items-center gap-2">
+                        {/* flex-wrap here is the safety net: an input element's
+                            own default min-width plus a select plus a button
+                            in ONE unwrapped row is exactly what forced the
+                            whole modal body into silent horizontal scroll on
+                            a real narrow device — confirmed against
+                            production. */}
+                        <div className="flex items-center gap-2 flex-wrap">
                           <WeightageSelect
                             value={newSubtopicWeightage ? (Number(newSubtopicWeightage) as 1 | 2 | 3) : null}
                             onChange={(v) => setNewSubtopicWeightage(v ? String(v) : "")}

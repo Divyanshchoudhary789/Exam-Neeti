@@ -426,7 +426,13 @@ export function CommonModal({
             <IconCross className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
-        <div className="px-4 sm:px-8 py-4 sm:py-6 overflow-y-auto flex-grow">{children}</div>
+        {/* overflow-x-hidden is deliberate: setting overflow-y to auto/scroll
+            makes the browser compute overflow-x as auto too if left
+            unset (CSS spec quirk), which turns any child that doesn't wrap
+            (a fixed-width pill, an unwrapped flex row) into a silent
+            sideways scroll instead of a visible layout bug — every modal
+            body needs this, not just the one that surfaced it. */}
+        <div className="px-4 sm:px-8 py-4 sm:py-6 overflow-y-auto overflow-x-hidden flex-grow">{children}</div>
       </div>
     </div>
   );
