@@ -109,4 +109,5 @@ module.exports = {
   stripOptionMarker,
   isDecorativeSeparator,
   looksLikeFieldLabel,
+  LETTER_TO_NUMBER,
 };

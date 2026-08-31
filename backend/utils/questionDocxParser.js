@@ -243,6 +243,7 @@ const {
   stripSolutionMarker,
   stripOptionMarker,
   isDecorativeSeparator,
+  LETTER_TO_NUMBER,
 } = require("./questionBlockMarkers");
 const { convertOmmlToLatex } = require("./ommlToLatex");
 const { validateLatex } = require("./mathParser");
@@ -293,17 +294,6 @@ function tokenizeParagraph(pXml) {
   return tokens;
 }
 
-/** Splits a paragraph's token stream into segments on `{type:"tab"}`
- *  boundaries — used for option lines like "(1) ...  <tab>  (2) ...". */
-function splitOnTabs(tokens) {
-  const segments = [[]];
-  for (const t of tokens) {
-    if (t.type === "tab") segments.push([]);
-    else segments[segments.length - 1].push(t);
-  }
-  return segments.filter((seg) => seg.length > 0);
-}
-
 /** Renders a token segment (text + equation placeholders) back into a single
  *  string, collecting any equation/contentImage tokens it contains into
  *  `collector` as it goes. `idGen` yields a fresh unique id per equation. */
@@ -340,6 +330,101 @@ function renderSegment(tokens, collector, idGen) {
 }
 
 /**
+ * Renders MULTIPLE paragraphs' tokens into ONE continuous string (tabs and
+ * paragraph breaks both collapse to a single space — they're formatting
+ * within the options block, not meaningful boundaries; see
+ * extractOptionsGlobalScan for why that matters). Deliberately NOT built on
+ * top of renderSegment: that function trims its OWN output, and calling it
+ * once per token (to special-case tabs, which it doesn't handle) would trim
+ * away the real inter-word spaces Word constantly splits text runs on —
+ * turning "300 m" into "300m". This does the same per-token dispatch
+ * renderSegment does, but as ONE pass with a SINGLE trim at the end.
+ */
+function renderTokensCombined(tokensList, collector, idGen) {
+  let out = "";
+  for (const tokens of tokensList) {
+    for (const t of tokens) {
+      if (t.type === "text") out += t.value;
+      else if (t.type === "tab" || t.type === "break") out += " ";
+      else if (t.type === "equation") {
+        const id = idGen();
+        collector.equations.push({ id, rId: t.rId, native: false });
+        out += ` @@EQ_${id}@@ `;
+      } else if (t.type === "nativeEquation") {
+        const id = idGen();
+        let latex = "", valid = false, error = null;
+        try {
+          latex = convertOmmlToLatex(t.omml);
+          ({ valid, error } = validateLatex(latex));
+        } catch (err) {
+          error = err.message;
+        }
+        collector.equations.push({ id, rId: null, native: true, latex, valid, error });
+        out += ` @@EQ_${id}@@ `;
+      } else if (t.type === "contentImage") {
+        collector.images.push({ rId: t.rId });
+      }
+    }
+    out += " ";
+  }
+  return out.trim();
+}
+
+// Matches EITHER a parenthesised marker "(1)"/"(a)" OR a bare "1."/"a)" —
+// global, so it finds every occurrence anywhere in the combined options
+// text, not just at a segment's start.
+const OPTION_MARKER_GLOBAL_RE = /\(\s*([1-4]|[a-dA-D])\s*\)|(?:^|\s)([1-4]|[a-dA-D])[).](?=\s|$)/g;
+
+/**
+ * Finds every option-marker occurrence in `combinedText` and slices out the
+ * content between consecutive markers — handles options separated by a
+ * tab, a space, or literally NOTHING at all ("(1) 300 m(2) 200 m", found in
+ * a real uploaded document with no separator whatsoever between adjacent
+ * options on the same line).
+ *
+ * Scanning globally instead of "marker must be at the start of a segment"
+ * (the old approach) is inherently more prone to false positives — a
+ * decimal like "2.5 m/s" LOOKS like a "(2)"-style marker to a naive regex.
+ * Guarded against that by only ACCEPTING a candidate marker if its number
+ * is exactly the next one expected in sequence (1, then 2, then 3, then 4):
+ * a real option list is always strictly ascending, so this rejects almost
+ * every accidental match (a random "2." in running prose essentially never
+ * appears exactly where a "1." was already accepted moments before) without
+ * needing position-based heuristics at all.
+ */
+function extractOptionsGlobalScan(combinedText) {
+  const candidates = [];
+  let m;
+  OPTION_MARKER_GLOBAL_RE.lastIndex = 0;
+  while ((m = OPTION_MARKER_GLOBAL_RE.exec(combinedText)) !== null) {
+    const raw = m[1] || m[2];
+    const number = /[1-4]/.test(raw) ? Number(raw) : LETTER_TO_NUMBER[raw.toLowerCase()];
+    candidates.push({ number, start: m.index, end: OPTION_MARKER_GLOBAL_RE.lastIndex });
+  }
+
+  const accepted = [];
+  let expected = 1;
+  for (const c of candidates) {
+    if (c.number === expected) { accepted.push(c); expected++; }
+    if (expected > 4) break;
+  }
+
+  // Same { text, imageRId } shape as extractOptionsFromTable's return, for
+  // one uniform interface regardless of which options layout a document
+  // used — this path never attributes an image to a specific option (the
+  // whole region is one flat string, so there's no per-option cell
+  // boundary to key off), imageRId is always null here.
+  const optionsByNumber = {};
+  for (let i = 0; i < accepted.length; i++) {
+    const contentStart = accepted[i].end;
+    const contentEnd = i + 1 < accepted.length ? accepted[i + 1].start : combinedText.length;
+    const text = combinedText.slice(contentStart, contentEnd).trim().replace(/\s+/g, " ");
+    optionsByNumber[accepted[i].number] = { text, imageRId: null };
+  }
+  return optionsByNumber;
+}
+
+/**
  * Parses one question's worth of paragraphs (everything between one
  * metadata table and the next) into { textRaw, options, correctAnswer,
  * solutionRaw, equations[], images:{before:[],after:[]} } or a
@@ -352,6 +437,14 @@ function renderSegment(tokens, collector, idGen) {
  * text some documents use instead. Each cell is expected to hold exactly
  * one marked option, in any row/column arrangement (1x4, 4x1, 2x2, ...).
  */
+/**
+ * @returns {{ [number: 1|2|3|4]: { text: string, imageRId: string|null } }}
+ *   Every FOUND marker gets an entry — even one whose cell is entirely an
+ *   image with no text at all (a real case: "which graph best represents…"
+ *   questions where the four options ARE scanned/embedded graphs, found via
+ *   a real uploaded document). Question.model.js's option schema already
+ *   allows empty text precisely for this — see its own comment.
+ */
 function extractOptionsFromTable(tblXml, collector, idGen) {
   const optionsByNumber = {};
   for (const rowXml of extractBlocks(tblXml, "tr")) {
@@ -363,9 +456,17 @@ function extractOptionsFromTable(tblXml, collector, idGen) {
       const marker = stripOptionMarker(peekText);
       if (!marker || optionsByNumber[marker.number]) continue;
 
+      // Collect the cell's own image separately — renderSegment pushes
+      // contentImage tokens onto collector.images (needed so callers who
+      // don't care about per-option images still see them), but the text
+      // it returns has no placeholder for a picture, so we scan cellTokens
+      // directly here to know THIS option specifically had one.
+      const imageToken = cellTokens.find((t) => t.type === "contentImage");
+
       const rendered = renderSegment(cellTokens, collector, idGen);
       const stripped = stripOptionMarker(rendered);
-      optionsByNumber[marker.number] = (stripped ? stripped.rest : rendered).trim();
+      const text = (stripped ? stripped.rest : rendered).trim();
+      optionsByNumber[marker.number] = { text, imageRId: imageToken ? imageToken.rId : null };
     }
   }
   return optionsByNumber;
@@ -467,41 +568,35 @@ function parseQuestionProse(blocks, idGen) {
       }
     }
 
-    optionsByNumber = {};
-    let pendingOption = null;
+    // Global scan across the WHOLE options region at once (not
+    // segment-by-segment) — handles every real-world separator style found
+    // so far: a normal tab, an EXTRA tab stop between marker and content
+    // (column-alignment artifact), or NO separator at all between two
+    // options on the same line ("(1) 300 m(2) 200 m", found in a real
+    // uploaded document). See extractOptionsGlobalScan's own doc comment
+    // for how false-positive marker matches (e.g. a decimal "2.5") are
+    // guarded against.
+    const optionParaTokens = [];
     for (let i = optStart; i < optionsEnd; i++) {
-      const item = items[i];
-      if (item.type !== "para") continue;
-      const segments = splitOnTabs(item.tokens);
-      for (const seg of segments) {
-        const renderedFull = renderSegment(seg, { equations: [], images: [] }, () => "peek");
-        const marker = stripOptionMarker(renderedFull);
-
-        if (marker && !optionsByNumber[marker.number]) {
-          const rendered = renderSegment(seg, collector, idGen);
-          const strippedMarker = stripOptionMarker(rendered);
-          const content = (strippedMarker ? strippedMarker.rest : rendered).trim();
-          optionsByNumber[marker.number] = content; // may be "" — filled in below if so
-          pendingOption = content ? null : marker.number;
-          continue;
-        }
-
-        if (pendingOption !== null) {
-          const rendered = renderSegment(seg, collector, idGen).trim();
-          if (rendered) {
-            optionsByNumber[pendingOption] =
-              (optionsByNumber[pendingOption] ? optionsByNumber[pendingOption] + " " : "") + rendered;
-            pendingOption = null;
-          }
-        }
-      }
+      if (items[i].type === "para") optionParaTokens.push(items[i].tokens);
     }
+    const combined = renderTokensCombined(optionParaTokens, collector, idGen);
+    optionsByNumber = extractOptionsGlobalScan(combined);
     afterOptions = optionsEnd;
   }
 
-  const missingOptions = [1, 2, 3, 4].filter((n) => !optionsByNumber[n]);
+  // A marker being FOUND is what matters here, not whether its text is
+  // non-empty — an option whose entire content is an image (a real case:
+  // "which graph best represents…" questions, found via a real uploaded
+  // document) legitimately has empty text. Question.model.js's option
+  // schema already allows that.
+  const missingOptions = [1, 2, 3, 4].filter((n) => optionsByNumber[n] === undefined);
   if (missingOptions.length > 0) {
     return { error: `Missing option(s) ${missingOptions.join(", ")} — expected exactly 4 numbered options.` };
+  }
+  const emptyOptions = [1, 2, 3, 4].filter((n) => !optionsByNumber[n].text && !optionsByNumber[n].imageRId);
+  if (emptyOptions.length > 0) {
+    return { error: `Option(s) ${emptyOptions.join(", ")} have no text AND no image — nothing to store.` };
   }
 
   // ── Sol. marker — search forward from right after the options ───────────
@@ -528,26 +623,39 @@ function parseQuestionProse(blocks, idGen) {
   }
   solutionOut = solutionOut.trim();
 
-  // ── Content images: before solStart → question image; after → solution images
+  // ── Content images: before solStart → question image; after → solution
+  //    images. Images already claimed as a SPECIFIC option's image (table
+  //    layout only — see extractOptionsFromTable) are excluded here so they
+  //    aren't ALSO double-counted as the generic question image.
+  const claimedOptionImageRIds = new Set(
+    Object.values(optionsByNumber).map((o) => o.imageRId).filter(Boolean)
+  );
   const questionImageRIds = [];
   const solutionImageRIds = [];
   for (let i = qStart; i < items.length; i++) {
     if (items[i].type !== "para") continue;
     for (const t of items[i].tokens) {
-      if (t.type !== "contentImage") continue;
+      if (t.type !== "contentImage" || claimedOptionImageRIds.has(t.rId)) continue;
       if (i < solStart) questionImageRIds.push(t.rId);
       else solutionImageRIds.push(t.rId);
     }
   }
 
+  const optionImageRIds = {};
+  for (const n of [1, 2, 3, 4]) {
+    const key = OPTION_KEYS[n - 1];
+    if (optionsByNumber[n].imageRId) optionImageRIds[key] = optionsByNumber[n].imageRId;
+  }
+
   return {
     questionOut,
-    optionsByNumber,
+    optionsByNumber, // { 1..4: { text, imageRId } }
     correctAnswer,
     solutionOut,
     equations: collector.equations, // [{id, rId, native, ...}]
     questionImageRIds,
     solutionImageRIds,
+    optionImageRIds, // { A?: rId, B?: rId, ... } — only keys with an image
   };
 }
 
@@ -677,15 +785,16 @@ async function parseRichQuestionsDocx(buffer) {
       _rowNumber: rowNumber,
       ...metadata,
       questionText: parsed.questionOut,
-      optionA: parsed.optionsByNumber[1],
-      optionB: parsed.optionsByNumber[2],
-      optionC: parsed.optionsByNumber[3],
-      optionD: parsed.optionsByNumber[4],
+      optionA: parsed.optionsByNumber[1].text,
+      optionB: parsed.optionsByNumber[2].text,
+      optionC: parsed.optionsByNumber[3].text,
+      optionD: parsed.optionsByNumber[4].text,
       correctAnswer: parsed.correctAnswer,
       solutionText: parsed.solutionOut,
       _equations: parsed.equations,             // [{id, rId}]
       _questionImageRIds: parsed.questionImageRIds,
       _solutionImageRIds: parsed.solutionImageRIds,
+      _optionImageRIds: parsed.optionImageRIds, // { A?: rId, B?: rId, ... }
     });
   });
 

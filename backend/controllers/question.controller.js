@@ -1003,12 +1003,14 @@ async function runBulkUploadJob({
   let equationResolution = new Map();
   let questionImages = new Map();
   let solutionImages = new Map();
+  let optionImages = new Map();
 
   if (isRich) {
     const resolved = await resolveDocxEquationsAndImages(richContext, onProgress);
     equationResolution = resolved.equationResolution;
     questionImages = resolved.questionImages;
     solutionImages = resolved.solutionImages;
+    optionImages = resolved.optionImages;
   } else if (format === "xlsx") {
     const resolved = await resolveXlsxImages(rawRows, onProgress);
     questionImages = resolved.questionImages;
@@ -1074,6 +1076,7 @@ async function runBulkUploadJob({
 
       const qImg = questionImages.get(rowNumber) || null;
       const sImgs = solutionImages.get(rowNumber) || [];
+      const oImgs = optionImages.get(rowNumber) || {};
 
       docsToInsert.push({
         subject: value.subject, classLevel: value.classLevel, chapter: value.chapter, topic: value.topic,
@@ -1082,7 +1085,7 @@ async function runBulkUploadJob({
         questionType: value.questionType || "mcq",
         text: processedText.text, hasLatex: processedText.hasLatex,
         questionImage: qImg || { url: null, publicId: null },
-        options: processedOptions.map((o) => ({ key: o.key, text: o.text, image: { url: null, publicId: null } })),
+        options: processedOptions.map((o) => ({ key: o.key, text: o.text, image: oImgs[o.key] || { url: null, publicId: null } })),
         correctAnswer: value.correctAnswer, marks: value.marks, negativeMarks: value.negativeMarks ?? 0,
         solution: {
           text: processedSol.text, hasLatex: processedSol.hasLatex,

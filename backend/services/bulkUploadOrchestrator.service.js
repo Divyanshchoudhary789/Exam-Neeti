@@ -32,6 +32,7 @@ const RASTERIZABLE_EXTS = new Set(["wmf", "emf"]);
  *   equationResolution: Map<string, {latex:string, flagged:boolean, reason:string|null, originalImageUrl:string|null}>,
  *   questionImages: Map<number, {url:string, publicId:string}>,
  *   solutionImages: Map<number, Array<{url:string, publicId:string}>>,
+ *   optionImages: Map<number, {A?:{url,publicId}, B?:..., C?:..., D?:...}>,
  * }>}
  */
 async function resolveDocxEquationsAndImages(parseResult, onProgress = async () => {}) {
@@ -155,19 +156,24 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
     }
   }
 
-  // ── Content images (diagrams) — question image + solution images, per row
+  // ── Content images (diagrams) — question / solution / per-option images
   const questionImages = new Map();
   const solutionImages = new Map();
+  const optionImages = new Map(); // rowNumber -> { A?: result, B?: result, ... }
 
   const allImageRefs = [];
   for (const row of rows) {
     for (const rId of row._questionImageRIds) allImageRefs.push({ rowNumber: row._rowNumber, rId, kind: "question" });
     for (const rId of row._solutionImageRIds) allImageRefs.push({ rowNumber: row._rowNumber, rId, kind: "solution" });
+    for (const [optionKey, rId] of Object.entries(row._optionImageRIds || {})) {
+      allImageRefs.push({ rowNumber: row._rowNumber, rId, kind: "option", optionKey });
+    }
   }
 
   if (allImageRefs.length > 0) {
     await onProgress("uploading_images", 0, allImageRefs.length);
     let processed = 0;
+    const CLOUDINARY_FOLDER = { question: "examneeti/questions", solution: "examneeti/solutions", option: "examneeti/options" };
     const outcomes = await runWithConcurrencyLimit(allImageRefs, 5, async (ref) => {
       const media = await getMediaBuffer(ref.rId);
       let buffer = media?.buffer;
@@ -176,7 +182,7 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
         buffer = pngMap.get("img") || null;
       }
       const result = buffer
-        ? await uploadToCloudinary(buffer, `examneeti/${ref.kind === "question" ? "questions" : "solutions"}`).catch(() => null)
+        ? await uploadToCloudinary(buffer, CLOUDINARY_FOLDER[ref.kind]).catch(() => null)
         : null;
       processed++;
       await onProgress("uploading_images", processed, allImageRefs.length);
@@ -185,19 +191,23 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
 
     for (const outcome of outcomes) {
       if (!outcome.ok || !outcome.value.result) continue;
-      const { rowNumber, kind, result } = outcome.value;
+      const { rowNumber, kind, optionKey, result } = outcome.value;
       if (kind === "question") {
         // Schema supports only one questionImage — first one wins.
         if (!questionImages.has(rowNumber)) questionImages.set(rowNumber, result);
-      } else {
+      } else if (kind === "solution") {
         const arr = solutionImages.get(rowNumber) || [];
         arr.push(result);
         solutionImages.set(rowNumber, arr);
+      } else if (kind === "option") {
+        const forRow = optionImages.get(rowNumber) || {};
+        forRow[optionKey] = result;
+        optionImages.set(rowNumber, forRow);
       }
     }
   }
 
-  return { equationResolution, questionImages, solutionImages };
+  return { equationResolution, questionImages, solutionImages, optionImages };
 }
 
 /**
