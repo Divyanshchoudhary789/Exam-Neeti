@@ -5,7 +5,12 @@ const sprintController = require("../controllers/sprint.controller");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
 const validate = require("../middleware/validate");
-const { createSprintSchema, updateSprintSchema } = require("../validators/sprint.validator");
+const {
+  createSprintSchema,
+  updateSprintSchema,
+  updateSprintBlueprintSchema,
+  slotQuestionsQuerySchema,
+} = require("../validators/sprint.validator");
 const { ROLES } = require("../config/constants");
 
 router.use(authenticate);
@@ -21,10 +26,23 @@ router.use(authorize(ROLES.ADMIN));
 router.get("/", sprintController.listSprints);
 router.post("/", validate(createSprintSchema), sprintController.createSprint);
 
+// Per-slot candidate questions for the Sprint Builder (fixed path — must stay
+// above "/:id" so Express doesn't treat "slot-questions" as an id).
+router.get(
+  "/slot-questions",
+  validate(slotQuestionsQuerySchema, "query"),
+  sprintController.listSlotQuestions
+);
+
 // NOTE: /:id param routes must come AFTER fixed-path routes (/active, etc.)
 // to avoid Express matching "active" as a dynamic :id segment.
 router.get("/:id", sprintController.getSprint);
 router.patch("/:id", validate(updateSprintSchema), sprintController.updateSprint);
+router.patch(
+  "/:id/blueprint",
+  validate(updateSprintBlueprintSchema),
+  sprintController.updateSprintBlueprint
+);
 router.get("/:id/slot-stats", sprintController.getSlotStats);
 
 // Admin: delete a DRAFT sprint (blocked if any exams reference it)

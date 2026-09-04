@@ -54,6 +54,24 @@ const patternSlotSchema = new mongoose.Schema(
       default: 0,
       min: [0, "Negative marks value cannot be negative."],
     },
+    /**
+     * pinnedQuestionIds — admin-fixed questions for this exact slot position.
+     *
+     * These are _id values from the Question Bank DB (a separate Mongoose
+     * connection, hence no `ref`). Semantics enforced by the Question
+     * Reconstruction engine:
+     *
+     *   • non-empty  → every exam generated from this sprint MUST fill this
+     *     slot from THIS set only. With more exams than pinned questions the
+     *     engine cycles the least-recently-used pinned question. The generic
+     *     attribute-based tier fallback is bypassed entirely for the slot.
+     *   • empty      → unchanged behaviour: the engine picks the best-fit
+     *     question from the whole bank using subject/chapter/topic/difficulty.
+     */
+    pinnedQuestionIds: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: [],
+    },
   },
   { _id: true }
 );

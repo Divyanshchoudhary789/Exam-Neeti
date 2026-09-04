@@ -146,6 +146,7 @@ exports.generateExam = asyncHandler(async (req, res, next) => {
     marks:         question.marks,
     negativeMarks: question.negativeMarks,
     correctAnswer: question.correctAnswer,
+    idealTimeSeconds: question.idealTimeSeconds ?? null,
   }));
 
   exam.questions   = questions;
@@ -332,6 +333,7 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
     hasImage:         Boolean(q.hasImage),
     marks:            q.marks,
     negativeMarks:    q.negativeMarks,
+    idealTimeSeconds: q.idealTimeSeconds ?? null,
     // correctAnswer intentionally omitted
     selectedAnswer:   null,
     isCorrect:        null,

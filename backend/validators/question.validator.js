@@ -31,6 +31,11 @@ const solutionBodySchema = Joi.object({
   hasLatex: Joi.boolean().default(false),
 });
 
+// Past-exam years this question was asked in — a question can repeat across
+// multiple years, hence an array. Sanity-bounded the same way
+// extractYearsAndStrip() bounds a "[2022]" doc tag.
+const previousYearsSchema = Joi.array().items(Joi.number().integer().min(1990).max(2100));
+
 // ─── Strict 4-option validator ────────────────────────────────────────────────
 
 const fourOptionsValidator = Joi.array()
@@ -78,6 +83,7 @@ const createQuestionSchema = Joi.object({
 
   // Metadata
   sourceRef: Joi.string().trim().allow("").max(200).default(""),
+  previousYears: previousYearsSchema.default([]),
   isActive:  Joi.boolean().default(true),
 
   // Admin-defined extra fields (e.g. "Sub Topic") — loosely validated here,
@@ -106,6 +112,7 @@ const updateQuestionSchema = Joi.object({
   negativeMarks:    Joi.number().min(0),
   solution:         solutionBodySchema,
   sourceRef:        Joi.string().trim().allow("").max(200),
+  previousYears:    previousYearsSchema,
   isActive:         Joi.boolean(),
 
   // Admin-defined extra fields — see createQuestionSchema above.

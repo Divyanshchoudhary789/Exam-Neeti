@@ -22,12 +22,23 @@ const errorClassificationSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// ROI Metrics
+// ROI Metrics — classification is RELATIVE per the ROI Classification Framework
+// (top 25% of the test's questions by ROI = HIGH, mid 50% = MEDIUM, bottom 25% = LOW).
 const roiMetricsSchema = new mongoose.Schema(
   {
-    highROICoverage: Number,
-    lowROIAttempts: Number,
+    highROICoverage: Number,   // attempted high-ROI / total high-ROI × 100
+    mediumROIAttempts: Number, // attempted medium-ROI / total medium-ROI × 100
+    lowROIAttempts: Number,    // attempted low-ROI / total low-ROI × 100
     highROIAccuracy: Number,
+    highROICount: Number,
+    mediumROICount: Number,
+    lowROICount: Number,
+    roiClassificationMethod: { type: String, default: "percentile" }, // "percentile" | "absolute"
+    roiPercentileCutoffs: {
+      high: Number, // ROI value at the HIGH cutoff (marks/min)
+      low: Number,  // ROI value at the LOW cutoff
+      _id: false,
+    },
     scoreOpportunityIndex: Number,
     soiBreakdown: {
       sillyMistakesLoss: Number,

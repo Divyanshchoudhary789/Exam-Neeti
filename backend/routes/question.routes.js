@@ -147,7 +147,7 @@ function parseJsonFields(req, res, next) {
   if (typeof b.difficulty === "string") b.difficulty = b.difficulty.toLowerCase();
 
   // JSON fields (objects / arrays)
-  for (const field of ["options", "solution", "customFields"]) {
+  for (const field of ["options", "solution", "customFields", "previousYears"]) {
     if (b[field] && typeof b[field] === "string") {
       try { b[field] = JSON.parse(b[field]); } catch { /* Joi will reject */ }
     }

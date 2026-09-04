@@ -609,10 +609,10 @@ export function AttemptAnalyticsView({
                 calc={`${analytics.totalIncorrect ?? 0} ÷ ${analytics.totalAttempted ?? 0} × 100 = ${Number(frameworkAccuracyErrors.errorRatePercent ?? 0).toFixed(1)}%`}
               />
               <MetricTile
-                label="High ROI Coverage" value={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}%`} sub="Priority questions attempted"
+                label="High ROI Coverage" value={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}%`} sub={`${Number(roiMetrics.highROICount ?? 0)} priority questions`}
                 formula="High-ROI questions attempted ÷ Total high-ROI questions × 100"
                 calc={`${Number(roiMetrics.highROICoverage ?? 0).toFixed(1)}% attempted`}
-                note="A question is 'high-ROI' when expected marks per minute ≥ 2.5, where expected marks = P(correct)×4 − P(wrong)×1."
+                note="ROI = expected marks per minute (expected marks = P(correct)×4 − P(wrong)×1). Questions are ranked against the rest of this test — the top 25% by ROI are 'high ROI', the middle 50% 'medium', the bottom 25% 'low'."
               />
               <MetricTile
                 label="High ROI Accuracy" value={`${Number(frameworkAccuracyErrors.highROIAccuracyPercent ?? 0).toFixed(1)}%`} sub="Correct among priority Qs"
@@ -620,10 +620,16 @@ export function AttemptAnalyticsView({
                 calc={`${Number(frameworkAccuracyErrors.highROIAccuracyPercent ?? 0).toFixed(1)}% correct among high-ROI questions you attempted`}
               />
               <MetricTile
-                label="Low ROI Attempts" value={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}%`} sub="Low value attempted" danger
+                label="Medium ROI Attempts" value={`${Number(roiMetrics.mediumROIAttempts ?? 0).toFixed(1)}%`} sub={`${Number(roiMetrics.mediumROICount ?? 0)} mid-value questions`}
+                formula="Medium-ROI questions attempted ÷ Total medium-ROI questions × 100"
+                calc={`${Number(roiMetrics.mediumROIAttempts ?? 0).toFixed(1)}% attempted`}
+                note="The middle 50% of this test's questions by ROI — reasonable to attempt depending on your strategy and time left."
+              />
+              <MetricTile
+                label="Low ROI Attempts" value={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}%`} sub={`${Number(roiMetrics.lowROICount ?? 0)} low-value questions`} danger
                 formula="Low-ROI questions attempted ÷ Total low-ROI questions × 100"
                 calc={`${Number(roiMetrics.lowROIAttempts ?? 0).toFixed(1)}% attempted`}
-                note="A question is 'low-ROI' when expected marks per minute < 1.5 — time likely better spent elsewhere."
+                note="The bottom 25% of this test's questions by ROI — time was likely better spent elsewhere."
               />
               <MetricTile
                 label="Known Question Accuracy" value={`${Number(frameworkAccuracyErrors.knownQuestionAccuracyPercent ?? 0).toFixed(1)}%`} sub="Seen in a prior attempt"

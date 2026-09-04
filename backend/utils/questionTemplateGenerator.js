@@ -59,6 +59,7 @@ const EXAMPLES = [
     marks: "4", negativeMarks: "1",
     solutionText: "$KE = \\frac{1}{2}mv^2 = \\frac{1}{2}(2)(3)^2 = 9\\ J$",
     sourceRef: "Sample Template",
+    previousYears: "2022",
   },
 ];
 
@@ -113,6 +114,7 @@ async function generateQuestionsXlsxBuffer() {
     "Fields marked * are required. Leave optional fields blank if not applicable.",
     "Formulas: type them as LaTeX wrapped in $...$ (e.g. $\\frac{1}{2}mv^2$) or the shorthand below — directly in the Question Text / Option / Solution Text cells. Excel has no equivalent of Word's inline equation objects, so this typed-formula approach is what the parser reads (and it's already fully accurate — no OCR/AI involved for text).",
     "Images: paste/insert a picture directly into a cell in the \"Question Image\" or \"Solution Image\" column, on the SAME row as that question. It will be uploaded automatically and attached to that question. Leave these columns empty if a question has no diagram.",
+    "Previous Years (optional): if this exact question has appeared in a past exam, list the year(s) in that column, comma-separated (e.g. \"2019, 2022\"). Leave blank if it hasn't.",
     "Two example rows are already filled in on the Questions sheet — replace them with your own questions (or delete them) before uploading.",
   ].forEach((line) => instructions.addRow(["", `• ${line}`]));
 
@@ -229,12 +231,15 @@ async function generateQuestionsDocxBuffer() {
           bullet("Format B — Natural exam-paper style (Example 3 below): a metadata table with only the classification fields (Subject/Class/Chapter/Topic/.../Difficulty), followed by the question written the way you'd normally type an exam paper — \"Q.\", four numbered options, \"Sol. (N)\" with the correct option number, then the worked solution."),
           bullet("Format B accepts formulas EITHER typed as LaTeX/shorthand OR inserted directly as real equations (Word's Insert > Equation, or MathType/Equation Editor) right inside the question/option/solution text — the system reads and converts these automatically."),
           bullet("Format B also accepts diagram/photo images pasted directly into the question or solution text, in the right place — no separate upload step needed. An option itself can ALSO be entirely an image (e.g. \"which graph best represents…\" questions) — just paste the picture where that option's text would go."),
+          bullet("Format B — ONE metadata table can cover MULTIPLE questions: if several questions in a row share the same Subject/Class/Chapter/Topic/etc. (e.g. 4 questions all from \"Newton's First Law\"), put ONE metadata table before them and just write \"Q.\"/options/\"Sol.\" for each question one after another — no need to repeat the table before every single question. See Example Question 4 below."),
+          bullet("Previous Years (optional, both formats): if a question has appeared in a past exam, tag it with the year(s) in square brackets — e.g. \"[2022]\" or \"[2019, 2021]\" — either right after the question text or on its own line before the options. In Format A, use the \"Previous Years\" field/row instead (comma-separated)."),
+          bullet("Difficulty is OPTIONAL in both formats — if your source document doesn't record it, leave it out entirely and the question still uploads fine (defaults to Medium as a draft); set the real difficulty later while reviewing the draft."),
           bullet(`Allowed Subject values: ${Object.values(SUBJECTS).join(", ")}`),
           bullet(`Allowed Class Level values: ${Object.values(CLASS_LEVELS).join(", ")}`),
           bullet(`Allowed Difficulty values: ${Object.values(DIFFICULTY).join(", ")}`),
           bullet("Correct Answer must be A, B, C, or D."),
           bullet("Every bulk-uploaded question lands as a DRAFT for review (add/fix anything, verify any auto-converted formula) before it's usable in an exam — nothing goes live automatically."),
-          new Paragraph({ text: "Delete whichever example(s) don't match your format before uploading your real set — you can mix both formats in one file if you want.", spacing: { before: 100, after: 300 } }),
+          new Paragraph({ text: "Delete whichever example(s) don't match your format before uploading your real set. Use ONE format per file — the system auto-detects which format a file uses from its first table, so Format A and Format B tables can't be mixed in the same upload (split into two files if you need both).", spacing: { before: 100, after: 300 } }),
 
           new Paragraph({ text: "Format B is tolerant of these common variations — no need to match one exact style", heading: HeadingLevel.HEADING_2 }),
           bullet("Question marker: \"Q.\", \"Q1.\", \"Q 12:\", the full word \"Question\", a bare \"Q\" followed by a wide gap, or no marker at all (the question just starts right after the metadata table)."),
@@ -263,6 +268,27 @@ async function generateQuestionsDocxBuffer() {
           new Paragraph({ text: "(3) 8 m/s²          (4) 10 m/s²" }),
           new Paragraph({ text: "Sol.     (2).", spacing: { before: 100 } }),
           new Paragraph({ text: "By Newton's second law, F = ma, so a = F/m = 10/2 = 5 m/s²." }),
+          new Paragraph({ text: "", spacing: { after: 300 } }),
+
+          new Paragraph({ text: "Example Question 4 — Format B, ONE table shared by multiple questions", heading: HeadingLevel.HEADING_2 }),
+          new Paragraph({ text: "Both questions below belong to the same Chapter/Topic, so they share the single metadata table — no second table in between them.", spacing: { after: 100 } }),
+          new Table({
+            columnWidths: [LABEL_COL_WIDTH, VALUE_COL_WIDTH],
+            rows: FIELD_DEFS
+              .filter((f) => ["subject","classLevel","chapter","topic","difficulty"].includes(f.key))
+              .map((f) => fieldRow(f.label, { subject: "physics", classLevel: "XI", chapter: "Laws of Motion", topic: "Newton's First Law", difficulty: "medium" }[f.key])),
+          }),
+          new Paragraph({ text: "" }),
+          new Paragraph({ text: "Q.1 A body remains at rest or in uniform motion unless acted upon by an external force. This is a statement of [2021]", spacing: { before: 100 } }),
+          new Paragraph({ text: "(1) Newton's First Law          (2) Newton's Second Law" }),
+          new Paragraph({ text: "(3) Newton's Third Law          (4) Law of Conservation of Momentum" }),
+          new Paragraph({ text: "Sol. (1)", spacing: { before: 100 } }),
+          new Paragraph({ text: "This is the definition of inertia — Newton's First Law." }),
+          new Paragraph({ text: "Q.2 A passenger in a bus lurches forward when the bus suddenly stops. This happens because of", spacing: { before: 200 } }),
+          new Paragraph({ text: "(1) Inertia of rest          (2) Inertia of motion" }),
+          new Paragraph({ text: "(3) Newton's third law          (4) Gravity" }),
+          new Paragraph({ text: "Sol. (2)", spacing: { before: 100 } }),
+          new Paragraph({ text: "The passenger's body was in motion with the bus and tends to continue moving forward — inertia of motion." }),
         ],
       },
     ],

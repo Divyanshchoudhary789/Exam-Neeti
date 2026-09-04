@@ -69,6 +69,7 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   const [newQNegMarks, setNewQNegMarks] = useState(1);
   const [newQHasLatex, setNewQHasLatex] = useState(false);
   const [newQSolutionText, setNewQSolutionText] = useState("");
+  const [newQPreviousYears, setNewQPreviousYears] = useState("");
   const [newQImageFile, setNewQImageFile] = useState<File | null>(null);
   const [newQSolImageFile, setNewQSolImageFile] = useState<File | null>(null);
   const [qSubmitting, setQSubmitting] = useState(false);
@@ -189,6 +190,11 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
       if (newQSolutionText) {
         fd.append("solution", JSON.stringify({ text: newQSolutionText, hasLatex: newQHasLatex }));
       }
+      const parsedYears = newQPreviousYears
+        .split(/[,/&]/)
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isInteger(n) && n >= 1990 && n <= 2100);
+      fd.append("previousYears", JSON.stringify(parsedYears));
       if (newQImageFile) fd.append("questionImage", newQImageFile);
       if (newQSolImageFile) fd.append("solutionImage", newQSolImageFile);
       fd.append("customFields", JSON.stringify(customFieldValues));
@@ -199,6 +205,7 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
       setNewQChapter(""); setNewQTopic(""); setNewQText(""); setNewQSolutionText("");
       setNewQOptA(""); setNewQOptB(""); setNewQOptC(""); setNewQOptD("");
       setNewQImageFile(null); setNewQSolImageFile(null);
+      setNewQPreviousYears("");
       setCustomFieldValues({});
       loadQuestions();
     } catch (err: unknown) { showToast((err as { message?: string }).message || "Failed to add question", "error"); }
@@ -357,6 +364,11 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
                   {status === "draft" && (
                     <span className="px-2 py-0.5 rounded-full border text-[10px] font-black uppercase bg-amber-50 text-amber-700 border-amber-200">Draft</span>
                   )}
+                  {Array.isArray(q.previousYears) && (q.previousYears as number[]).length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full border text-[10px] font-black bg-sky-50 text-sky-700 border-sky-200">
+                      PYQ {(q.previousYears as number[]).join(", ")}
+                    </span>
+                  )}
                   <span className={`ml-auto px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${diffColors[diff.toLowerCase()] || "bg-slate-100 text-slate-600 border-slate-200"}`}>{diff}</span>
                 </div>
                 {(() => {
@@ -447,6 +459,10 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
           </div>
           <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Solution Explanation (Optional)</label>
             <textarea rows={2} value={newQSolutionText} onChange={e => setNewQSolutionText(e.target.value)} placeholder="Detailed step-by-step solution text..." className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs p-3 rounded-xl focus:outline-none font-medium resize-none" /></div>
+          <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Previous Years (PYQ, optional)</label>
+            <input type="text" value={newQPreviousYears} onChange={e => setNewQPreviousYears(e.target.value)} placeholder="e.g. 2019, 2022" className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium" />
+            <p className="text-[10px] text-slate-400 font-medium mt-1">Comma-separated years this exact question was asked in a past exam.</p>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Marks</label>
               <input type="number" min={1} value={newQMarks} onChange={e => setNewQMarks(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium" /></div>
@@ -506,6 +522,11 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
               })}
               {String(selectedQuestionDetail.status || "active") === "draft" && (
                 <span className="px-2.5 py-1 rounded-full border text-[10px] font-black uppercase bg-amber-50 text-amber-700 border-amber-200">Draft</span>
+              )}
+              {Array.isArray(selectedQuestionDetail.previousYears) && (selectedQuestionDetail.previousYears as number[]).length > 0 && (
+                <span className="px-2.5 py-1 rounded-full border text-[10px] font-black bg-sky-50 text-sky-700 border-sky-200">
+                  PYQ {(selectedQuestionDetail.previousYears as number[]).join(", ")}
+                </span>
               )}
               <span className="ml-auto text-xs font-extrabold text-slate-400">+{String(selectedQuestionDetail.marks || 4)} / -{String(selectedQuestionDetail.negativeMarks || 1)}</span>
             </div>

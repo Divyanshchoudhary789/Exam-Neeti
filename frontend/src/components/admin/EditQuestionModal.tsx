@@ -97,6 +97,7 @@ export function EditQuestionModal({
   const [negativeMarks, setNegativeMarks] = useState(1);
   const [hasLatex, setHasLatex] = useState(false);
   const [solutionText, setSolutionText] = useState("");
+  const [previousYears, setPreviousYears] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [solutionImageFile, setSolutionImageFile] = useState<File | null>(null);
   const [solutionImageFiles, setSolutionImageFiles] = useState<File[]>([]);
@@ -198,6 +199,9 @@ export function EditQuestionModal({
       const sol = questionData.solution as { text?: string } | undefined;
       setSolutionText(sol?.text ? String(sol.text) : "");
 
+      const years = questionData.previousYears as number[] | undefined;
+      setPreviousYears(Array.isArray(years) ? years.join(", ") : "");
+
       const opts = questionData.options as Array<{ key: string; text: string }> | undefined;
       if (Array.isArray(opts)) {
         opts.forEach((o) => {
@@ -259,6 +263,11 @@ export function EditQuestionModal({
       if (solutionText) {
         fd.append("solution", JSON.stringify({ text: solutionText, hasLatex }));
       }
+      const parsedYears = previousYears
+        .split(/[,/&]/)
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isInteger(n) && n >= 1990 && n <= 2100);
+      fd.append("previousYears", JSON.stringify(parsedYears));
       if (imageFile) {
         fd.append("questionImage", imageFile);
       }
@@ -589,6 +598,18 @@ export function EditQuestionModal({
             placeholder="Detailed step-by-step solution text..."
             className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs p-3 rounded-xl focus:outline-none font-medium resize-none"
           />
+        </div>
+
+        <div>
+          <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Previous Years (PYQ, optional)</label>
+          <input
+            type="text"
+            value={previousYears}
+            onChange={(e) => setPreviousYears(e.target.value)}
+            placeholder="e.g. 2019, 2022"
+            className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium"
+          />
+          <p className="text-[10px] text-slate-400 font-medium mt-1">Comma-separated years this exact question was asked in a past exam.</p>
         </div>
 
         <DynamicCustomFieldsSection

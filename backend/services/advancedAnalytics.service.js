@@ -16,6 +16,12 @@
 const AdvancedAnalytics = require("../models/AdvancedAnalytics.model");
 const AnalyticsResult = require("../models/AnalyticsResult.model");
 const FormulaConfig = require("../models/FormulaConfig.model");
+const {
+  FALLBACK_P_CORRECT,
+  ROI_CLASSIFICATION,
+  expectedTimeMinutes,
+  classifyRoiByPercentile,
+} = require("../config/analyticsFormulas");
 
 // Constants from client formulas
 const DEFAULTS = {
@@ -26,9 +32,15 @@ const DEFAULTS = {
   concept_error_confidence_max: 80,
   guess_confidence_threshold: 50,
   guess_time_factor: 0.6,
-  // ROI is measured as expected marks per minute.
-  high_roi_threshold: 2.5,
-  low_roi_threshold: 1.5,
+  // ROI Classification Framework — questions are ranked RELATIVE to the rest of
+  // the test, not against a fixed cutoff. "percentile": top 25% = HIGH, middle
+  // 50% = MEDIUM, bottom 25% = LOW. "absolute" falls back to the fixed
+  // marks/minute cutoffs below (legacy).
+  roi_classification_method: ROI_CLASSIFICATION.method,
+  roi_high_percentile: ROI_CLASSIFICATION.highPercentile,
+  roi_low_percentile: ROI_CLASSIFICATION.lowPercentile,
+  high_roi_threshold: ROI_CLASSIFICATION.absoluteHigh,
+  low_roi_threshold: ROI_CLASSIFICATION.absoluteLow,
   rolling_window_size: 5,
   critical_accuracy_threshold: 40,
   recovery_accuracy_threshold: 60,
@@ -60,10 +72,19 @@ const stdDev = (values) => {
 };
 const accuracyFor = (items) => pct(items.filter((r) => r.isCorrect).length, items.filter((r) => r.isAttempted).length);
 const attemptedRateFor = (items) => pct(items.filter((r) => r.isAttempted).length, items.length);
-// Shared fallback for ROI-style (marks-per-minute) calculations when a response has no
-// recorded time — used by both computeROIMetrics and computeAttemptOrderQuality so the
-// same question doesn't get two different ROI values depending on which section computed it.
-const estimateTimeMinutes = (timeSpentSeconds) => Math.max((timeSpentSeconds || 60) / 60, 0.1);
+
+// P(correct) for one response given the difficulty and the student's chapter
+// probability map (falls back to the difficulty-scaled prior when there's no
+// estimate for that chapter yet). Shared so ROI and Attempt-Order-Quality never
+// disagree on a question's probability.
+const pCorrectForResponse = (r, probabilityMap = {}) => {
+  const diff = String(r.difficulty || "medium").toLowerCase();
+  const probMap = probabilityMap[`${r.subject}_${r.chapter}`];
+  if (probMap && probMap.pEasy !== undefined) {
+    return diff === "easy" ? probMap.pEasy : diff === "medium" ? probMap.pMedium : probMap.pHard;
+  }
+  return FALLBACK_P_CORRECT[diff] ?? FALLBACK_P_CORRECT.medium;
+};
 
 const loadFormulaParams = async (sprintId) => {
   const configs = await FormulaConfig.find({
@@ -271,12 +292,15 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
     ) {
       sillyMistakes.push({ questionId: r.questionId, slotPosition: r.slotPosition });
     }
-    // Concept Error: Medium confidence + slow time + wrong
+    // Concept Error: mid confidence (50–80%) + slower-than-normal time + wrong +
+    // weak topic history (the complement of the "good history" a silly mistake
+    // needs — per the formula guide's concept-error criteria).
     else if (
       !r.isCorrect &&
       confidence >= params.concept_error_confidence_min &&
       confidence < params.concept_error_confidence_max &&
-      timeSpent > avgTime * 1.2
+      timeSpent > avgTime * 1.2 &&
+      topicAccuracy < 60
     ) {
       conceptErrors.push({ questionId: r.questionId, slotPosition: r.slotPosition });
     }
@@ -304,35 +328,54 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
 };
 
 /**
- * 5. ROI METRICS
- * Expected ROI = (4 × P(C) - 1 × P(W)) / Expected Time
- * High ROI Coverage = Attempted High ROI / Total High ROI
- * Low ROI Attempts = Attempted Low ROI / Total Low ROI
+ * 5. ROI METRICS  (ROI Classification Framework)
+ *
+ * Expected Marks   = 4 × P(C) − 1 × P(W)   (= 5·P(C) − 1)
+ * Expected ROI     = Expected Marks / Expected solving time (minutes)
+ * Classification   = RELATIVE to the rest of THIS test's questions:
+ *                      top 25% ROI  → HIGH
+ *                      25–75%       → MEDIUM
+ *                      bottom 25%   → LOW
+ *                    (fixed absolute cutoffs are the legacy "absolute" method)
+ * High ROI Coverage   = Attempted High ROI  / Total High ROI
+ * Medium ROI Attempts = Attempted Medium ROI / Total Medium ROI
+ * Low ROI Attempts    = Attempted Low ROI   / Total Low ROI
  * Score Opportunity Index = Sum of all avoidable losses
  */
 const computeROIMetrics = (responses, params, historicalProbability = {}, sillyMistakeQuestionIds = new Set()) => {
   const roiMap = responses.map((r) => {
-    const chapterKey = `${r.subject}_${r.chapter}`;
-    const probMap = historicalProbability[chapterKey];
-    const pCorrect = probMap
-      ? r.difficulty === "easy"
-        ? probMap.pEasy
-        : r.difficulty === "medium"
-          ? probMap.pMedium
-          : probMap.pHard
-      : (r.difficulty === "easy" ? 0.6 : r.difficulty === "medium" ? 0.45 : 0.3);
+    const pCorrect = pCorrectForResponse(r, historicalProbability);
     const pWrong = 1 - pCorrect;
     const expectedMarks = params.correct_marks * pCorrect + params.incorrect_marks * pWrong;
-    const timeMinutes = estimateTimeMinutes(r.timeSpentSeconds);
+    // "Expected solving time" — stored ideal time / difficulty default / actual.
+    const timeMinutes = expectedTimeMinutes(r);
     const roi = safeDiv(expectedMarks, timeMinutes);
-
     return { ...r, roi, pCorrect, expectedMarks };
   });
 
-  const highROI = roiMap.filter((r) => r.roi >= params.high_roi_threshold);
-  const lowROI = roiMap.filter((r) => r.roi < params.low_roi_threshold);
+  const method = params.roi_classification_method || ROI_CLASSIFICATION.method;
+
+  let highROI, mediumROI, lowROI, cutoffs;
+  if (method === "absolute") {
+    const hi = parseFloat(params.high_roi_threshold) || ROI_CLASSIFICATION.absoluteHigh;
+    const lo = parseFloat(params.low_roi_threshold) || ROI_CLASSIFICATION.absoluteLow;
+    highROI = roiMap.filter((r) => r.roi >= hi);
+    lowROI = roiMap.filter((r) => r.roi < lo);
+    mediumROI = roiMap.filter((r) => r.roi >= lo && r.roi < hi);
+    cutoffs = { high: hi, low: lo };
+  } else {
+    const cls = classifyRoiByPercentile(roiMap, (r) => r.roi, {
+      highPercentile: parseFloat(params.roi_high_percentile) || ROI_CLASSIFICATION.highPercentile,
+      lowPercentile: parseFloat(params.roi_low_percentile) || ROI_CLASSIFICATION.lowPercentile,
+    });
+    highROI = roiMap.filter((_, i) => cls.high.has(i));
+    mediumROI = roiMap.filter((_, i) => cls.medium.has(i));
+    lowROI = roiMap.filter((_, i) => cls.low.has(i));
+    cutoffs = cls.cutoffs;
+  }
 
   const highROICoverage = roundTo(safeDiv(highROI.filter((r) => r.isAttempted).length, highROI.length) * 100);
+  const mediumROIAttempts = roundTo(safeDiv(mediumROI.filter((r) => r.isAttempted).length, mediumROI.length) * 100);
   const lowROIAttempts = roundTo(safeDiv(lowROI.filter((r) => r.isAttempted).length, lowROI.length) * 100);
   // Genuine accuracy among high-ROI questions (distinct from highROICoverage, which is
   // attempt-coverage, not correctness) — used by computeMetricsFramework below.
@@ -353,8 +396,14 @@ const computeROIMetrics = (responses, params, historicalProbability = {}, sillyM
 
   return {
     highROICoverage,
+    mediumROIAttempts,
     lowROIAttempts,
     highROIAccuracy,
+    highROICount: highROI.length,
+    mediumROICount: mediumROI.length,
+    lowROICount: lowROI.length,
+    roiClassificationMethod: method,
+    roiPercentileCutoffs: { high: roundTo(cutoffs.high, 4), low: roundTo(cutoffs.low, 4) },
     scoreOpportunityIndex,
     soiBreakdown: {
       sillyMistakesLoss: roundTo(sillyMistakesLoss),
@@ -366,6 +415,7 @@ const computeROIMetrics = (responses, params, historicalProbability = {}, sillyM
     // are declared there) — kept in-memory so computeMetricsFramework (Mixed
     // schema) can derive confidenceCollapse and other per-question ROI insights.
     highROIQuestions: highROI,
+    mediumROIQuestions: mediumROI,
     lowROIQuestions: lowROI,
   };
 };
@@ -549,26 +599,10 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
 
   // Build priority score for every question
   const withPriority = responses.map((r) => {
-    const chapterKey = `${r.subject}_${r.chapter}`;
-    const probMap    = probabilityMap[chapterKey] || {};
-
-    // P(correct) based on difficulty — use stored probability if available
-    let pCorrect;
-    if (probMap.pEasy !== undefined) {
-      pCorrect =
-        r.difficulty === "easy"   ? probMap.pEasy   :
-        r.difficulty === "medium" ? probMap.pMedium :
-                                    probMap.pHard;
-    } else {
-      pCorrect =
-        r.difficulty === "easy"   ? 0.60 :
-        r.difficulty === "medium" ? 0.45 :
-                                    0.30;
-    }
-
+    const pCorrect     = pCorrectForResponse(r, probabilityMap);
     const pWrong       = 1 - pCorrect;
     const expectedMark = CORRECT_MARKS * pCorrect + INCORRECT_MARKS * pWrong;
-    const timeEstimateMinutes = estimateTimeMinutes(r.timeSpentSeconds);
+    const timeEstimateMinutes = expectedTimeMinutes(r);
     const roi          = expectedMark > 0 ? expectedMark / timeEstimateMinutes : 0;
 
     // Easy bonus: extra weight for easy questions (quick wins)
@@ -684,13 +718,29 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
   else if (spearmanRho >= -0.3) interpretation = "needs_improvement";
   else                          interpretation = "poor";
 
-  // Actionable insights
-  const HIGH_ROI_THRESHOLD = parseFloat(params.high_roi_threshold) || 2.5;
-  const LOW_ROI_THRESHOLD  = parseFloat(params.low_roi_threshold)  || 1.5;
+  // Actionable insights — "high/low ROI" here uses the same RELATIVE
+  // classification as computeROIMetrics (top 25% / bottom 25% of THIS test's
+  // questions by ROI), not a fixed cutoff, unless the sprint opted into the
+  // legacy "absolute" method.
+  const method = params.roi_classification_method || ROI_CLASSIFICATION.method;
+  const roiClassOf = new Map();
+  if (method === "absolute") {
+    const hi = parseFloat(params.high_roi_threshold) || ROI_CLASSIFICATION.absoluteHigh;
+    const lo = parseFloat(params.low_roi_threshold) || ROI_CLASSIFICATION.absoluteLow;
+    withPriority.forEach((q, i) => roiClassOf.set(i, q.roi >= hi ? "high" : q.roi < lo ? "low" : "medium"));
+  } else {
+    const cls = classifyRoiByPercentile(withPriority, (q) => q.roi, {
+      highPercentile: parseFloat(params.roi_high_percentile) || ROI_CLASSIFICATION.highPercentile,
+      lowPercentile: parseFloat(params.roi_low_percentile) || ROI_CLASSIFICATION.lowPercentile,
+    });
+    withPriority.forEach((_, i) => roiClassOf.set(i, cls.classOf.get(i)));
+  }
+  const idxOf = new Map(withPriority.map((q, i) => [q, i]));
+  const roiClass = (q) => roiClassOf.get(idxOf.get(q));
 
   // High-ROI questions that were attempted late (idealRank much better than actualRank)
   const highROIAttemptedLate = sequenced
-    .filter((q) => q.roi >= HIGH_ROI_THRESHOLD && q.rankDifference > 10)
+    .filter((q) => roiClass(q) === "high" && q.rankDifference > 10)
     .sort((a, b) => b.rankDifference - a.rankDifference)
     .slice(0, 5)
     .map((q) => ({
@@ -707,7 +757,7 @@ const computeAttemptOrderQuality = (responses, params, probabilityMap = {}) => {
 
   // Low-ROI questions that were attempted early (actualRank much better than idealRank)
   const lowROIAttemptedEarly = sequenced
-    .filter((q) => q.roi < LOW_ROI_THRESHOLD && q.rankDifference < -10)
+    .filter((q) => roiClass(q) === "low" && q.rankDifference < -10)
     .sort((a, b) => a.rankDifference - b.rankDifference)
     .slice(0, 5)
     .map((q) => ({
@@ -979,6 +1029,17 @@ const computeMetricsFramework = (
       highROIQuestions: {
         coveragePercent: roiMetrics.highROICoverage,
         scoreOpportunityIndex: roiMetrics.scoreOpportunityIndex,
+      },
+      // ROI Classification Framework — relative (top 25% / mid 50% / bottom 25%).
+      roiClassification: {
+        method: roiMetrics.roiClassificationMethod,
+        highCount: roiMetrics.highROICount,
+        mediumCount: roiMetrics.mediumROICount,
+        lowCount: roiMetrics.lowROICount,
+        highCoveragePercent: roiMetrics.highROICoverage,
+        mediumAttemptsPercent: roiMetrics.mediumROIAttempts,
+        lowAttemptsPercent: roiMetrics.lowROIAttempts,
+        cutoffs: roiMetrics.roiPercentileCutoffs,
       },
       // "Repeated" = a question the student has seen in a prior submitted attempt
       // (cross-exam), not a within-this-attempt reattempt (that's a different

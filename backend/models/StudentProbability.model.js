@@ -7,7 +7,8 @@ const mongoose = require("mongoose");
  * 1. Questionnaire Phase — initial probability from self-assessment
  * 2. Objective Phase    — overrides questionnaire once actual test data exists
  * 
- * Easy → Medium → Hard probabilities are derived from each other per client formula.
+ * Easy → Medium → Hard probabilities are derived from each other via the V1
+ * difficulty multipliers: P(Medium) = P(Easy) × 0.80, P(Hard) = P(Easy) × 0.60.
  */
 
 const QUESTIONNAIRE_PROBABILITY = Object.freeze({
@@ -37,10 +38,11 @@ const chapterProbabilitySchema = new mongoose.Schema(
       default: null,
     },
 
-    // P(correct) for each difficulty
+    // P(correct) for each difficulty — pMedium/pHard defaults are pEasy(0.55)
+    // scaled by the V1 multipliers (× 0.80 and × 0.60).
     pEasy: { type: Number, min: 0, max: 1, default: 0.55 },
-    pMedium: { type: Number, min: 0, max: 1, default: 0.40 },
-    pHard: { type: Number, min: 0, max: 1, default: 0.20 },
+    pMedium: { type: Number, min: 0, max: 1, default: 0.44 },
+    pHard: { type: Number, min: 0, max: 1, default: 0.33 },
 
     // Objective data tracking
     totalAttempted: { type: Number, default: 0 },

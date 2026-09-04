@@ -78,11 +78,11 @@ const FIELD_GROUPS: GroupDef[] = [
   },
   {
     metricKey: "roi_metrics",
-    label: "ROI Thresholds & Penalties",
-    description: "Expected-marks-per-minute cutoffs that decide which questions are \"high value\" vs \"low value\", and how much each avoidable mistake counts against the Opportunity Index.",
+    label: "ROI Classification & Penalties",
+    description: "Questions are classified High / Medium / Low ROI RELATIVE to the rest of the same test (ROI = expected marks per minute). By default the top 25% by ROI are 'high', the middle 50% 'medium', the bottom 25% 'low'. These percentile cutoffs, plus how much each avoidable mistake counts against the Opportunity Index, are tuned here.",
     fields: [
-      { key: "high_roi_threshold", label: "High-ROI cutoff", help: "Expected marks/minute at or above this = high-value question.", min: 0, max: 10, step: 0.1, default: 2.5, suffix: "marks/min" },
-      { key: "low_roi_threshold", label: "Low-ROI cutoff", help: "Expected marks/minute below this = low-value question.", min: 0, max: 10, step: 0.1, default: 1.5, suffix: "marks/min" },
+      { key: "roi_high_percentile", label: "High-ROI percentile", help: "Questions in the top (100 − this)% of the test by ROI are classified high-ROI.", min: 50, max: 95, step: 5, default: 75, suffix: "th %ile" },
+      { key: "roi_low_percentile", label: "Low-ROI percentile", help: "Questions in the bottom this% of the test by ROI are classified low-ROI.", min: 5, max: 50, step: 5, default: 25, suffix: "th %ile" },
       { key: "silly_mistake_reward", label: "Silly mistake penalty", help: "Opportunity Index points per silly mistake.", min: 0, max: 20, step: 1, default: 5 },
       { key: "high_roi_skip_penalty", label: "High-ROI skip penalty", help: "Opportunity Index points per skipped high-value question.", min: 0, max: 20, step: 1, default: 4 },
       { key: "low_roi_wrong_penalty", label: "Low-ROI wrong penalty", help: "Opportunity Index points per wrong low-value question.", min: 0, max: 20, step: 1, default: 1 },

@@ -22,6 +22,9 @@ const responseSchema = new mongoose.Schema(
     hasImage: { type: Boolean, default: false },
     marks: { type: Number, required: true },
     negativeMarks: { type: Number, default: 0 },
+    // Recommended solving time for this question — snapshotted from the exam so
+    // ROI analytics can use "expected solving time" rather than actual time.
+    idealTimeSeconds: { type: Number, default: null },
     // correctAnswer is intentionally NOT required here — it is omitted at attempt
     // creation time (startAttempt) for security, and populated only after submission
     // scoring. Analytics services read it from Exam.questions instead.

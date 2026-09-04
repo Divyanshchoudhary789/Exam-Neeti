@@ -12,6 +12,7 @@
     "seed:blueprint": "node scripts/seedBlueprint.js",
     "seed:questions": "node scripts/seedQuestions.js",
     "migrate:question-status": "node scripts/migrateQuestionStatus.js",
+    "recompute:analytics": "node scripts/recomputeAnalytics.js",
     "seed:all": "node seedAdmin.js && node scripts/seedSyllabus.js && node scripts/seedBlueprint.js",
     "extract:docx": "node scripts/extractDocx.js"
   },

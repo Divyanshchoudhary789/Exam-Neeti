@@ -214,6 +214,11 @@ export function MyQuestionsPanel({ showToast }: MyQuestionsPanelProps) {
                       {flaggedCount} to verify
                     </span>
                   )}
+                  {Array.isArray(q.previousYears) && (q.previousYears as number[]).length > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full border text-[10px] font-black bg-violet-50 text-violet-700 border-violet-200">
+                      PYQ {(q.previousYears as number[]).join(", ")}
+                    </span>
+                  )}
                   <span className={`ml-auto px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${diffColors[diff.toLowerCase()] || "bg-slate-100 text-slate-600 border-slate-200"}`}>{diff}</span>
                 </div>
                 {createdByEmail && (

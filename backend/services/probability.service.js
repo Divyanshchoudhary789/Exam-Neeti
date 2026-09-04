@@ -1,34 +1,33 @@
 /**
  * Probability Service — Initial & Objective Probability Calculations
- * 
- * Implements client formulas:
- * - Questionnaire-based initial probability
- * - P(Medium) = P(Easy) - 15%
- * - P(Hard) = P(Easy) - 35%
+ *
+ * Implements the product formula documents:
+ * - Questionnaire-based initial probability of solving an EASY question
+ * - Difficulty Probability Multiplier V1:
+ *     P(Medium) = P(Easy) × 0.80
+ *     P(Hard)   = P(Easy) × 0.60
+ *   (multipliers, not flat −15% / −35% deductions, which go unrealistic at low
+ *    starting probabilities)
  * - Objective probability = Total Correct / Total Attempted across all tests
  * - Switches from questionnaire to objective when test data is available
- * 
+ *
  * Also drives ROI computation in analytics.
  */
 
 const StudentProbability = require("../models/StudentProbability.model");
+const {
+  deriveDifficultyProbabilities,
+  PROBABILITY_CLAMP,
+} = require("../config/analyticsFormulas");
 
-// Medium and Hard offsets from Easy probability — client formula
-const MEDIUM_OFFSET = 0.15;
-const HARD_OFFSET = 0.35;
-
-const clamp = (val, min = 0.05, max = 0.99) => Math.max(min, Math.min(max, val));
+const clamp = (val, min = PROBABILITY_CLAMP.min, max = PROBABILITY_CLAMP.max) =>
+  Math.max(min, Math.min(max, val));
 
 /**
- * Derives medium & hard probabilities from easy probability
+ * Derives medium & hard probabilities from easy probability using the V1
+ * difficulty multipliers (see config/analyticsFormulas.js).
  */
-const deriveProbabilities = (pEasy) => {
-  return {
-    pEasy: clamp(pEasy),
-    pMedium: clamp(pEasy - MEDIUM_OFFSET),
-    pHard: clamp(pEasy - HARD_OFFSET),
-  };
-};
+const deriveProbabilities = (pEasy) => deriveDifficultyProbabilities(pEasy);
 
 const TOTAL_SYLLABUS_CHAPTERS = 86;
 
@@ -165,7 +164,7 @@ const updateObjectiveProbability = async (studentId, sprintId, attemptId, respon
 
 /**
  * Returns a flat probability map by chapter for analytics use
- * e.g. { "biology_genetics": { pEasy: 0.8, pMedium: 0.65, pHard: 0.45 } }
+ * e.g. { "biology_genetics": { pEasy: 0.8, pMedium: 0.64, pHard: 0.48 } }
  */
 const getProbabilityMap = async (studentId, sprintId) => {
   const doc = await StudentProbability.findOne({

@@ -24,6 +24,10 @@ const examQuestionSchema = new mongoose.Schema(
     marks: { type: Number, required: true },
     negativeMarks: { type: Number, default: 0 },
     correctAnswer: { type: String, required: true },
+    // Recommended solving time for this question (from the Question Bank). Used
+    // as the "expected solving time" denominator in ROI, so ROI stays a
+    // question property, not a function of how long the student actually took.
+    idealTimeSeconds: { type: Number, default: null },
   },
   { _id: false }
 );

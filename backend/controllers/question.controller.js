@@ -262,6 +262,7 @@ exports.createQuestion = asyncHandler(async (req, res, next) => {
     solution,
     contentHash,
     sourceRef:        body.sourceRef || "",
+    previousYears:    Array.isArray(body.previousYears) ? body.previousYears.map(Number) : [],
     customFields,
     isActive:         body.isActive !== undefined ? body.isActive : true,
     // Manual single-add stays immediate-active — the admin already reviews
@@ -384,6 +385,9 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
   ];
   for (const field of directFields) {
     if (body[field] !== undefined) question[field] = body[field];
+  }
+  if (body.previousYears !== undefined) {
+    question.previousYears = Array.isArray(body.previousYears) ? body.previousYears.map(Number) : [];
   }
 
   // ── 2b. Custom fields (admin-defined) ─────────────────────────────────────
@@ -692,12 +696,16 @@ const MAX_BULK_ROWS = 200;
 // running the free/tight-RAM Render tier.
 const MAX_BULK_EQUATIONS = Number(process.env.MAX_BULK_EQUATIONS || 400);
 
-// Default marks/negative-marks for bulk-uploaded questions whose source
-// document doesn't specify them per-question (confirmed against the real
-// reference exam paper — its metadata table has no Marks field at all).
-// Used ONLY as a fallback; an explicit value in the document always wins.
+// Default marks/negative-marks/difficulty for bulk-uploaded questions whose
+// source document doesn't specify them per-question (confirmed against the
+// real reference exam paper — its metadata table has no Marks field at all;
+// difficulty was later explicitly asked to be optional too — an admin
+// reviewing the draft afterwards is expected to set the real difficulty
+// then, same review-time workflow as verifying converted equations). Used
+// ONLY as a fallback; an explicit value in the document always wins.
 const BULK_UPLOAD_DEFAULT_MARKS = 4;
 const BULK_UPLOAD_DEFAULT_NEGATIVE_MARKS = 1;
+const BULK_UPLOAD_DEFAULT_DIFFICULTY = "medium";
 
 /**
  * Normalises a free-typed class level ("xi", "XI", "Dropper", ...) to the
@@ -751,6 +759,29 @@ function resolveCustomFieldsFromCandidates(candidates, labelMap) {
 }
 
 /**
+ * Normalises a bulk-upload row's previous-years value into a plain number
+ * array, accepting EITHER shape a parser can hand it:
+ *   - an array already (rich-docx "[2022]" tag extraction — see
+ *     questionDocxParser.js's extractYearsAndStrip)
+ *   - a comma/slash-separated string (the plain-docx/xlsx "Previous Years"
+ *     field, e.g. "2019, 2022")
+ * Out-of-range or non-numeric fragments are silently dropped rather than
+ * failing the whole row — this is supplementary metadata, not something
+ * worth blocking a question's import over.
+ */
+function parsePreviousYearsInput(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map(Number).filter((n) => Number.isInteger(n) && n >= 1990 && n <= 2100);
+  }
+  const str = String(raw || "").trim();
+  if (!str) return [];
+  return str
+    .split(/[,/&]/)
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => Number.isInteger(n) && n >= 1990 && n <= 2100);
+}
+
+/**
  * Reshapes one flat parsed row (field:string) into a createQuestionSchema-
  * shaped candidate. Joi + processMathField validate/convert it next — this
  * function only reshapes, it does not validate.
@@ -763,7 +794,13 @@ function buildCandidateFromRawRow(row) {
     topic:            (row.topic || "").trim(),
     questionCategory: (row.questionCategory || "").trim(),
     questionVariant:  (row.questionVariant  || "").trim(),
-    difficulty:       (row.difficulty || "").toLowerCase().trim(),
+    // Falls back to BULK_UPLOAD_DEFAULT_DIFFICULTY when the document has no
+    // Difficulty field at all — same "don't fail the row, review it later"
+    // treatment as marks/negativeMarks below.
+    difficulty:
+      row.difficulty && String(row.difficulty).trim() !== ""
+        ? String(row.difficulty).toLowerCase().trim()
+        : BULK_UPLOAD_DEFAULT_DIFFICULTY,
     idealTimeSeconds:
       row.idealTimeSeconds && String(row.idealTimeSeconds).trim() !== ""
         ? row.idealTimeSeconds
@@ -795,6 +832,11 @@ function buildCandidateFromRawRow(row) {
       hasLatex: false,
     },
     sourceRef: (row.sourceRef || "").trim(),
+    // row._previousYears (array) comes from the rich-docx "[2022]"-tag
+    // extraction; row.previousYears (string) comes from a plain-docx table
+    // field or an xlsx column. At most one of the two is ever populated for
+    // a given row, depending on which parser produced it.
+    previousYears: parsePreviousYearsInput(row._previousYears ?? row.previousYears),
     isActive: true,
   };
 }
@@ -1146,6 +1188,7 @@ async function runBulkUploadJob({
           image: { url: null, publicId: null }, images: sImgs,
         },
         contentHash, sourceRef: value.sourceRef || "",
+        previousYears: value.previousYears || [],
         customFields,
         isActive: true, status: "draft",
         createdBy: { userId: user.id, email: user.email },

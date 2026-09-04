@@ -225,12 +225,37 @@ export const adminService = {
     const res = await api.patch(`/sprints/${id}`, data);
     return res.data;
   },
+  /** Replace a DRAFT sprint's full blueprint (meta + every pattern slot). */
+  updateSprintBlueprint: async (id: string, data: Record<string, unknown>) => {
+    const res = await api.patch(`/sprints/${id}/blueprint`, data);
+    return res.data;
+  },
   deleteSprint: async (id: string) => {
     const res = await api.delete(`/sprints/${id}`);
     return res.data;
   },
   getSprintSlotStats: async (id: string) => {
     const res = await api.get(`/sprints/${id}/slot-stats`);
+    return res.data;
+  },
+  /** Candidate questions (full content) for one blueprint slot. */
+  getSlotQuestions: async (params: {
+    subject: string;
+    chapter?: string;
+    topic?: string;
+    difficulty?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const q: Record<string, string> = { subject: params.subject };
+    if (params.chapter) q.chapter = params.chapter;
+    if (params.topic) q.topic = params.topic;
+    if (params.difficulty) q.difficulty = params.difficulty;
+    if (params.search) q.search = params.search;
+    if (params.page) q.page = String(params.page);
+    if (params.limit) q.limit = String(params.limit);
+    const res = await api.get(`/sprints/slot-questions?${new URLSearchParams(q).toString()}`);
     return res.data;
   },
 

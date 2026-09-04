@@ -272,6 +272,45 @@ const { validateLatex } = require("./mathParser");
 
 const OPTION_KEYS = ["A", "B", "C", "D"];
 
+// ─── Previous-year tags ("[2022]", "[2019, 2021]", "[NEET 2022]") ──────────
+//
+// Real past-exam papers commonly tag a question with the year(s) it was
+// asked in, in square brackets — sometimes as its OWN paragraph right after
+// the question text (before the options), sometimes inline at the very end
+// of the question text itself. Both land inside the assembled question
+// string (a standalone-paragraph tag becomes its own "\n"-joined line — see
+// the question-text assembly loop above), so a single extraction pass over
+// the final string handles both shapes uniformly. Multiple years in one tag
+// ("[2019, 2021]") are all captured; multiple SEPARATE tags anywhere in the
+// text are too (a document could plausibly write "[2019][2022]").
+const YEAR_TAG_RE = /\[\s*(?:NEET\s*)?((?:19|20)\d{2}(?:\s*[,/&]\s*(?:19|20)\d{2})*)\s*\]/gi;
+
+/**
+ * Pulls every year out of `[2022]`-style tags anywhere in `text`, and
+ * returns the text with those tags removed (extra blank lines/whitespace
+ * left behind by the removal are collapsed). Years are sanity-bounded
+ * (1990-2100) so a coincidental bracketed 4-digit number that ISN'T a year
+ * tag can't sneak through — a real equation or option would essentially
+ * never produce a bracketed 19xx/20xx number by accident.
+ * @returns {{ text: string, years: number[] }}
+ */
+function extractYearsAndStrip(text) {
+  if (!text) return { text: text || "", years: [] };
+  const years = new Set();
+  const stripped = text.replace(YEAR_TAG_RE, (_, yearsStr) => {
+    yearsStr.split(/[,/&]/).forEach((y) => {
+      const n = parseInt(y.trim(), 10);
+      if (n >= 1990 && n <= 2100) years.add(n);
+    });
+    return "";
+  });
+  const cleaned = stripped
+    .split("\n").map((l) => l.trim()).filter((l) => l !== "").join("\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  return { text: cleaned, years: Array.from(years).sort((a, b) => a - b) };
+}
+
 /**
  * Tokenises ONE paragraph's inner XML into an ordered list of:
  *   { type: "text", value }
@@ -567,6 +606,13 @@ function parseQuestionProse(blocks, idGen) {
   questionOut = questionOut.trim();
   if (!questionOut) return { error: "Question text is empty after removing the \"Q.\" marker." };
 
+  // Strip any "[2022]"-style previous-year tag out of the question text
+  // (whichever shape it took — see extractYearsAndStrip's doc comment) so it
+  // never pollutes the stored question, capturing the year(s) separately.
+  const { text: questionOutClean, years: previousYears } = extractYearsAndStrip(questionOut);
+  questionOut = questionOutClean;
+  if (!questionOut) return { error: "Question text is empty after removing the \"Q.\" marker and year tag." };
+
   // ── Options — table layout or tab-separated-paragraph layout ────────────
   let optionsByNumber;
   let afterOptions;
@@ -678,6 +724,7 @@ function parseQuestionProse(blocks, idGen) {
     questionImageRIds,
     solutionImageRIds,
     optionImageRIds, // { A?: rId, B?: rId, ... } — only keys with an image
+    previousYears,   // [2019, 2021] — years this question was asked in a past exam, [] if none tagged
   };
 }
 
@@ -788,35 +835,73 @@ async function parseRichQuestionsDocx(buffer) {
     );
   }
 
+  // ── ONE metadata table can cover MULTIPLE questions ─────────────────────
+  // A real teaching workflow: several questions from the SAME chapter/topic
+  // share every classification field, so instead of repeating one metadata
+  // table per question (10 questions -> 10 tables), the document puts ONE
+  // table before a whole run of "Q./options/Sol." blocks for that topic and
+  // relies on each question's OWN "Q."/"Q1."/"Q.2" marker to separate them.
+  // Splitting on those markers here — rather than changing what a "group"
+  // is above — keeps the single-question-per-table case (the original,
+  // already-validated design) completely unchanged: a group with 0 or 1
+  // marker paragraphs returns as ONE sub-block, identical to before
+  // (including the "no marker at all" fallback parseQuestionProse already
+  // handles). Only a group with 2+ markers actually gets split.
+  function splitGroupBlocksByQuestion(blocks) {
+    const boundaries = [];
+    blocks.forEach((b, i) => {
+      if (b.type === "para" && stripQuestionMarker(paragraphPlainText(b.xml)) !== null) {
+        boundaries.push(i);
+      }
+    });
+    if (boundaries.length <= 1) return [blocks];
+
+    const subBlocks = boundaries.map((start, k) => {
+      const end = k + 1 < boundaries.length ? boundaries[k + 1] : blocks.length;
+      return blocks.slice(start, end);
+    });
+    // Stray content before the FIRST marker (shouldn't normally happen once
+    // a group has real Q markers, but a blank/noise paragraph slipping in
+    // before the first one is safer prepended to question 1 than dropped).
+    if (boundaries[0] > 0) subBlocks[0] = blocks.slice(0, boundaries[0]).concat(subBlocks[0]);
+    return subBlocks;
+  }
+
   const rows = [];
   const failed = [];
   let equationCounter = 0;
   const idGen = () => String(++equationCounter);
+  let rowNumber = 0;
 
-  groups.forEach((group, idx) => {
-    const rowNumber = idx + 1;
-    const metadata = parseTable(group.tableXml, rowNumber) || { _rowNumber: rowNumber };
+  groups.forEach((group) => {
+    const subBlocksList = splitGroupBlocksByQuestion(group.blocks);
 
-    const parsed = parseQuestionProse(group.blocks, idGen);
-    if (parsed.error) {
-      failed.push({ row: rowNumber, reason: parsed.error });
-      return;
-    }
+    subBlocksList.forEach((subBlocks) => {
+      rowNumber += 1;
+      const metadata = parseTable(group.tableXml, rowNumber) || { _rowNumber: rowNumber };
 
-    rows.push({
-      _rowNumber: rowNumber,
-      ...metadata,
-      questionText: parsed.questionOut,
-      optionA: parsed.optionsByNumber[1].text,
-      optionB: parsed.optionsByNumber[2].text,
-      optionC: parsed.optionsByNumber[3].text,
-      optionD: parsed.optionsByNumber[4].text,
-      correctAnswer: parsed.correctAnswer,
-      solutionText: parsed.solutionOut,
-      _equations: parsed.equations,             // [{id, rId}]
-      _questionImageRIds: parsed.questionImageRIds,
-      _solutionImageRIds: parsed.solutionImageRIds,
-      _optionImageRIds: parsed.optionImageRIds, // { A?: rId, B?: rId, ... }
+      const parsed = parseQuestionProse(subBlocks, idGen);
+      if (parsed.error) {
+        failed.push({ row: rowNumber, reason: parsed.error });
+        return;
+      }
+
+      rows.push({
+        _rowNumber: rowNumber,
+        ...metadata,
+        questionText: parsed.questionOut,
+        optionA: parsed.optionsByNumber[1].text,
+        optionB: parsed.optionsByNumber[2].text,
+        optionC: parsed.optionsByNumber[3].text,
+        optionD: parsed.optionsByNumber[4].text,
+        correctAnswer: parsed.correctAnswer,
+        solutionText: parsed.solutionOut,
+        _equations: parsed.equations,             // [{id, rId}]
+        _questionImageRIds: parsed.questionImageRIds,
+        _solutionImageRIds: parsed.solutionImageRIds,
+        _optionImageRIds: parsed.optionImageRIds, // { A?: rId, B?: rId, ... }
+        _previousYears: parsed.previousYears,     // [2019, 2021] — [] if none tagged
+      });
     });
   });
 

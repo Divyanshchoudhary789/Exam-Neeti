@@ -13,7 +13,7 @@ import {
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
 import { RadialMeter, HBarChart } from "../common/Charts";
-import { CreateSprintModal } from "../admin/CreateSprintModal";
+import { SprintBuilder } from "../admin/SprintBuilder";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
 import { QuestionBankPanel } from "../admin/QuestionBankPanel";
@@ -69,8 +69,20 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [examPerf, setExamPerf] = useState<Record<string,unknown>[]>([]);
   const [chapterBreakdown, setChapterBreakdown] = useState<Record<string,unknown>|null>(null);
   const [studentStatusList, setStudentStatusList] = useState<Record<string,unknown>[]>([]);
-  const [showCreateSprintModal, setShowCreateSprintModal] = useState(false);
+  const [sprintBuilder, setSprintBuilder] = useState<{ open: boolean; mode: "create" | "edit"; sprint: Record<string, unknown> | null }>({ open: false, mode: "create", sprint: null });
   const [showFormulaConfigModal, setShowFormulaConfigModal] = useState(false);
+
+  const openCreateSprintBuilder = () => setSprintBuilder({ open: true, mode: "create", sprint: null });
+  const openEditSprintBuilder = async (sprintId: string) => {
+    try {
+      const res = await adminService.getSprintById(sprintId);
+      const full = (res?.data?.sprint || res?.sprint || res?.data || res) as Record<string, unknown>;
+      if (!full || !full._id) { showToast("Could not load sprint blueprint", "error"); return; }
+      setSprintBuilder({ open: true, mode: "edit", sprint: full });
+    } catch (err: unknown) {
+      showToast((err as { message?: string }).message || "Failed to load sprint", "error");
+    }
+  };
 
   // ── Batch state ───────────────────────────────────────────────────────
   const [batchList, setBatchList] = useState<Record<string,unknown>[]>([]);
@@ -598,6 +610,22 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   // ── Render ────────────────────────────────────────────────────────────
+  if (sprintBuilder.open) {
+    return (
+      <SprintBuilder
+        mode={sprintBuilder.mode}
+        existingSprint={sprintBuilder.sprint}
+        showToast={showToast}
+        onClose={() => setSprintBuilder({ open: false, mode: "create", sprint: null })}
+        onSaved={() => {
+          setSprintBuilder({ open: false, mode: "create", sprint: null });
+          setActiveTab("sprints");
+          loadSprintsAndDashboard();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f3f5f9] font-sans antialiased">
       {/* Toast */}
@@ -1064,7 +1092,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <h2 className="text-xl font-black text-slate-900">Sprint Cycles & Blueprints</h2>
                 <p className="text-xs text-slate-500 font-semibold">Manage question pattern blueprints, exam schedules, and status</p>
               </div>
-              <button onClick={() => setShowCreateSprintModal(true)} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">
+              <button onClick={openCreateSprintBuilder} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-all">
                 <IconPlus className="w-4 h-4" /><span>Create Sprint</span>
               </button>
             </div>
@@ -1111,10 +1139,17 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         <span className="text-[10px] text-slate-400 font-semibold">
                           Created: {s.createdAt ? new Date(String(s.createdAt)).toLocaleDateString("en-IN") : "N/A"}
                         </span>
-                        
-                        <button onClick={() => handleDeleteSprint(sId)} className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors" title="Delete sprint">
-                          <IconTrash className="w-4 h-4" />
-                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          {currentStatus === "draft" && (
+                            <button onClick={() => openEditSprintBuilder(sId)} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors" title="Edit blueprint">
+                              <IconEdit className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button onClick={() => handleDeleteSprint(sId)} className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors" title="Delete sprint">
+                            <IconTrash className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1804,13 +1839,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       </div>{/* end max-w container */}
 
       {/* ══════════════════════════════════════ MODALS ══════════════════════════════════════ */}
-      {/* Create Sprint */}
-      <CreateSprintModal
-        isOpen={showCreateSprintModal}
-        onClose={() => setShowCreateSprintModal(false)}
-        onSuccess={loadSprintsAndDashboard}
-        showToast={showToast}
-      />
+      {/* Sprint creation / blueprint editing is a full-screen flow — see the
+          early return above (<SprintBuilder />), not a modal. */}
 
       {/* Create Batch */}
       <CreateBatchModal

@@ -21,7 +21,13 @@ const FIELD_DEFS = [
   { key: "topic",            label: "Topic *",                      required: true  },
   { key: "questionCategory", label: "Question Category",            required: false },
   { key: "questionVariant",  label: "Question Variant",             required: false },
-  { key: "difficulty",       label: "Difficulty *",                 required: true  },
+  // Not Joi-required — a bulk-upload row missing this gets defaulted to
+  // "medium" (see BULK_UPLOAD_DEFAULT_DIFFICULTY in question.controller.js)
+  // so the question still lands as a draft instead of failing the row; the
+  // admin can set the real difficulty during review. Manual single-question
+  // create/edit still always sends an explicit value (the form defaults its
+  // dropdown to "Medium"), so this only actually matters for bulk upload.
+  { key: "difficulty",       label: "Difficulty (optional — defaults to Medium)", required: false },
   { key: "idealTimeSeconds", label: "Ideal Time (seconds)",         required: false },
   { key: "questionText",     label: "Question Text *",              required: true  },
   { key: "optionA",          label: "Option A *",                   required: true  },
@@ -33,6 +39,11 @@ const FIELD_DEFS = [
   { key: "negativeMarks",    label: "Negative Marks",               required: false },
   { key: "solutionText",     label: "Solution Text",                required: false },
   { key: "sourceRef",        label: "Source Reference",             required: false },
+  // Comma-separated past-exam years this exact question was asked in, e.g.
+  // "2019, 2022". Optional — most questions have none. See
+  // questionDocxParser.js's extractYearsAndStrip for the Format B
+  // equivalent (an inline/standalone "[2022]" tag instead of a table field).
+  { key: "previousYears",    label: "Previous Years (e.g. 2019, 2022)", required: false },
   // Image columns — no cell TEXT expected; a picture anchored inside that
   // row's cell in this column is what gets extracted and uploaded to
   // Cloudinary. See questionXlsxParser.js's image-matching logic.
@@ -57,6 +68,7 @@ const LABEL_ALIASES = {
   classLevel:       ["class"],
   marks:            ["mark", "positive marks"],
   negativeMarks:    ["negative mark", "penalty"],
+  previousYears:    ["years", "year", "pyq years", "pyq year", "asked in years", "previous year", "year asked", "yearasked"],
 };
 
 /** Lowercase, strip everything but letters/digits — makes matching tolerant

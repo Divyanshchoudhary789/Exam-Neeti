@@ -247,6 +247,19 @@ const questionSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    /**
+     * previousYears — every past-exam year this exact question was asked in
+     * (a question can legitimately repeat across multiple years, hence an
+     * array, not a single year). Empty for a question with no known past
+     * appearance. Sourced either from a "[2022]"-style tag in a rich-docx
+     * bulk upload (see questionDocxParser.js's extractYearsAndStrip), a
+     * "Previous Years" column/field in the plain docx/xlsx templates, or
+     * typed directly on the manual create/edit form.
+     */
+    previousYears: {
+      type: [Number],
+      default: [],
+    },
 
     // ── Pattern slot tagging (Question Reconstruction engine) ────────────────
     /**

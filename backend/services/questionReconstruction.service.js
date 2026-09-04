@@ -29,6 +29,15 @@
  *   2. If the entire pool has been used at least once, fall back to the
  *      Least-Recently-Used question (LRU cycle) so variety is maximised.
  *   3. Within the unused pool selection is random.
+ *
+ * PINNED (ADMIN-FIXED) SLOTS — takes priority over everything above:
+ *   When a slot carries `pinnedQuestionIds`, the ENTIRE tier engine is
+ *   skipped for that slot. The eligible pool is exactly those questions
+ *   (any that were since deleted / deactivated / left as draft are dropped).
+ *   The same unused→LRU selection then runs over just that pinned set, so a
+ *   sprint that generates more exams than it has pins cycles them fairly.
+ *   If every pinned question has disappeared, the slot falls back to the
+ *   generic tier engine so exam generation can never hard-fail (422).
  */
 
 const AppError = require("../utils/AppError");
@@ -207,12 +216,15 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
     status: { $ne: "draft" },
   }).lean();
 
-  // Index candidates by subject (lowercase) for fast lookup
+  // Index candidates by subject (lowercase) for fast lookup, and by _id for
+  // resolving pinned questions (which may belong to any subject).
   const bySubject = {};
+  const byId = {};
   for (const q of allCandidates) {
     const subjKey = q.subject.toLowerCase();
     if (!bySubject[subjKey]) bySubject[subjKey] = [];
     bySubject[subjKey].push(q);
+    byId[q._id.toString()] = q;
   }
 
   // Track question IDs selected in this exam run (prevent duplicates per exam)
@@ -229,7 +241,20 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
     const subjKey = slot.subject.toLowerCase();
     const candidateList = bySubject[subjKey] || [];
 
-    const eligiblePool = getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
+    // ── Pinned slot: strict, engine-bypassing selection ──────────────────
+    const pinnedIds = (slot.pinnedQuestionIds || []).map((id) => id.toString());
+    let eligiblePool;
+    if (pinnedIds.length > 0) {
+      const pinnedPool = pinnedIds.map((id) => byId[id]).filter(Boolean);
+      // Deliberately NOT filtered by selectedIds — an admin who pins the same
+      // question to two slots has explicitly asked for that.
+      eligiblePool =
+        pinnedPool.length > 0
+          ? pinnedPool
+          : getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
+    } else {
+      eligiblePool = getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
+    }
 
     if (eligiblePool.length === 0) {
       throw new AppError(
@@ -316,10 +341,12 @@ const getSlotPoolStats = async (QuestionModel, sprint) => {
   }).lean();
 
   const bySubject = {};
+  const byId = {};
   for (const q of allCandidates) {
     const subjKey = q.subject.toLowerCase();
     if (!bySubject[subjKey]) bySubject[subjKey] = [];
     bySubject[subjKey].push(q);
+    byId[q._id.toString()] = q;
   }
 
   for (const slot of slots) {
@@ -327,8 +354,12 @@ const getSlotPoolStats = async (QuestionModel, sprint) => {
     const subjKey = slot.subject.toLowerCase();
     const candidateList = bySubject[subjKey] || [];
 
+    const pinnedIds = (slot.pinnedQuestionIds || []).map((id) => id.toString());
     const selectedIds = new Set();
-    const allEligible = getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
+    const allEligible =
+      pinnedIds.length > 0
+        ? pinnedIds.map((id) => byId[id]).filter(Boolean)
+        : getSlotCandidatePool(candidateList, slot, sprint._id, selectedIds);
 
     let usedCount = 0;
     for (const q of allEligible) {
@@ -349,6 +380,8 @@ const getSlotPoolStats = async (QuestionModel, sprint) => {
       chapter:              slot.chapter    || null,
       topic:                slot.topic      || null,
       difficulty:           slot.difficulty || null,
+      pinned:               pinnedIds.length,
+      pinnedResolved:       pinnedIds.length > 0 ? totalUnique : 0,
       totalUniqueQuestions: totalUnique,
       unusedQuestions:      unusedCount,
       usedQuestions:        usedCount,

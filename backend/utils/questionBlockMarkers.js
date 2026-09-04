@@ -27,10 +27,15 @@ const LETTER_TO_NUMBER = { a: 1, b: 2, c: 3, d: 4 };
 
 // ─── Question-text marker ──────────────────────────────────────────────────
 
-// Matches at the START of a paragraph's text only. Real documents drift:
-// "Q.", "Q1.", "Q 12:", a bare "Q" + wide tab/space gap (no punctuation),
-// or the full word "Question".
-const QUESTION_MARKER_RE = /^\s*(?:Q(?:uestion)?\s*\d*\s*[.:)]|Q\s{2,})\s*/i;
+// Matches at the START of a paragraph's text only. Real documents drift on
+// BOTH the punctuation used and whether the question number comes before or
+// after it: "Q.", "Q1.", "Q.2" (number AFTER the period — a real document's
+// convention, distinct from "Q1." where it comes before), "Q 12:", a bare
+// "Q1 " with no punctuation at all (a real document's very first question,
+// with every later one numbered "Q.N"), a bare "Q" + wide tab/space gap (no
+// number or punctuation), or the full word "Question".
+const QUESTION_MARKER_RE =
+  /^\s*(?:Q(?:uestion)?\s*(?:\d+\s*[.:)]?|[.:)]\s*\d*)|Q\s{2,})\s*/i;
 
 function stripQuestionMarker(text) {
   const m = QUESTION_MARKER_RE.exec(text);
