@@ -5,6 +5,7 @@ const userController = require("../controllers/user.controller");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
 const validate = require("../middleware/validate");
+const { bulkStudentUpload } = require("../middleware/upload");
 const { bulkImportStudentsSchema } = require("../validators/batch.validator");
 const {
   createStudentSchema,
@@ -30,6 +31,9 @@ router.use(authorize(ROLES.ADMIN));
 router.get("/", userController.listStudents);
 router.post("/", validate(createStudentSchema), userController.createStudent);
 router.post("/bulk-import", validate(bulkImportStudentsSchema), userController.bulkImportStudents);
+// Roster file (.xlsx / .docx) bulk import + sample template download.
+router.get("/bulk-import/template", userController.downloadStudentTemplate);
+router.post("/bulk-import/file", bulkStudentUpload, userController.bulkImportStudentsFile);
 router.get("/:id", userController.getStudent);
 router.patch("/:id", validate(updateStudentSchema), userController.updateStudent);
 router.patch("/:id/deactivate", userController.deactivateStudent);

@@ -32,11 +32,11 @@ exports.getSprintOverview = asyncHandler(async (req, res, next) => {
   const sprint = await Sprint.findById(sprintOid).lean();
   if (!sprint) return next(new AppError("Sprint not found.", 404));
 
+  const assignedBatchIds = await Exam.distinct("batch", { sprint: sprintOid });
+
   const [totalStudents, totalExams, totalAttempts, analyticsResults] = await Promise.all([
-    // FIX: Count only students in batches that have exams in this sprint, not all platform students
-    Exam.distinct("batch", { sprint: sprintOid }).then((batchIds) =>
-      User.countDocuments({ role: ROLES.STUDENT, isActive: true, batch: { $in: batchIds } })
-    ),
+    // Count only students in batches that have exams in this sprint, not all platform students
+    User.countDocuments({ role: ROLES.STUDENT, isActive: true, batch: { $in: assignedBatchIds } }),
     Exam.countDocuments({ sprint: sprintOid }),
     Attempt.countDocuments({ sprint: sprintOid, status: ATTEMPT_STATUS.SUBMITTED }),
     AnalyticsResult.find({ sprint: sprintOid }).lean(),
@@ -45,7 +45,7 @@ exports.getSprintOverview = asyncHandler(async (req, res, next) => {
   if (!analyticsResults.length) {
     return sendSuccess(res, 200, "Sprint overview fetched (no data yet).", {
       sprint: { _id: sprint._id, name: sprint.name, status: sprint.status },
-      totalStudents, totalExams, totalAttempts,
+      totalStudents, totalExams, totalAttempts, totalBatches: assignedBatchIds.length,
       averageScore: 0, averageAccuracy: 0, averageAttemptRate: 0, averagePercentage: 0,
     });
   }
@@ -57,7 +57,7 @@ exports.getSprintOverview = asyncHandler(async (req, res, next) => {
 
   return sendSuccess(res, 200, "Sprint overview fetched.", {
     sprint: { _id: sprint._id, name: sprint.name, status: sprint.status },
-    totalStudents, totalExams, totalAttempts,
+    totalStudents, totalExams, totalAttempts, totalBatches: assignedBatchIds.length,
     averageScore:       avg("score"),
     averageAccuracy:    avg("overallAccuracy"),
     averageAttemptRate: avg("overallAttemptRate"),

@@ -218,6 +218,35 @@ const computeAnalytics = async (attempt) => {
     };
   });
 
+  // Group by topic × difficulty — powers the "Attempt Rate by Difficulty" /
+  // "Accuracy by Difficulty" bars shown per topic in the Chapters tab.
+  const topicDifficultyMap = {};
+  for (const r of responses) {
+    const key = `${r.subject}__${r.chapter}__${r.topic}__${r.difficulty}`;
+    if (!topicDifficultyMap[key]) {
+      topicDifficultyMap[key] = {
+        subject: r.subject,
+        chapter: r.chapter,
+        topic: r.topic,
+        difficulty: r.difficulty,
+        totalQuestions: 0,
+        attempted: 0,
+        correct: 0,
+      };
+    }
+    const td = topicDifficultyMap[key];
+    td.totalQuestions++;
+    if (r.isAttempted) {
+      td.attempted++;
+      if (r.isCorrect) td.correct++;
+    }
+  }
+  const topicDifficultyAccuracy = Object.values(topicDifficultyMap).map((td) => ({
+    ...td,
+    accuracy: roundTo(safeDiv(td.correct, td.attempted) * 100),
+    attemptRate: roundTo(safeDiv(td.attempted, td.totalQuestions) * 100),
+  }));
+
   // Group by difficulty × subject — matches difficultyBreakdownSchema's
   // documented "subject dimension" (previously grouped by difficulty alone,
   // leaving `subject`/`attemptRate`/`percentageOfTotal` permanently unset).
@@ -501,6 +530,7 @@ const computeAnalytics = async (attempt) => {
       subjectAccuracy,
       chapterAccuracy,
       topicAccuracy,
+      topicDifficultyAccuracy,
       difficultyAccuracy,
       difficultySummary,
       // Section B

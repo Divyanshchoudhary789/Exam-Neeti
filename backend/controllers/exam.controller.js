@@ -15,12 +15,29 @@ const {
   ATTEMPT_STATUS,
   SPRINT_STATUS,
   ROLES,
+  MAX_ATTEMPTS_PER_EXAM,
 } = require("../config/constants");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
+const { resolveStudentAccess } = require("../services/planAccess.service");
 
 // ─── Helper: strip correctAnswer from question list before sending to student ─
 const stripAnswers = (questions) =>
   questions.map(({ correctAnswer, ...rest }) => rest); // eslint-disable-line no-unused-vars
+
+// Same pattern used in adminTeam/batch/user controllers — escape regex metachars
+// before building a case-insensitive $regex filter from free-text user input.
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// No dedicated Exam.category field exists yet — the "type" a title implies
+// (Major / Semi-Major / Minor / Full Syllabus) is inferred from the title text.
+// A real Exam.category enum (set at generation time) would be the durable fix.
+const EXAM_CATEGORY_KEYWORDS = {
+  "semi-major": /semi[\s-]?major/i,
+  major:        /\bmajor\b/i,
+  minor:        /\bminor\b/i,
+  full:         /full\s*syllabus/i,
+};
+const isObjectId = (id) => /^[a-f\d]{24}$/i.test(String(id));
 
 // ─── Helper: hydrate exam questions with full text/options from Question Bank ─
 // questionBankData — array of question documents from the question bank DB
@@ -201,18 +218,35 @@ exports.generateExam = asyncHandler(async (req, res, next) => {
 
 exports.listExams = asyncHandler(async (req, res, next) => {
   const { page, limit, skip } = getPaginationParams(req.query);
-  const { sprintId, batchId, status } = req.query;
+  const { sprintId, batchId, sprint, batch, status, search } = req.query;
 
   const filter = {};
-  if (sprintId) filter.sprint = sprintId;
-  if (batchId)  filter.batch  = batchId;
-  if (status)   filter.status = status;
+  const resolvedSprintId = sprintId || sprint;
+  const resolvedBatchId = batchId || batch;
+  if (resolvedSprintId) {
+    if (!isObjectId(resolvedSprintId)) return next(new AppError("Invalid sprint filter.", 400));
+    filter.sprint = resolvedSprintId;
+  }
+  if (resolvedBatchId) {
+    if (!isObjectId(resolvedBatchId)) return next(new AppError("Invalid batch filter.", 400));
+    filter.batch = resolvedBatchId;
+  }
+  if (status) {
+    if (!Object.values(EXAM_STATUS).includes(status)) {
+      return next(new AppError(`Invalid status filter. Allowed: ${Object.values(EXAM_STATUS).join(", ")}.`, 400));
+    }
+    filter.status = status;
+  }
+  const trimmedSearch = String(search || "").trim();
+  if (trimmedSearch) {
+    filter.title = { $regex: escapeRegex(trimmedSearch), $options: "i" };
+  }
 
   const [exams, total] = await Promise.all([
     Exam.find(filter)
       .select("-questions")
       .populate("sprint", "name status")
-      .populate("batch", "name")
+      .populate("batch", "name slug source")
       .sort({ examNumber: 1 })
       .skip(skip)
       .limit(limit)
@@ -293,13 +327,14 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
     return next(new AppError("You are not assigned to this exam's batch.", 403));
   }
 
-  // Resume or block if already attempted
-  const existingAttempt = await Attempt.findOne({ student: req.user.id, exam: exam._id });
-  if (existingAttempt) {
-    if (existingAttempt.status === ATTEMPT_STATUS.SUBMITTED) {
-      return next(new AppError("You have already submitted this exam.", 409));
-    }
+  // Resume the in-progress attempt if one exists, otherwise allow a fresh
+  // attempt as long as the student hasn't used up MAX_ATTEMPTS_PER_EXAM
+  // submitted attempts yet (Revisit/Reattempt).
+  const priorAttempts = await Attempt.find({ student: req.user.id, exam: exam._id })
+    .sort({ attemptNumber: 1 });
 
+  const inProgressAttempt = priorAttempts.find((a) => a.status === ATTEMPT_STATUS.IN_PROGRESS);
+  if (inProgressAttempt) {
     // ── Hydrate for resume ─────────────────────────────────────────────────
     const QuestionModel = req.app.get("QuestionModel");
     let resumeQuestions = exam.questions;
@@ -315,10 +350,34 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
     }
 
     return sendSuccess(res, 200, "Resuming existing attempt.", {
-      attempt: existingAttempt,
+      attempt: inProgressAttempt,
       exam: { ...exam, questions: resumeQuestions },
     });
   }
+
+  // Plan gate — a capped (trial / one-time) self-serve student who is at their
+  // limit may still resume/reattempt an exam they've already engaged with, but
+  // cannot start a brand-new one. priorAttempts.length === 0 ⇒ fresh exam.
+  if (priorAttempts.length === 0) {
+    const access = await resolveStudentAccess(req.user.id);
+    if (access.atLimit) {
+      return next(
+        new AppError(
+          access.plan?.key === "trial"
+            ? "You've used your free trial test. Upgrade to a plan to unlock the full test series."
+            : `Your ${access.plan?.name || "current"} plan includes ${access.testsIncluded} test(s), and they've all been used. Upgrade for full access.`,
+          403,
+          "PLAN_LIMIT"
+        )
+      );
+    }
+  }
+
+  const submittedCount = priorAttempts.filter((a) => a.status === ATTEMPT_STATUS.SUBMITTED).length;
+  if (submittedCount >= MAX_ATTEMPTS_PER_EXAM) {
+    return next(new AppError(`You have used all ${MAX_ATTEMPTS_PER_EXAM} attempts for this test.`, 409));
+  }
+  const nextAttemptNumber = priorAttempts.reduce((max, a) => Math.max(max, a.attemptNumber || 1), 0) + 1;
 
   // ── SECURITY: DO NOT store correctAnswer in the Attempt document ─────────────
   // correctAnswer is kept only in Exam.questions and is looked up at submit time.
@@ -344,28 +403,31 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
   }));
 
   // FIX: Handle double-submit race condition — two concurrent startAttempt calls
-  // from the same student would both pass findOne before either create runs.
-  // Catch the E11000 from the unique index and return a friendly 409.
+  // from the same student would both pass the priorAttempts check before either
+  // create runs. Catch the E11000 from the unique index and resolve gracefully.
   let attempt;
   try {
     attempt = await Attempt.create({
-      student:    req.user.id,
-      exam:       exam._id,
-      sprint:     exam.sprint._id,
-      batch:      exam.batch,
-      status:     ATTEMPT_STATUS.IN_PROGRESS,
+      student:       req.user.id,
+      exam:          exam._id,
+      sprint:        exam.sprint._id,
+      batch:         exam.batch,
+      status:        ATTEMPT_STATUS.IN_PROGRESS,
+      attemptNumber: nextAttemptNumber,
       responses,
-      totalMarks: exam.totalMarks,
-      startedAt:  new Date(),
+      totalMarks:    exam.totalMarks,
+      startedAt:     new Date(),
     });
   } catch (createErr) {
     if (createErr.code === 11000) {
-      // Race condition: attempt was created by a concurrent request — re-fetch and resume
-      const concurrent = await Attempt.findOne({ student: req.user.id, exam: exam._id });
-      if (concurrent && concurrent.status === ATTEMPT_STATUS.SUBMITTED) {
-        return next(new AppError("You have already submitted this exam.", 409));
-      }
-      if (concurrent) {
+      // Race condition: an attempt with this attemptNumber was created by a
+      // concurrent request — re-fetch this student's attempts and resolve.
+      const concurrentAttempts = await Attempt.find({ student: req.user.id, exam: exam._id })
+        .sort({ attemptNumber: 1 });
+      const concurrentInProgress = concurrentAttempts.find((a) => a.status === ATTEMPT_STATUS.IN_PROGRESS);
+      const concurrentSubmittedCount = concurrentAttempts.filter((a) => a.status === ATTEMPT_STATUS.SUBMITTED).length;
+
+      if (concurrentInProgress) {
         // Hydrate questions for the resumed attempt
         const QuestionModelRace = req.app.get("QuestionModel");
         let raceQuestions = exam.questions;
@@ -379,9 +441,12 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
           raceQuestions = stripAnswers(raceQuestions);
         }
         return sendSuccess(res, 200, "Resuming existing attempt.", {
-          attempt: concurrent,
+          attempt: concurrentInProgress,
           exam:    { ...exam, questions: raceQuestions },
         });
+      }
+      if (concurrentSubmittedCount >= MAX_ATTEMPTS_PER_EXAM) {
+        return next(new AppError(`You have used all ${MAX_ATTEMPTS_PER_EXAM} attempts for this test.`, 409));
       }
     }
     throw createErr;
@@ -403,7 +468,7 @@ exports.startAttempt = asyncHandler(async (req, res, next) => {
   }
 
   return sendSuccess(res, 201, "Attempt started.", {
-    attempt: { _id: attempt._id, startedAt: attempt.startedAt, status: attempt.status },
+    attempt: { _id: attempt._id, startedAt: attempt.startedAt, status: attempt.status, attemptNumber: attempt.attemptNumber },
     exam:    { ...exam, questions: examQuestions },
   });
 });
@@ -659,11 +724,14 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
         contextRef:  attemptSnapshot._id,
       });
 
-      // Notify admins when entire batch has submitted
-      const [totalBatchStudents, submittedCount] = await Promise.all([
+      // Notify admins when entire batch has submitted. Count DISTINCT students,
+      // not attempt documents — with reattempts a student can hold 2 SUBMITTED
+      // attempts for the same exam, which would otherwise inflate this count.
+      const [totalBatchStudents, submittedStudentIds] = await Promise.all([
         User.countDocuments({ batch: attemptSnapshot.batch, role: ROLES.STUDENT, isActive: true }),
-        Attempt.countDocuments({ exam: attemptSnapshot.exam, status: ATTEMPT_STATUS.SUBMITTED }),
+        Attempt.distinct("student", { exam: attemptSnapshot.exam, status: ATTEMPT_STATUS.SUBMITTED }),
       ]);
+      const submittedCount = submittedStudentIds.length;
 
       if (submittedCount >= totalBatchStudents) {
         const admins = await User.find({
@@ -709,9 +777,11 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
 // Also annotates each exam with the student's own attempt status so the frontend
 // can show "Start", "Resume", or "View Result" buttons without a second request.
 
+const ATTEMPT_STATUS_FILTERS = ["not_attempted", "in_progress", "completed"];
+
 exports.getMyExams = asyncHandler(async (req, res, next) => {
   const { page, limit, skip } = getPaginationParams(req.query);
-  const { sprintId, status } = req.query;
+  const { sprintId, status, search, category, attemptStatus } = req.query;
 
   // ── 1. Resolve student's batch ────────────────────────────────────────────
   const student = await User.findById(req.user.id).select("batch isActive").lean();
@@ -745,6 +815,58 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
     filter.status = status;
   }
 
+  // title filters (search + category) can both be present — combine via $and
+  // rather than overwriting one another.
+  const titleConditions = [];
+  if (search) {
+    titleConditions.push({ title: { $regex: escapeRegex(search.trim()), $options: "i" } });
+  }
+  if (category) {
+    const keywordRegex = EXAM_CATEGORY_KEYWORDS[category];
+    if (!keywordRegex) {
+      return next(new AppError(`Invalid category filter. Allowed: ${Object.keys(EXAM_CATEGORY_KEYWORDS).join(", ")}.`, 400));
+    }
+    // "major" must not also match "Semi-Major" titles, so it's excluded explicitly.
+    titleConditions.push({ title: keywordRegex });
+    if (category === "major") {
+      titleConditions.push({ title: { $not: EXAM_CATEGORY_KEYWORDS["semi-major"] } });
+    }
+  }
+  if (titleConditions.length > 0) {
+    filter.$and = titleConditions;
+  }
+
+  // Attempt-status filter (Not Attempted / In Progress / Completed) — this is
+  // about the STUDENT's progress on the exam, distinct from `status` above
+  // (the exam's own published/completed lifecycle). Resolved against the
+  // Exam collection filter (rather than filtered client-side after the page
+  // is fetched) so pagination `total`/`totalPages` stay correct.
+  if (attemptStatus) {
+    if (!ATTEMPT_STATUS_FILTERS.includes(attemptStatus)) {
+      return next(new AppError(`Invalid attemptStatus filter. Allowed: ${ATTEMPT_STATUS_FILTERS.join(", ")}.`, 400));
+    }
+    const myAttempts = await Attempt.find({ student: req.user.id })
+      .select("exam status")
+      .lean();
+    const inProgressExamIds = new Set(
+      myAttempts.filter((a) => a.status === ATTEMPT_STATUS.IN_PROGRESS).map((a) => String(a.exam))
+    );
+    const submittedExamIds = new Set(
+      myAttempts.filter((a) => a.status === ATTEMPT_STATUS.SUBMITTED).map((a) => String(a.exam))
+    );
+
+    if (attemptStatus === "not_attempted") {
+      const attemptedExamIds = [...new Set(myAttempts.map((a) => String(a.exam)))];
+      filter._id = { $nin: attemptedExamIds };
+    } else if (attemptStatus === "in_progress") {
+      filter._id = { $in: [...inProgressExamIds] };
+    } else {
+      // "completed" — has a submitted attempt and isn't currently mid a fresh
+      // reattempt (an in-progress reattempt shows under In Progress instead).
+      filter._id = { $in: [...submittedExamIds].filter((id) => !inProgressExamIds.has(id)) };
+    }
+  }
+
   // ── 3. Fetch exams + total count in parallel ──────────────────────────────
   const [exams, total] = await Promise.all([
     Exam.find(filter)
@@ -762,49 +884,76 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
     return res.status(200).json({
       success:    true,
       message:    "No exams found.",
-      data:       { exams: [] },
+      data:       { exams: [], access: await resolveStudentAccess(req.user.id) },
       pagination: buildPaginationMeta(total, page, limit),
     });
   }
 
-  // ── 4. Annotate with student's own attempt status ─────────────────────────
-  // Single query — fetch all attempts for this student across the current page
+  // ── 4. Annotate with ALL of the student's attempts for these exams ────────
+  // (was findOne — with reattempts a single exam can have up to
+  // MAX_ATTEMPTS_PER_EXAM attempt documents for this student)
   const examIds = exams.map((e) => e._id);
   const attempts = await Attempt.find({
     student: req.user.id,
     exam:    { $in: examIds },
   })
-    .select("exam status score totalMarks percentage submittedAt startedAt")
+    .select("exam status score totalMarks percentage submittedAt startedAt attemptNumber")
+    .sort({ attemptNumber: 1 })
     .lean();
 
-  // Build a map for O(1) lookup per exam
-  const attemptMap = {};
+  // Group by exam
+  const attemptsByExam = {};
   for (const a of attempts) {
-    attemptMap[a.exam.toString()] = a;
+    const key = a.exam.toString();
+    (attemptsByExam[key] = attemptsByExam[key] || []).push(a);
   }
 
+  const shapeAttempt = (a, exam) => ({
+    _id:          a._id,
+    attemptNumber: a.attemptNumber || 1,
+    status:       a.status,
+    score:        a.score        ?? null,
+    totalMarks:   a.totalMarks   ?? exam.totalMarks ?? null,
+    percentage:   a.percentage   ?? null,
+    submittedAt:  a.submittedAt  ?? null,
+    startedAt:    a.startedAt    ?? null,
+  });
+
+  // Plan access — a capped (trial / one-time) student who is at their limit
+  // can still resume / reattempt an exam they've already started, but a
+  // not-yet-started exam is shown locked.
+  const access = await resolveStudentAccess(req.user.id);
+
   const annotatedExams = exams.map((exam) => {
-    const attempt = attemptMap[exam._id.toString()];
+    const examAttempts = attemptsByExam[exam._id.toString()] || [];
+    const inProgress = examAttempts.find((a) => a.status === ATTEMPT_STATUS.IN_PROGRESS);
+    const submitted  = examAttempts.filter((a) => a.status === ATTEMPT_STATUS.SUBMITTED);
+    const best = submitted.reduce(
+      (b, a) => (b === null || (a.score ?? -Infinity) > (b.score ?? -Infinity) ? a : b),
+      null
+    );
+    // Backward-compatible single `attempt` field: in-progress takes priority,
+    // otherwise the best submitted attempt.
+    const primary = inProgress || best || null;
+    const locked = access.atLimit && examAttempts.length === 0;
+
     return {
       ...exam,
-      attempt: attempt
-        ? {
-            _id:          attempt._id,
-            status:       attempt.status,
-            score:        attempt.score        ?? null,
-            totalMarks:   attempt.totalMarks   ?? exam.totalMarks ?? null,
-            percentage:   attempt.percentage   ?? null,
-            submittedAt:  attempt.submittedAt  ?? null,
-            startedAt:    attempt.startedAt    ?? null,
-          }
-        : null,
+      attempt:  primary ? shapeAttempt(primary, exam) : null,
+      attempts: examAttempts.map((a) => shapeAttempt(a, exam)),
+      attemptCount:      submitted.length,
+      attemptsRemaining: Math.max(0, MAX_ATTEMPTS_PER_EXAM - submitted.length),
+      canReattempt:      !inProgress && submitted.length > 0 && submitted.length < MAX_ATTEMPTS_PER_EXAM,
+      bestScore:         best ? shapeAttempt(best, exam) : null,
+      locked,
+      lockReason: locked ? "PLAN_LIMIT" : null,
     };
   });
 
   return res.status(200).json({
     success:    true,
     message:    "Exams fetched successfully.",
-    data:       { exams: annotatedExams },
+    data:       { exams: annotatedExams, access },
     pagination: buildPaginationMeta(total, page, limit),
   });
 });
@@ -813,10 +962,48 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
 
 exports.getMyAttempts = asyncHandler(async (req, res, next) => {
   const { page, limit, skip } = getPaginationParams(req.query);
-  const { sprintId } = req.query;
+  const { sprintId, search, scoreBand, dateFrom, dateTo, examId } = req.query;
 
   const filter = { student: req.user.id, status: ATTEMPT_STATUS.SUBMITTED };
   if (sprintId) filter.sprint = sprintId;
+
+  if (examId) {
+    if (!/^[a-f\d]{24}$/i.test(examId)) {
+      return next(new AppError("Invalid examId format.", 400));
+    }
+    filter.exam = examId;
+  } else if (search) {
+    // Attempt has no title of its own — resolve matching exam titles first.
+    const matchingExams = await Exam.find({ title: { $regex: escapeRegex(search.trim()), $options: "i" } })
+      .select("_id")
+      .lean();
+    filter.exam = { $in: matchingExams.map((e) => e._id) };
+  }
+
+  if (scoreBand) {
+    const allowed = ["high", "medium", "low"];
+    if (!allowed.includes(scoreBand)) {
+      return next(new AppError(`Invalid scoreBand filter. Allowed: ${allowed.join(", ")}.`, 400));
+    }
+    if (scoreBand === "high")   filter.percentage = { $gte: 65 };
+    if (scoreBand === "medium") filter.percentage = { $gte: 40, $lt: 65 };
+    if (scoreBand === "low")    filter.percentage = { $lt: 40 };
+  }
+
+  if (dateFrom || dateTo) {
+    filter.submittedAt = {};
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (isNaN(from.getTime())) return next(new AppError("Invalid dateFrom.", 400));
+      filter.submittedAt.$gte = from;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      if (isNaN(to.getTime())) return next(new AppError("Invalid dateTo.", 400));
+      to.setHours(23, 59, 59, 999); // inclusive of the whole end date
+      filter.submittedAt.$lte = to;
+    }
+  }
 
   const [attempts, total] = await Promise.all([
     Attempt.find(filter)

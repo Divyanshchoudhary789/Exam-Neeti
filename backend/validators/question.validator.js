@@ -15,7 +15,7 @@
 "use strict";
 
 const Joi = require("joi");
-const { SUBJECTS, CLASS_LEVELS, DIFFICULTY, QUESTION_TYPE } = require("../config/constants");
+const { SUBJECTS, CLASS_LEVELS, DIFFICULTY, QUESTION_TYPE, QUESTION_STATUS } = require("../config/constants");
 
 // ─── Re-usable sub-schemas ────────────────────────────────────────────────────
 
@@ -118,8 +118,10 @@ const updateQuestionSchema = Joi.object({
   // Admin-defined extra fields — see createQuestionSchema above.
   customFields: Joi.object().pattern(Joi.string(), Joi.any()),
 
-  // Draft → active review workflow
-  status: Joi.string().valid("draft", "active"),
+  // Review workflow status (draft / active / rejected). Flipping a draft to
+  // active via this endpoint counts as an "approve" review — the controller
+  // stamps reviewedBy/reviewedAt and logs a "reviewed" activity entry.
+  status: Joi.string().valid(...Object.values(QUESTION_STATUS)),
 
   // Image removal flags
   removeQuestionImage:  Joi.boolean().default(false),
@@ -146,7 +148,7 @@ const listQuestionsSchema = Joi.object({
   sourceRef:        Joi.string().trim().max(200),
   isActive:         Joi.boolean(),
   hasLatex:         Joi.boolean(),
-  status:           Joi.string().valid("draft", "active"),
+  status:           Joi.string().valid(...Object.values(QUESTION_STATUS)),
   // mine=true scopes results to the requesting admin's own questions —
   // the controller derives the actual filter from req.user.id, never from
   // a client-supplied id, so this flag can't be used to query someone else.
@@ -164,9 +166,20 @@ const templateQuerySchema = Joi.object({
   format: Joi.string().valid("docx", "xlsx").required(),
 });
 
+// ─── reviewQuestionSchema ─────────────────────────────────────────────────────
+// Body for PATCH /questions/:id/review — the dedicated approve/reject action.
+// Kept separate from updateQuestionSchema so a reviewer can act on a draft in
+// one click without re-submitting the whole (multipart) question payload.
+
+const reviewQuestionSchema = Joi.object({
+  decision: Joi.string().valid("approve", "reject").required(),
+  note:     Joi.string().trim().allow("").max(1000).default(""),
+});
+
 module.exports = {
   createQuestionSchema,
   updateQuestionSchema,
   listQuestionsSchema,
   templateQuerySchema,
+  reviewQuestionSchema,
 };

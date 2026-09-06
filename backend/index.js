@@ -125,6 +125,9 @@ app.use((req, res, next) => {
 // the 50kb limit fires first and rejects large payloads with a 413.
 // Multer handles multipart/form-data for question uploads separately (no body-parser needed).
 app.use("/api/v1/users/bulk-import", express.json({ limit: "2mb" }));
+// Razorpay webhook signature verification needs the exact raw bytes Razorpay
+// signed — must be parsed as a raw Buffer, before the global JSON parser.
+app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 app.use(cookieParser(process.env.COOKIE_SECRET));

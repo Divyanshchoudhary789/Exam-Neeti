@@ -12,9 +12,10 @@ import type { NextRequest } from "next/server";
  * The cookie is NOT httpOnly so the client can still set/clear it.
  */
 
+// Super Admin runs from a separate app (superadmin-frontend); this site only
+// serves Student and Admin portals.
 const ROLE_ROUTES: Record<string, string[]> = {
-  "/admin": ["admin", "super_admin"],
-  "/superadmin": ["super_admin"],
+  "/admin": ["admin"],
   "/student": ["student"],
 };
 
@@ -44,5 +45,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/superadmin/:path*", "/student/:path*"],
+  matcher: ["/admin/:path*", "/student/:path*"],
 };

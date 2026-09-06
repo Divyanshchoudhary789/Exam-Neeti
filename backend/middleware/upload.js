@@ -62,15 +62,17 @@ const multerUpload = multer({
  * @param {string}  [publicId]  Optional existing publicId to overwrite
  * @returns {Promise<{ url: string, publicId: string }>}
  */
-const uploadToCloudinary = (buffer, folder, publicId = null) => {
+const uploadToCloudinary = (buffer, folder, publicId = null, resourceType = "image") => {
   return new Promise((resolve, reject) => {
     const opts = {
       folder,
-      resource_type: "image",
+      resource_type: resourceType,
       overwrite:     true,
-      // Store as original quality but strip metadata for privacy
-      transformation: [{ quality: "auto", fetch_format: "auto" }],
     };
+    // Image-only optimisation; "raw"/"auto" (PDFs, docs) must not be transformed.
+    if (resourceType === "image") {
+      opts.transformation = [{ quality: "auto", fetch_format: "auto" }];
+    }
 
     if (publicId) {
       // Keep the same public_id so existing URLs in other docs remain valid
@@ -92,10 +94,10 @@ const uploadToCloudinary = (buffer, folder, publicId = null) => {
  *
  * @param {string} publicId
  */
-const deleteFromCloudinary = async (publicId) => {
+const deleteFromCloudinary = async (publicId, resourceType = "image") => {
   if (!publicId) return;
   try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
   } catch (err) {
     // Log but never throw — a failed delete should not block the main flow
     console.error(`[Cloudinary] Failed to delete ${publicId}:`, err.message);
@@ -150,9 +152,68 @@ const bulkQuestionUpload = multer({
   },
 }).single("file");
 
+// Same shape as bulkQuestionUpload — a single .docx/.xlsx roster for bulk
+// student import.
+const bulkStudentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_BULK_FILE_SIZE, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_BULK_MIME.has(file.mimetype)) {
+      return cb(new AppError("Only .docx or .xlsx files are allowed.", 400), false);
+    }
+    cb(null, true);
+  },
+}).single("file");
+
+// ── Content Hub (blogs + resources) uploads ─────────────────────────────────
+// coverImage — blog / resource cover (image only)
+// file       — resource attachment (image OR pdf / office doc)
+const CONTENT_IMAGE_MIME = /^image\/(png|jpe?g|webp|gif)$/;
+const CONTENT_FILE_MIME = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/msword",
+  "text/plain",
+]);
+const contentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 2 },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === "coverImage") {
+      return CONTENT_IMAGE_MIME.test(file.mimetype)
+        ? cb(null, true)
+        : cb(new AppError("Cover image must be a PNG, JPG, WEBP or GIF.", 400), false);
+    }
+    if (file.fieldname === "file") {
+      return (CONTENT_IMAGE_MIME.test(file.mimetype) || CONTENT_FILE_MIME.has(file.mimetype))
+        ? cb(null, true)
+        : cb(new AppError("Attachment must be a PDF, Office document, image or text file.", 400), false);
+    }
+    return cb(new AppError(`Unexpected file field "${file.fieldname}".`, 400), false);
+  },
+}).fields([
+  { name: "coverImage", maxCount: 1 },
+  { name: "file", maxCount: 1 },
+]);
+
+// Single inline image for the blog block editor (image blocks). Image only.
+const contentImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) =>
+    CONTENT_IMAGE_MIME.test(file.mimetype)
+      ? cb(null, true)
+      : cb(new AppError("Image must be a PNG, JPG, WEBP or GIF.", 400), false),
+}).single("image");
+
 module.exports = {
   questionUpload,
   bulkQuestionUpload,
+  bulkStudentUpload,
+  contentUpload,
+  contentImageUpload,
   uploadToCloudinary,
   deleteFromCloudinary,
 };

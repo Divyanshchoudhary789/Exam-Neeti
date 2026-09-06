@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "../../store/api";
 import { Navbar } from "../navbar";
 import { Footer } from "../footer";
-import { Login } from "../login/login";
+import BrandLogo from "../common/BrandLogo";
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -13,7 +13,10 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [authModal, setAuthModal] = useState<"login" | "join" | null>(null);
+
+  const handleOpenAuth = (type: "login" | "join") => {
+    router.push(type === "login" ? "/login" : "/register");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +53,7 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased">
       {/* Website Navigation Bar */}
-      <Navbar onOpenAuth={setAuthModal} currentView="resources" />
+      <Navbar onOpenAuth={handleOpenAuth} currentView="resources" />
 
       {/* Main Content Area */}
       <main className="flex-grow flex items-center justify-center py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -63,14 +66,8 @@ export default function ForgotPassword() {
           
           {/* Brand Logo & Header */}
           <div className="flex flex-col items-center text-center space-y-3 mb-8">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 border border-slate-200 p-2 shadow-sm shrink-0 transition-transform hover:scale-105">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://iili.io/Clw9yIj.png"
-                alt="Exam Neeti Logo"
-                className="h-full w-full object-contain"
-                referrerPolicy="no-referrer"
-              />
+            <div className="transition-transform hover:scale-105">
+              <BrandLogo iconOnly size="lg" href={null} />
             </div>
             <div className="space-y-1">
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 font-sans">
@@ -153,7 +150,7 @@ export default function ForgotPassword() {
           {/* Action Footer */}
           <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center gap-3 text-center">
             <button
-              onClick={() => setAuthModal("login")}
+              onClick={() => router.push("/login")}
               className="text-xs font-bold text-[#5a4bfc] hover:text-[#6c5eff] transition-colors cursor-pointer"
             >
               Remember your password? Log In
@@ -174,13 +171,6 @@ export default function ForgotPassword() {
 
       {/* Website Footer */}
       <Footer />
-
-      {/* Login Modal */}
-      <Login
-        isOpen={authModal === "login"}
-        onClose={() => setAuthModal(null)}
-        onSwitchToRegister={() => setAuthModal("join")}
-      />
     </div>
   );
 }

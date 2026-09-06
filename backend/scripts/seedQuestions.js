@@ -17,8 +17,14 @@
  * so NO manual tagging step is needed after seeding. Just seed → create sprint → generate exam.
  *
  * Flags:
- *   --file     Path to JSON file (relative to backend/ folder) [required]
- *   --dry-run  Parse + validate but do NOT write to DB or Cloudinary
+ *   --file           Path to JSON file (relative to backend/ folder) [required]
+ *   --dry-run        Parse + validate but do NOT write to DB or Cloudinary
+ *   --owner-id=<id>  Attribute every seeded question to this admin's User _id
+ *                    (also accepts SEED_OWNER_ID env). Without it, questions are
+ *                    unowned → only super_admin can edit/delete/review them.
+ *   --owner-email=<e> Email stored alongside --owner-id for display (SEED_OWNER_EMAIL).
+ *   --status=<s>     Seed status: "active" (default, exam-eligible immediately)
+ *                    or "draft" (must be reviewed first). Also SEED_STATUS env.
  */
 
 require("dotenv").config();
@@ -39,9 +45,25 @@ const fileArg  = args.find((a) => a.startsWith("--file="))?.split("=")[1]
               || args[args.indexOf("--file") + 1];
 const isDryRun = args.includes("--dry-run");
 
+const ownerId    = args.find((a) => a.startsWith("--owner-id="))?.split("=")[1]
+                || process.env.SEED_OWNER_ID || null;
+const ownerEmail = args.find((a) => a.startsWith("--owner-email="))?.split("=")[1]
+                || process.env.SEED_OWNER_EMAIL || "";
+const seedStatus = args.find((a) => a.startsWith("--status="))?.split("=")[1]
+                || process.env.SEED_STATUS || "active";
+
 if (!fileArg) {
   console.error("\n[Seed] ✖  --file argument is required.");
   console.error("  Example: node scripts/seedQuestions.js --file seedData/questions/physics_xi_minor1.json\n");
+  process.exit(1);
+}
+
+if (ownerId && !/^[a-f\d]{24}$/i.test(ownerId)) {
+  console.error(`\n[Seed] ✖  --owner-id must be a 24-char hex ObjectId (got "${ownerId}").\n`);
+  process.exit(1);
+}
+if (!["active", "draft"].includes(seedStatus)) {
+  console.error(`\n[Seed] ✖  --status must be "active" or "draft" (got "${seedStatus}").\n`);
   process.exit(1);
 }
 
@@ -142,6 +164,8 @@ async function seed() {
   console.log(`\n[Seed] File     : ${fileArg}`);
   console.log(`[Seed] Questions: ${rawQuestions.length}`);
   console.log(`[Seed] Dry run  : ${isDryRun}`);
+  console.log(`[Seed] Status   : ${seedStatus}`);
+  console.log(`[Seed] Owner    : ${ownerId ? `${ownerId}${ownerEmail ? ` (${ownerEmail})` : ""}` : "— unowned (super_admin-only)"}`);
 
   // ── 2. Validate all questions first ───────────────────────────────────────
   console.log("\n[Seed] Validating...");
@@ -285,6 +309,20 @@ async function seed() {
         patternSlotTags: [],   // empty = open pool, eligible for any sprint
         usageLog:        [],
         isActive:        true,
+        status:          seedStatus,
+        ...(ownerId
+          ? {
+              createdBy: { userId: ownerId, email: ownerEmail },
+              activityLog: [{
+                action:   "created",
+                byUserId: ownerId,
+                byEmail:  ownerEmail,
+                byRole:   "admin",
+                at:       new Date(),
+                meta:     { via: "seed", file: fileArg },
+              }],
+            }
+          : {}),
       };
 
       await Question.create(doc);

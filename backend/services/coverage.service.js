@@ -353,8 +353,67 @@ const getBatchCoverageMetrics = async (sprintId, batchId) => {
   };
 };
 
+// ─── getWeightageCoverage ─────────────────────────────────────────────────────
+
+// chapterWeightage on SyllabusConfig: 1 = High, 2 = Medium, 3 = Low.
+const WEIGHTAGE_LABEL = { 1: "high", 2: "medium", 3: "low" };
+
+/**
+ * "Chapters covered by weightage" — for each subject in this sprint, how many
+ * High/Medium/Low-weightage chapters (Weightage Framework, admin-set on
+ * SyllabusConfig) has this student touched vs. how many exist in that band.
+ * Feeds the Subjects tab's "Chapters covered by weightage" row.
+ *
+ * Chapters that have no weightage set (chapterWeightage: null) are excluded —
+ * they'd otherwise silently misclassify as any one band. Returns {} when the
+ * sprint's syllabus has no weightage set at all, so the UI can hide the block.
+ */
+const getWeightageCoverage = async (studentId, sprintId) => {
+  const sprint = await Sprint.findById(sprintId).lean();
+  const sprintSubjects = [...new Set((sprint?.patternSlots || []).map((s) => s.subject))];
+  if (!sprintSubjects.length) return {};
+
+  const syllabusTopics = await SyllabusConfig.find({
+    subject: { $in: sprintSubjects },
+    isActive: true,
+  })
+    .select("subject chapter chapterWeightage")
+    .lean();
+
+  // chapterWeightage is constant across every topic document that shares a
+  // (subject, chapter) — collapse to one weightage per chapter.
+  const chapterWeightageMap = {}; // "subject__chapter" -> 1|2|3|null
+  for (const t of syllabusTopics) {
+    const key = `${t.subject}__${t.chapter}`;
+    if (!(key in chapterWeightageMap)) chapterWeightageMap[key] = t.chapterWeightage ?? null;
+  }
+
+  const progress = await SyllabusProgress.findOne({ student: studentId, sprint: sprintId }).lean();
+  const coveredChapterKeys = new Set(
+    (progress?.topics || []).filter((t) => t.isCovered).map((t) => `${t.subject}__${t.chapter}`)
+  );
+
+  const bySubject = {};
+  for (const [key, weightage] of Object.entries(chapterWeightageMap)) {
+    const label = WEIGHTAGE_LABEL[weightage];
+    if (!label) continue; // ungraded chapter — not part of any band
+    const [subject] = key.split("__");
+    if (!bySubject[subject]) {
+      bySubject[subject] = {
+        high:   { covered: 0, total: 0 },
+        medium: { covered: 0, total: 0 },
+        low:    { covered: 0, total: 0 },
+      };
+    }
+    bySubject[subject][label].total += 1;
+    if (coveredChapterKeys.has(key)) bySubject[subject][label].covered += 1;
+  }
+  return bySubject;
+};
+
 module.exports = {
   updateSyllabusProgress,
   getCoverageMetrics,
   getBatchCoverageMetrics,
+  getWeightageCoverage,
 };

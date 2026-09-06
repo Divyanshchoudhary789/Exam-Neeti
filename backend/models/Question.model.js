@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { DIFFICULTY, QUESTION_TYPE, SUBJECTS, CLASS_LEVELS } = require("../config/constants");
+const { DIFFICULTY, QUESTION_TYPE, QUESTION_STATUS, SUBJECTS, CLASS_LEVELS } = require("../config/constants");
 
 /**
  * Question lives in a SEPARATE database (the question bank DB on the same Atlas cluster).
@@ -287,21 +287,38 @@ const questionSchema = new mongoose.Schema(
 
     // ── Draft / review workflow ─────────────────────────────────────────────
     /**
-     * status — "draft" questions were created via bulk upload and are NOT
-     * usable in exams (see questionReconstruction.service.js) until an admin
-     * reviews them (adds missing images etc.) and flips this to "active".
-     * Manually created single questions go straight to "active".
+     * status — review lifecycle (see QUESTION_STATUS in config/constants.js).
+     *   "draft"    → created via bulk upload, awaiting the owning admin's review.
+     *   "active"   → reviewed & approved. STRICTLY the only status usable in
+     *                exams (questionReconstruction.service.js) and sprint slot
+     *                pinning (sprint.controller.js). Manually created single
+     *                questions go straight to "active" (the admin reviews via
+     *                the form + /questions/preview before submitting).
+     *   "rejected" → reviewed & turned down; never exam-eligible.
      *
-     * NOTE: pre-existing documents have NO status field at all (this is a
-     * new field) — treat "missing" as exam-eligible everywhere this is read,
-     * do not assume the schema default has been backfilled.
+     * Historical note: this field was added later, so pre-existing documents
+     * may have NO status at all. scripts/migrateQuestionStatus.js backfills
+     * them to "active" and MUST be run before/with the deploy that made the
+     * exam-eligibility check strict ("active" only, no longer {$ne:"draft"}).
      */
     status: {
       type: String,
-      enum: ["draft", "active"],
-      default: "active",
+      enum: Object.values(QUESTION_STATUS),
+      default: QUESTION_STATUS.ACTIVE,
       index: true,
     },
+    /**
+     * reviewedBy / reviewedAt — who made the most recent review decision
+     * (approve → active, or reject → rejected) and when. Denormalized
+     * (userId + email) for the same cross-connection reason as createdBy.
+     * Null until a question has been through review at least once (manual
+     * single-adds are never "reviewed" in this sense — they're born active).
+     */
+    reviewedBy: {
+      userId: { type: mongoose.Schema.Types.ObjectId, default: null },
+      email:  { type: String, default: "" },
+    },
+    reviewedAt: { type: Date, default: null },
     /**
      * createdBy — denormalized (userId + email only, no name/populate).
      * Question lives on a separate Mongoose connection from User, so a real
@@ -349,7 +366,15 @@ const questionSchema = new mongoose.Schema(
         {
           action: {
             type: String,
-            enum: ["created", "edited", "status_changed", "bulk_uploaded"],
+            enum: [
+              "created",
+              "edited",
+              "status_changed",
+              "bulk_uploaded",
+              "reviewed",       // meta: { decision: "approve"|"reject", note, via }
+              "deactivated",    // isActive true → false (soft delete)
+              "reactivated",    // isActive false → true
+            ],
             required: true,
           },
           byUserId: { type: mongoose.Schema.Types.ObjectId, default: null },

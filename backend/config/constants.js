@@ -8,6 +8,13 @@ const ROLES = Object.freeze({
   SUPER_ADMIN: "super_admin",
 });
 
+// How a user account authenticates. "local" = email + password,
+// "google" = created/linked via Google Sign-In (OpenID Connect).
+const AUTH_PROVIDERS = Object.freeze({
+  LOCAL:  "local",
+  GOOGLE: "google",
+});
+
 const CLASS_LEVELS = Object.freeze({
   XI:      "XI",
   XII:     "XII",
@@ -29,6 +36,22 @@ const DIFFICULTY = Object.freeze({
 
 const QUESTION_TYPE = Object.freeze({
   MCQ: "mcq",
+});
+
+/**
+ * Question review lifecycle.
+ *   draft    → freshly bulk-uploaded / awaiting an owning admin's review.
+ *   active   → reviewed & approved. The ONLY status usable in exams and
+ *              sprint slot-pinning (strict — see questionReconstruction.service.js
+ *              and sprint.controller.js validateSlotPins/listSlotQuestions).
+ *   rejected → reviewed & turned down. Never exam-eligible. Kept (not deleted)
+ *              so the rejection + reason stay on the activity trail; an owner
+ *              or super_admin can send it back to draft to rework it.
+ */
+const QUESTION_STATUS = Object.freeze({
+  DRAFT:    "draft",
+  ACTIVE:   "active",
+  REJECTED: "rejected",
 });
 
 const SUBJECTS = Object.freeze({
@@ -97,6 +120,8 @@ const NOTIFICATION_TRIGGER = Object.freeze({
   PASSWORD_RESET:         "password_reset",
   ADMIN_INVITED:          "admin_invited",
   ADMIN_DELETED:          "admin_deleted",
+  SELF_REGISTERED:        "self_registered",
+  SUBSCRIPTION_ACTIVATED: "subscription_activated",
 });
 
 const NOTIFICATION_STATUS = Object.freeze({
@@ -131,6 +156,17 @@ const ADMIN_ACTIONS = Object.freeze({
   BATCH_DEACTIVATED:   "batch_deactivated",
   BATCH_REACTIVATED:   "batch_reactivated",
   BATCH_DELETED:       "batch_deleted",
+  // Question bank — the question's own append-only activityLog covers the
+  // full lifecycle while the doc exists; these AdminAuditLog actions capture
+  // the events that outlive (delete) or span (bulk) individual documents.
+  QUESTION_DELETED:       "question_deleted",
+  QUESTION_BULK_DEACTIVATED: "question_bulk_deactivated",
+  // Sprint — same reasoning: the sprint's activityLog is gone once it's
+  // deleted, so the deletion itself is mirrored to the platform audit log.
+  SPRINT_DELETE_REQUESTED: "sprint_delete_requested",
+  SPRINT_DELETE_APPROVED:  "sprint_delete_approved",
+  SPRINT_DELETE_REJECTED:  "sprint_delete_rejected",
+  SPRINT_DELETED:          "sprint_deleted",
 });
 
 // Test types: minor (chapter test), semi-major (half-sprint), major (full syllabus)
@@ -140,13 +176,53 @@ const EXAM_TYPE = Object.freeze({
   MAJOR:      "major",
 });
 
+// A student may attempt any one exam at most this many times (Revisit/Reattempt).
+const MAX_ATTEMPTS_PER_EXAM = 2;
+
+// Batch.source — 'coaching' batches are admin-managed & always active (billed
+// offline). 'public' batches back the self-serve plan catalog (see Plan model)
+// and are the only batches subject to Subscription expiry checks.
+const BATCH_SOURCE = Object.freeze({
+  COACHING: "coaching",
+  PUBLIC:   "public",
+});
+
+const SUBSCRIPTION_STATUS = Object.freeze({
+  TRIAL:     "trial",
+  ACTIVE:    "active",
+  EXPIRED:   "expired",
+  CANCELLED: "cancelled",
+});
+
+const ORDER_STATUS = Object.freeze({
+  CREATED: "created",
+  PAID:    "paid",
+  FAILED:  "failed",
+});
+
+// Self-serve plan catalog keys — each maps 1:1 to a seeded public Batch.
+const PLAN_KEYS = Object.freeze({
+  TRIAL:           "trial",
+  SIGNATURE_ENTRY: "signature_entry",
+  CORE:            "core",
+  PRIME:           "prime",
+  ELITE:           "elite",
+});
+
 module.exports = {
   ROLES,
+  AUTH_PROVIDERS,
   CLASS_LEVELS,
   PROGRAM_TYPES,
   EXAM_TYPE,
+  MAX_ATTEMPTS_PER_EXAM,
+  BATCH_SOURCE,
+  SUBSCRIPTION_STATUS,
+  ORDER_STATUS,
+  PLAN_KEYS,
   DIFFICULTY,
   QUESTION_TYPE,
+  QUESTION_STATUS,
   SUBJECTS,
   ATTEMPT_STATUS,
   EXAM_STATUS,

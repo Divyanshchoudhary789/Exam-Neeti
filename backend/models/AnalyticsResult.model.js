@@ -58,6 +58,25 @@ const topicBreakdownSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// One row per (topic, difficulty) touched in this attempt — powers the
+// per-topic "Attempt Rate by Difficulty" / "Accuracy by Difficulty" bars
+// shown in the sprint-level Chapters tab. Documents computed before this
+// field was added simply have an empty array here.
+const topicDifficultyBreakdownSchema = new mongoose.Schema(
+  {
+    subject: String,
+    chapter: String,
+    topic: String,
+    difficulty: String,
+    totalQuestions: Number,
+    attempted: Number,
+    correct: Number,
+    accuracy: Number,
+    attemptRate: Number,
+  },
+  { _id: false }
+);
+
 // Extended difficulty breakdown that includes subject dimension
 const difficultyBreakdownSchema = new mongoose.Schema(
   {
@@ -170,6 +189,7 @@ const analyticsResultSchema = new mongoose.Schema(
     subjectAccuracy: { type: [subjectBreakdownSchema], default: [] },
     chapterAccuracy: { type: [chapterBreakdownSchema], default: [] },
     topicAccuracy: { type: [topicBreakdownSchema], default: [] },
+    topicDifficultyAccuracy: { type: [topicDifficultyBreakdownSchema], default: [] },
     difficultyAccuracy: { type: [difficultyBreakdownSchema], default: [] },
     difficultySummary: { type: [difficultySummarySchema], default: [] },
 

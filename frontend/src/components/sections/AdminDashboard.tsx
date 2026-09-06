@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { adminService, UserProfile } from "../../services/apiServices";
 import { useAuthStore } from "../../store/useAuthStore";
 import { changepassword } from "../../store/commonapi";
@@ -8,12 +9,17 @@ import { MathRenderer } from "../common/MathRenderer";
 import {
   IconChart, IconBook, IconUsers, IconClock, IconFilter, IconPlus,
   IconTrash, IconDownload, IconUpload, IconCheck, IconCross, IconEye, IconEdit,
-  IconLayers, IconFileText, IconSearch, IconShield, IconChevronDown,
+  IconLayers, IconFileText, IconSearch, IconShield, IconChevronDown, IconRocket,
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
 import { RadialMeter, HBarChart } from "../common/Charts";
 import { SprintBuilder } from "../admin/SprintBuilder";
+import { SprintHistoryModal } from "../admin/SprintHistoryModal";
+import { PlanTiersPanel } from "../admin/PlanTiersPanel";
+import { BulkStudentUploadModal } from "../admin/BulkStudentUploadModal";
+import { ContentHubPanel } from "../admin/ContentHubPanel";
+import { SprintPaperDownloadButton } from "../admin/SprintPaperDownloadButton";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
 import { QuestionBankPanel } from "../admin/QuestionBankPanel";
@@ -30,30 +36,151 @@ import { EditSyllabusModal, EditSyllabusTopicData } from "../admin/EditSyllabusM
 
 interface AdminDashboardProps { onLogout: () => void; }
 
+const IconMenu = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+);
+
+const IconChevronLeft = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+  </svg>
+);
+
+const IconChevronRight = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+  </svg>
+);
+
+const IconLogOut = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+  </svg>
+);
+
 const TABS = [
-  { id: "dashboard", label: "Dashboard",       icon: IconChart   },
-  { id: "sprints",   label: "Sprints",          icon: IconClock   },
-  { id: "batches",   label: "Batches",          icon: IconLayers  },
-  { id: "exams",     label: "Exams",            icon: IconBook    },
-  { id: "questions", label: "Question Bank",    icon: IconFilter  },
-  { id: "myQuestions", label: "My Questions",   icon: IconUpload  },
-  { id: "syllabus",  label: "Syllabus Taxonomy", icon: IconFileText},
-  { id: "students",  label: "Students",         icon: IconUsers   },
-  { id: "reports",   label: "Reports",          icon: IconDownload},
-  { id: "settings",  label: "Settings",         icon: IconShield  },
+  { id: "dashboard", label: "Dashboard", icon: IconChart },
+  { id: "sprints", label: "Sprints", icon: IconClock },
+  { id: "batches", label: "Batches", icon: IconLayers },
+  { id: "exams", label: "Exams", icon: IconBook },
+  { id: "plans", label: "Plans & Tiers", icon: IconRocket },
+  { id: "questions", label: "Question Bank", icon: IconFilter },
+  { id: "myQuestions", label: "My Questions", icon: IconUpload },
+  { id: "content", label: "Content Hub", icon: IconFileText },
+  { id: "syllabus", label: "Syllabus Taxonomy", icon: IconFileText },
+  { id: "students", label: "Students", icon: IconUsers },
+  { id: "reports", label: "Reports", icon: IconDownload },
+  { id: "settings", label: "Settings", icon: IconShield },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
 
+interface NavItem {
+  id: TabId;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+interface NavGroup {
+  groupTitle: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    groupTitle: "Core Intelligence",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: IconChart, description: "Overview & Analytics" },
+    ],
+  },
+  {
+    groupTitle: "Academic Planning",
+    items: [
+      { id: "sprints", label: "Sprints", icon: IconClock, description: "Sprint Blueprint" },
+      { id: "batches", label: "Batches", icon: IconLayers, description: "Cohorts & Classes" },
+      { id: "exams", label: "Exams", icon: IconBook, description: "Test Management" },
+      { id: "plans", label: "Plans & Tiers", icon: IconRocket, description: "Free & paid content" },
+    ],
+  },
+  {
+    groupTitle: "Content & Curriculum",
+    items: [
+      { id: "questions", label: "Question Bank", icon: IconFilter, description: "Question Bank" },
+      { id: "myQuestions", label: "My Questions", icon: IconUpload, description: "Author Questions" },
+      { id: "content", label: "Content Hub", icon: IconFileText, description: "Blogs & Resources" },
+      { id: "syllabus", label: "Syllabus Taxonomy", icon: IconFileText, description: "Weightage & Topics" },
+    ],
+  },
+  {
+    groupTitle: "Administration",
+    items: [
+      { id: "students", label: "Students", icon: IconUsers, description: "Directory & Rosters" },
+      { id: "reports", label: "Reports", icon: IconDownload, description: "Export Reports" },
+      { id: "settings", label: "Settings", icon: IconShield, description: "Security & Account" },
+    ],
+  },
+];
+
+const ADMIN_LIST_LIMIT = 12;
+
+const unwrapPagination = (res: unknown, fallbackTotal: number) => {
+  const r = res as { data?: { pagination?: Record<string, unknown> }; pagination?: Record<string, unknown> };
+  const p = r?.data?.pagination || r?.pagination || {};
+  return {
+    totalPages: Number(p.totalPages || 1),
+    totalItems: Number(p.total ?? fallbackTotal),
+  };
+};
+
 export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("examneeti_admin_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: "success"|"error" }|null>(null);
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("examneeti_admin_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Close drawer on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isMobileDrawerOpen) {
+        setIsMobileDrawerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMobileDrawerOpen]);
 
   // ── Sprint & Dashboard state ──────────────────────────────────────────
   const [sprintList, setSprintList] = useState<Record<string,unknown>[]>([]);
+  const [sprintOptionList, setSprintOptionList] = useState<Record<string,unknown>[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState("");
+  const [sprintPage, setSprintPage] = useState(1);
+  const [sprintTotalPages, setSprintTotalPages] = useState(1);
+  const [sprintTotalItems, setSprintTotalItems] = useState(0);
+  const [sprintStatusFilter, setSprintStatusFilter] = useState("");
+  const [sprintClassFilter, setSprintClassFilter] = useState("");
+  const [sprintSearch, setSprintSearch] = useState("");
+  const [sprintHistoryId, setSprintHistoryId] = useState<string | null>(null);
   const [dashboardOverview, setDashboardOverview] = useState<Record<string,unknown>|null>(null);
   const [rankingsList, setRankingsList] = useState<Record<string,unknown>[]>([]);
   const [leaderboardScope, setLeaderboardScope] = useState<string>("all");
@@ -72,6 +199,13 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [sprintBuilder, setSprintBuilder] = useState<{ open: boolean; mode: "create" | "edit"; sprint: Record<string, unknown> | null }>({ open: false, mode: "create", sprint: null });
   const [showFormulaConfigModal, setShowFormulaConfigModal] = useState(false);
 
+  const clearDashboardData = useCallback(() => {
+    setDashboardOverview(null);
+    setExamPerf([]);
+    setChapterBreakdown(null);
+    setStudentStatusList([]);
+  }, []);
+
   const openCreateSprintBuilder = () => setSprintBuilder({ open: true, mode: "create", sprint: null });
   const openEditSprintBuilder = async (sprintId: string) => {
     try {
@@ -86,6 +220,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   // ── Batch state ───────────────────────────────────────────────────────
   const [batchList, setBatchList] = useState<Record<string,unknown>[]>([]);
+  const [batchOptionList, setBatchOptionList] = useState<Record<string,unknown>[]>([]);
+  const [batchPage, setBatchPage] = useState(1);
+  const [batchTotalPages, setBatchTotalPages] = useState(1);
+  const [batchTotalItems, setBatchTotalItems] = useState(0);
+  const [batchSearch, setBatchSearch] = useState("");
+  const [batchStatusFilter, setBatchStatusFilter] = useState("");
+  const [batchProgramFilter, setBatchProgramFilter] = useState("");
+  const [batchSourceFilter, setBatchSourceFilter] = useState("");
+  const [batchesLoading, setBatchesLoading] = useState(false);
   const [showCreateBatchModal, setShowCreateBatchModal] = useState(false);
   const [showEditBatchModal, setShowEditBatchModal] = useState(false);
   const [selectedBatchToEdit, setSelectedBatchToEdit] = useState<Record<string,unknown>|null>(null);
@@ -95,6 +238,14 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
   // ── Exam state ────────────────────────────────────────────────────────
   const [examsList, setExamsList] = useState<Record<string,unknown>[]>([]);
+  const [examPage, setExamPage] = useState(1);
+  const [examTotalPages, setExamTotalPages] = useState(1);
+  const [examTotalItems, setExamTotalItems] = useState(0);
+  const [examSearch, setExamSearch] = useState("");
+  const [examStatusFilter, setExamStatusFilter] = useState("");
+  const [examSprintFilter, setExamSprintFilter] = useState("");
+  const [examBatchFilter, setExamBatchFilter] = useState("");
+  const [examsLoading, setExamsLoading] = useState(false);
   const [showCreateExamModal, setShowCreateExamModal] = useState(false);
   const [newExamTitle, setNewExamTitle] = useState("");
   const [newExamBatchId, setNewExamBatchId] = useState("");
@@ -147,7 +298,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [selectedUserToEdit, setSelectedUserToEdit] = useState<UserProfile|null>(null);
 
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
-  const [bulkImportJson, setBulkImportJson] = useState("");
 
   // ── Reports state ─────────────────────────────────────────────────────
   const [reportsList, setReportsList] = useState<Record<string,unknown>[]>([]);
@@ -174,10 +324,19 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const loadSprintsAndDashboard = useCallback(async (sprintId?: string) => {
     setIsDashboardLoading(true);
     try {
-      const spRes = await adminService.getSprints().catch(() => null);
+      const spRes = await adminService.getSprints({
+        page: sprintPage,
+        limit: ADMIN_LIST_LIMIT,
+        status: sprintStatusFilter || undefined,
+        classLevel: sprintClassFilter || undefined,
+        search: sprintSearch.trim() || undefined,
+      }).catch(() => null);
       const rawSp = spRes?.data?.sprints || spRes?.sprints || spRes?.data || spRes || [];
       const sprints: Record<string,unknown>[] = Array.isArray(rawSp) ? rawSp : [];
       setSprintList(sprints);
+      const sprintMeta = unwrapPagination(spRes, sprints.length);
+      setSprintTotalPages(sprintMeta.totalPages);
+      setSprintTotalItems(sprintMeta.totalItems);
 
       const sid = sprintId || selectedSprintId || String(sprints[0]?._id || sprints[0]?.id || "");
       if (!sprintId && sid && !selectedSprintId) setSelectedSprintId(sid);
@@ -193,26 +352,37 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         if (ovRes.status === "fulfilled") {
           const ov = ovRes.value?.data?.overview || ovRes.value?.data || ovRes.value;
           setDashboardOverview(ov && typeof ov === "object" ? ov : null);
+        } else {
+          setDashboardOverview(null);
         }
         if (epRes.status === "fulfilled") {
           const ep = epRes.value?.data?.exams || epRes.value?.exams || epRes.value?.data || epRes.value || [];
           setExamPerf(Array.isArray(ep) ? ep : []);
+        } else {
+          setExamPerf([]);
         }
         if (cbRes.status === "fulfilled") {
           const cb = cbRes.value?.data?.breakdown || cbRes.value?.breakdown || cbRes.value?.data || cbRes.value;
           setChapterBreakdown(cb && typeof cb === "object" ? cb : null);
+        } else {
+          setChapterBreakdown(null);
         }
         if (stRes.status === "fulfilled") {
           const st = stRes.value?.data?.students || stRes.value?.students || stRes.value?.data || stRes.value || [];
           setStudentStatusList(Array.isArray(st) ? st : []);
+        } else {
+          setStudentStatusList([]);
         }
+      } else {
+        clearDashboardData();
       }
     } catch (e) {
       console.error("Sprint/dashboard load error", e);
+      clearDashboardData();
     } finally {
       setIsDashboardLoading(false);
     }
-  }, [selectedSprintId]);
+  }, [clearDashboardData, selectedSprintId, sprintPage, sprintSearch, sprintStatusFilter, sprintClassFilter]);
 
   useEffect(() => {
     const fetchRankings = async () => {
@@ -231,15 +401,57 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   }, [leaderboardScope]);
 
   const loadBatches = useCallback(async () => {
-    const bRes = await adminService.getBatches().catch(() => null);
+    setBatchesLoading(true);
+    const bRes = await adminService.getBatches({
+      page: batchPage,
+      limit: ADMIN_LIST_LIMIT,
+      search: batchSearch.trim() || undefined,
+      isActive: batchStatusFilter === "" ? undefined : batchStatusFilter === "active",
+      programType: batchProgramFilter || undefined,
+      source: batchSourceFilter || undefined,
+    }).catch(() => null);
     const raw = bRes?.data?.batches || bRes?.batches || bRes?.data || bRes || [];
-    setBatchList(Array.isArray(raw) ? raw : []);
-  }, []);
+    const batches = Array.isArray(raw) ? raw : [];
+    setBatchList(batches);
+    const batchMeta = unwrapPagination(bRes, batches.length);
+    setBatchTotalPages(batchMeta.totalPages);
+    setBatchTotalItems(batchMeta.totalItems);
+    setBatchesLoading(false);
+  }, [batchPage, batchSearch, batchStatusFilter, batchProgramFilter, batchSourceFilter]);
 
   const loadExams = useCallback(async () => {
-    const eRes = await adminService.getExams().catch(() => null);
+    setExamsLoading(true);
+    const eRes = await adminService.getExams({
+      page: examPage,
+      limit: ADMIN_LIST_LIMIT,
+      search: examSearch.trim() || undefined,
+      status: examStatusFilter || undefined,
+      sprint: examSprintFilter || undefined,
+      batch: examBatchFilter || undefined,
+    }).catch(() => null);
     const raw = eRes?.data?.exams || eRes?.exams || eRes?.data || eRes || [];
-    setExamsList(Array.isArray(raw) ? raw : []);
+    const exams = Array.isArray(raw) ? raw : [];
+    setExamsList(exams);
+    const examMeta = unwrapPagination(eRes, exams.length);
+    setExamTotalPages(examMeta.totalPages);
+    setExamTotalItems(examMeta.totalItems);
+    setExamsLoading(false);
+  }, [examPage, examSearch, examStatusFilter, examSprintFilter, examBatchFilter]);
+
+  const loadReferenceLists = useCallback(async () => {
+    const [sprintsRes, batchesRes] = await Promise.allSettled([
+      adminService.getSprints({ page: 1, limit: 100 }),
+      adminService.getBatches({ page: 1, limit: 100 }),
+    ]);
+
+    if (sprintsRes.status === "fulfilled") {
+      const raw = sprintsRes.value?.data?.sprints || sprintsRes.value?.sprints || sprintsRes.value?.data || sprintsRes.value || [];
+      setSprintOptionList(Array.isArray(raw) ? raw : []);
+    }
+    if (batchesRes.status === "fulfilled") {
+      const raw = batchesRes.value?.data?.batches || batchesRes.value?.batches || batchesRes.value?.data || batchesRes.value || [];
+      setBatchOptionList(Array.isArray(raw) ? raw : []);
+    }
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -304,25 +516,62 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   }, [selectedSprintId, showInactiveSyllabus]);
 
   // ── Initial data load ─────────────────────────────────────────────────
-  useEffect(() => { loadSprintsAndDashboard(); loadBatches(); loadExams(); }, []); // eslint-disable-line
-  useEffect(() => { if (activeTab === "students") loadUsers(); }, [activeTab, loadUsers]);
-  useEffect(() => { if (activeTab === "reports") loadReports(); }, [activeTab, loadReports]);
-  useEffect(() => { if (activeTab === "syllabus") loadSyllabus(); }, [activeTab, loadSyllabus]);
+  useEffect(() => { loadReferenceLists(); loadSprintsAndDashboard(); loadBatches(); loadExams(); }, []); // eslint-disable-line
+  useEffect(() => { setSprintPage(1); }, [sprintStatusFilter, sprintClassFilter, sprintSearch]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { setBatchPage(1); }, [batchSearch, batchStatusFilter, batchProgramFilter, batchSourceFilter]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { setExamPage(1); }, [examSearch, examStatusFilter, examSprintFilter, examBatchFilter]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "dashboard" && selectedSprintId) loadSprintsAndDashboard(selectedSprintId); }, [activeTab, selectedSprintId, loadSprintsAndDashboard]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "sprints") loadSprintsAndDashboard(); }, [activeTab, sprintPage, sprintStatusFilter, sprintClassFilter, sprintSearch, loadSprintsAndDashboard]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "batches") loadBatches(); }, [activeTab, loadBatches]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "exams") loadExams(); }, [activeTab, loadExams]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "students") loadUsers(); }, [activeTab, loadUsers]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "reports") loadReports(); }, [activeTab, loadReports]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { if (activeTab === "syllabus") loadSyllabus(); }, [activeTab, loadSyllabus]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "students") loadUsers(); }, [userPage, userRoleFilter, userBatchFilter, userSearch, loadUsers]); // eslint-disable-line
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
+  // A regular admin can never delete a sprint directly — they raise a request
+  // a super admin must approve. A super admin deletes directly.
   const handleDeleteSprint = async (id: string) => {
-    if (!window.confirm("Delete this sprint? This cannot be undone.")) return;
-    try { await adminService.deleteSprint(id); showToast("Sprint deleted!"); loadSprintsAndDashboard(); }
-    catch (err: unknown) { showToast((err as {message?:string}).message || "Delete failed", "error"); }
+    if (user?.role === "super_admin") {
+      if (!window.confirm("Delete this sprint directly? This cannot be undone.")) return;
+      try { await adminService.deleteSprint(id); showToast("Sprint deleted!"); refreshSprintsAfterMutation(); }
+      catch (err: unknown) {
+        const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Delete failed";
+        showToast(msg, "error");
+      }
+      return;
+    }
+    const reason = window.prompt("Request deletion of this sprint — a super admin must approve.\n\nReason (optional):", "");
+    if (reason === null) return;
+    try {
+      const res = await adminService.requestSprintDeletion(id, reason);
+      showToast(res?.message || "Deletion request submitted for super admin review.", "success");
+      refreshSprintsAfterMutation();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Failed to submit request";
+      showToast(msg, "error");
+    }
+  };
+
+  const handleCancelSprintDeletionRequest = async (id: string) => {
+    if (!window.confirm("Withdraw the pending deletion request for this sprint?")) return;
+    try {
+      await adminService.cancelSprintDeletionRequest(id);
+      showToast("Deletion request withdrawn.", "success");
+      refreshSprintsAfterMutation();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Failed to withdraw request";
+      showToast(msg, "error");
+    }
   };
 
   const handleUpdateSprintStatus = async (id: string, newStatus: string) => {
     try {
       await adminService.updateSprint(id, { status: newStatus });
       showToast(`Sprint status updated to ${newStatus.toUpperCase()}!`, "success");
-      loadSprintsAndDashboard();
+      refreshSprintsAfterMutation();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Failed to update status";
       showToast(msg, "error");
@@ -339,7 +588,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     try {
       await adminService.deleteBatch(id, confirmInput.trim());
       showToast("Batch deleted successfully!");
-      loadBatches();
+      refreshBatchesAfterMutation();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Delete failed";
       showToast(msg, "error");
@@ -351,7 +600,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       if (isActive) await adminService.deactivateBatch(id);
       else await adminService.reactivateBatch(id);
       showToast(`Batch ${isActive ? "deactivated" : "reactivated"}!`);
-      loadBatches();
+      refreshBatchesAfterMutation();
     } catch (err: unknown) { showToast((err as {message?:string}).message || "Failed", "error"); }
   };
 
@@ -539,16 +788,6 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     } catch (err: unknown) { showToast((err as {message?:string}).message || "Failed", "error"); }
   };
 
-  const handleBulkImport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const parsed = JSON.parse(bulkImportJson);
-      if (!Array.isArray(parsed)) throw new Error("JSON must be an array of student objects");
-      await adminService.bulkImportStudents(parsed);
-      showToast(`Imported ${parsed.length} students!`);
-      setShowBulkImportModal(false); setBulkImportJson(""); loadUsers();
-    } catch (err: unknown) { showToast((err as {message?:string}).message || "Invalid JSON or import error", "error"); }
-  };
 
   const handleGenerateReport = async () => {
     if (!selectedSprintId) { showToast("Select a sprint first", "error"); return; }
@@ -572,8 +811,9 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Report generation failed";
       showToast(msg, "error");
+    } finally {
+      setReportGenerating(false);
     }
-    finally { setReportGenerating(false); }
   };
 
   const handleDownloadReport = async (reportId: string) => {
@@ -609,6 +849,23 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
     finally { setPwLoading(false); }
   };
 
+  const sprintOptions = sprintOptionList.length > 0 ? sprintOptionList : sprintList;
+  const batchOptions = batchOptionList.length > 0 ? batchOptionList : batchList;
+  const selectedSprintMeta = sprintOptions.find((s) => String(s._id || s.id) === selectedSprintId);
+  const refreshBatchesAfterMutation = () => {
+    loadBatches();
+    loadReferenceLists();
+  };
+  const refreshSprintsAfterMutation = () => {
+    loadSprintsAndDashboard();
+    loadReferenceLists();
+  };
+  const handleDashboardSprintChange = (sprintId: string) => {
+    setSelectedSprintId(sprintId);
+    setLeaderboardScope(sprintId || "all");
+  };
+  const isSidebarVisuallyCollapsed = isSidebarCollapsed && !isMobileDrawerOpen;
+
   // ── Render ────────────────────────────────────────────────────────────
   if (sprintBuilder.open) {
     return (
@@ -620,15 +877,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         onSaved={() => {
           setSprintBuilder({ open: false, mode: "create", sprint: null });
           setActiveTab("sprints");
-          loadSprintsAndDashboard();
+          refreshSprintsAfterMutation();
         }}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f5f9] font-sans antialiased">
-      {/* Toast */}
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900 flex font-sans antialiased selection:bg-indigo-500 selection:text-white">
+      {/* Toast Notification */}
       {toast && (
         <div
           className={`fixed top-4 right-4 sm:top-6 sm:right-6 z-[99999] flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-2xl text-xs font-bold transition-all animate-in slide-in-from-top-3 max-w-sm sm:max-w-md backdrop-blur-xl ${
@@ -656,93 +913,201 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </div>
       )}
 
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white rounded-2xl border border-slate-200/80 px-4 sm:px-6 py-3.5 sm:py-4 shadow-sm">
-          <div>
-            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Admin Console</h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold mt-0.5">Logged in as <span className="text-indigo-600 font-bold">{user?.name || "Admin"}</span> &bull; Exam Neeti Portal</p>
+      {/* Mobile Backdrop */}
+      {isMobileDrawerOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs lg:hidden transition-opacity duration-200"
+          onClick={() => setIsMobileDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Left Sidebar (Sticky on Desktop, Drawer on Mobile) ──────────────── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-[#f8fafc] text-slate-800 border-r border-slate-200 shadow-2xl shadow-slate-900/10 transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:z-30 shrink-0 ${
+          isMobileDrawerOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        } ${
+          isSidebarVisuallyCollapsed ? "lg:w-[76px]" : "lg:w-64"
+        } w-[86vw] max-w-72`}
+      >
+        {/* Sidebar Brand Header */}
+        <div className={`relative h-16 px-3 flex items-center border-b border-slate-200 bg-white/85 backdrop-blur-xl shrink-0 ${
+          isSidebarVisuallyCollapsed ? "justify-center" : "justify-between gap-3"
+        }`}>
+          <div className={`flex items-center min-w-0 ${isSidebarVisuallyCollapsed ? "justify-center" : "gap-3 overflow-hidden"}`}>
+            {!isSidebarVisuallyCollapsed && (
+              <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
+                <Image src="/logo.png" alt="Exam Neeti" width={32} height={32} className="h-8 w-8 object-contain" priority />
+              </div>
+            )}
+            {!isSidebarVisuallyCollapsed && (
+              <div className="min-w-0 transition-opacity duration-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-slate-950 tracking-tight truncate">Exam Neeti</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-extrabold uppercase tracking-wider">
+                    Admin
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-semibold truncate">Institutional Portal</p>
+              </div>
+            )}
           </div>
-          <button onClick={onLogout} className="self-start sm:self-auto px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer">
-            Logout
+
+          <button
+            onClick={toggleSidebarCollapse}
+            className={`hidden lg:flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 border border-slate-200 shadow-sm hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-all cursor-pointer shrink-0 ${
+              isSidebarVisuallyCollapsed
+                ? "absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
+                : "h-8 w-8"
+            }`}
+            title={isSidebarVisuallyCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            aria-label={isSidebarVisuallyCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isSidebarVisuallyCollapsed ? <IconChevronRight className="w-4 h-4" /> : <IconChevronLeft className="w-4 h-4" />}
+          </button>
+
+          <button
+            onClick={() => setIsMobileDrawerOpen(false)}
+            className="lg:hidden p-1.5 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg cursor-pointer"
+            aria-label="Close navigation"
+          >
+            <IconCross className="w-5 h-5" />
           </button>
         </div>
 
-        {/* ── Tab Nav (Responsive Scrollable Pills & Custom Mobile Menu) ──────────────── */}
-        <div className="space-y-2">
-          {/* Custom Mobile Dropdown Popover (< sm) */}
-          <div className="sm:hidden relative z-30">
-            {(() => {
-              const activeTabObj = TABS.find((t) => t.id === activeTab) || TABS[0];
-              const ActiveIcon = activeTabObj.icon;
-              return (
-                <>
+        {/* Sidebar Nav Items (Scrollable) */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-300">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.groupTitle} className="space-y-1">
+              {!isSidebarVisuallyCollapsed ? (
+                <div className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                  {group.groupTitle}
+                </div>
+              ) : (
+                <div className="h-px bg-slate-200 my-2 mx-1" />
+              )}
+
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
                   <button
-                    type="button"
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    className="w-full bg-white border border-slate-200 text-slate-900 px-4 py-3 rounded-2xl font-black text-xs flex items-center justify-between shadow-sm cursor-pointer hover:border-indigo-300 transition-all"
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setIsMobileDrawerOpen(false);
+                    }}
+                    title={isSidebarVisuallyCollapsed ? `${item.label} (${item.description})` : undefined}
+                    className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+                      isActive
+                        ? "bg-indigo-100 text-indigo-950 shadow-sm ring-1 ring-indigo-200 border border-indigo-200 font-extrabold"
+                        : "text-slate-600 hover:text-slate-950 hover:bg-white hover:shadow-sm"
+                    } ${isSidebarVisuallyCollapsed ? "justify-center px-2" : ""}`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-                        <ActiveIcon className="w-4 h-4" />
-                      </div>
-                      <span className="text-slate-900 font-extrabold text-xs">{activeTabObj.label}</span>
+                    <div className="relative shrink-0">
+                      <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${isActive ? "text-indigo-700" : "text-slate-500 group-hover:text-indigo-600"}`} />
+                      {isActive && isSidebarVisuallyCollapsed && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-indigo-500 shadow-sm shadow-indigo-500/30" />
+                      )}
                     </div>
-                    <IconChevronDown
-                      className={`w-4 h-4 transition-transform duration-200 ${
-                        isMobileMenuOpen ? "rotate-180 text-indigo-600" : "text-slate-400"
-                      }`}
-                    />
+                    {!isSidebarVisuallyCollapsed && (
+                      <span className="truncate text-left flex-1">{item.label}</span>
+                    )}
+                    {!isSidebarVisuallyCollapsed && isActive && (
+                      <div className="h-5 w-1 rounded-full bg-indigo-500 shadow-xs" />
+                    )}
                   </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
 
-                  {isMobileMenuOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsMobileMenuOpen(false)} />
-                      <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-2xl p-2 space-y-1 animate-in fade-in slide-in-from-top-2">
-                        {TABS.map((tab) => {
-                          const Icon = tab.icon;
-                          const isActive = activeTab === tab.id;
-                          return (
-                            <button
-                              key={tab.id}
-                              onClick={() => {
-                                setActiveTab(tab.id);
-                                setIsMobileMenuOpen(false);
-                              }}
-                              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                isActive
-                                  ? "bg-indigo-600 text-white shadow-md font-black"
-                                  : "text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-                                <span>{tab.label}</span>
-                              </div>
-                              {isActive && <IconCheck className="w-4 h-4 text-white" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Desktop/Tablet Horizontal Tabs */}
-          <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                  activeTab === id ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25" : "bg-white border border-slate-200 text-slate-600 hover:text-indigo-700 hover:border-indigo-300"
-                }`}>
-                <Icon className="w-3.5 h-3.5" /><span>{label}</span>
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-slate-200 bg-white/80 backdrop-blur-xl shrink-0">
+          {/* User mini badge */}
+          <div className={`flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm ${isSidebarVisuallyCollapsed ? "justify-center p-1.5" : "p-2"}`}>
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+              {(user?.name || "Admin").charAt(0).toUpperCase()}
+            </div>
+            {!isSidebarVisuallyCollapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-bold text-slate-900 truncate">{user?.name || "Admin User"}</div>
+                <div className="text-[10px] text-slate-500 font-medium truncate">{user?.email || "admin@examneeti.com"}</div>
+              </div>
+            )}
+            {!isSidebarVisuallyCollapsed && (
+              <button
+                onClick={onLogout}
+                title="Logout"
+                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+              >
+                <IconLogOut className="w-4 h-4" />
               </button>
-            ))}
+            )}
           </div>
         </div>
+      </aside>
+
+      {/* ── Main Workspace Wrapper ──────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+        {/* ── Sticky Top Header Bar ──────────────── */}
+        <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3 shadow-xs">
+          {/* Left: Hamburger & Breadcrumbs */}
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setIsMobileDrawerOpen(true)}
+              className="lg:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <IconMenu className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-extrabold text-slate-400 hidden sm:inline">Admin Console</span>
+              <span className="text-slate-300 hidden sm:inline">/</span>
+              {(() => {
+                const currentTab = TABS.find((t) => t.id === activeTab) || TABS[0];
+                const TabIcon = currentTab.icon;
+                return (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                      <TabIcon className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight truncate">
+                      {currentTab.label}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Right: Quick actions & User Actions */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            {/* Quick action: Create Sprint shortcut */}
+            {/* Quick action: Create Batch shortcut */}
+            <button
+              onClick={() => setShowCreateBatchModal(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              <IconLayers className="w-3.5 h-3.5 text-slate-500" />
+              <span>New Batch</span>
+            </button>
+
+            {/* Logout on Header */}
+            <button
+              onClick={onLogout}
+              className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+            >
+              <IconLogOut className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+        </header>
+
+        {/* ── Main Viewport Content Area ──────────────── */}
+        <main className="flex-1 max-w-7xl 2xl:max-w-screen-2xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
         {/* ══════════════════════════ DASHBOARD TAB ════════════════════════════ */}
         {activeTab === "dashboard" && (
@@ -769,8 +1134,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
                   <CustomSelect
                     value={selectedSprintId}
-                    onChange={(val) => { setSelectedSprintId(val); loadSprintsAndDashboard(val); }}
-                    options={sprintList.map(s => ({
+                    onChange={handleDashboardSprintChange}
+                    options={sprintOptions.map(s => ({
                       value: String(s._id || s.id),
                       label: `${String(s.name || "Sprint")} · ${String(s.status || "Active")}`
                     }))}
@@ -790,12 +1155,28 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
             {/* Dashboard Content Widgets with Loading Transition */}
             <div className={`space-y-6 transition-all duration-300 ${isDashboardLoading ? "opacity-50 pointer-events-none filter blur-[0.5px]" : "opacity-100"}`}>
+              {!selectedSprintId && !isDashboardLoading && (
+                <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-sm text-center">
+                  <h3 className="text-sm font-black text-slate-900">Select a sprint to view dashboard data</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Create or activate a sprint first if this list is empty.</p>
+                </div>
+              )}
+
+              {selectedSprintId && !isDashboardLoading && !dashboardOverview && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                  <h3 className="text-sm font-black text-slate-900">No dashboard data available</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    {selectedSprintMeta ? String(selectedSprintMeta.name || "Selected sprint") : "Selected sprint"} is selected, but analytics have not been computed yet.
+                  </p>
+                </div>
+              )}
+
               {/* Stat cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <MiniStatCard title="Total Students" value={Number(dashboardOverview?.totalStudents ?? usersList.length)} subtitle="Enrolled in active cohorts" icon={IconUsers} />
-                <MiniStatCard title="Active Exams" value={Number(dashboardOverview?.totalExams ?? examsList.length)} subtitle="Scheduled / live" icon={IconBook} />
+                <MiniStatCard title="Total Students" value={Number(dashboardOverview?.totalStudents ?? 0)} subtitle="Enrolled in selected sprint" icon={IconUsers} />
+                <MiniStatCard title="Active Exams" value={Number(dashboardOverview?.totalExams ?? 0)} subtitle="Scheduled / live" icon={IconBook} />
                 <MiniStatCard title="Avg Sprint Score" value={Number(dashboardOverview?.averageScore ?? 0) > 0 ? `${Number(dashboardOverview?.averageScore).toFixed(0)}` : "N/A"} subtitle="Mean marks" icon={IconChart} />
-                <MiniStatCard title="Active Batches" value={batchList.filter(b=>b.isActive!==false).length} subtitle="Running programs" icon={IconLayers} />
+                <MiniStatCard title="Active Batches" value={Number(dashboardOverview?.totalBatches ?? 0)} subtitle="Assigned to selected sprint" icon={IconLayers} />
               </div>
 
               {/* Chapter Weakness & Topic Breakdown Widget */}
@@ -848,7 +1229,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               )}
 
               {/* Student Attempt Submission Matrix */}
-              {studentStatusList.length > 0 && (
+              {studentStatusList.length > 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div>
@@ -882,10 +1263,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     })}
                   </div>
                 </div>
-              )}
+              ) : selectedSprintId && !isDashboardLoading ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
+                  <h3 className="text-sm font-black text-slate-900">Student Submission Status Matrix</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-2">No student submission data found for this sprint yet.</p>
+                </div>
+              ) : null}
 
               {/* Exam Performance */}
-              {examPerf.length > 0 && (
+              {examPerf.length > 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
                   <h3 className="text-sm font-black text-slate-900">Exam Performance Overview</h3>
                   <div className="space-y-3">
@@ -905,7 +1291,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     })}
                   </div>
                 </div>
-              )}
+              ) : selectedSprintId && !isDashboardLoading ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
+                  <h3 className="text-sm font-black text-slate-900">Exam Performance Overview</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-2">No exams or attempts are available for this sprint yet.</p>
+                </div>
+              ) : null}
 
               {/* Enhanced Leaderboard */}
               <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
@@ -933,7 +1324,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     className="bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none cursor-pointer"
                   >
                     <option value="all">🌟 All Sprints (Overall)</option>
-                    {sprintList.map((sp) => (
+                    {sprintOptions.map((sp) => (
                       <option key={String(sp._id || sp.id)} value={String(sp._id || sp.id)}>
                         Sprint: {String(sp.name || sp.title || "Sprint")}
                       </option>
@@ -1096,23 +1487,78 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <IconPlus className="w-4 h-4" /><span>Create Sprint</span>
               </button>
             </div>
-            {sprintList.length === 0 ? (
-              <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">No sprints created yet. Click "Create Sprint" to define a blueprint.</div>
-            ) : (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col lg:flex-row gap-3 lg:items-center">
+              <div className="relative flex-1 min-w-[220px]">
+                <IconSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={sprintSearch}
+                  onChange={(e) => setSprintSearch(e.target.value)}
+                  placeholder="Search sprint name or description..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+              <CustomSelect
+                value={sprintStatusFilter}
+                onChange={setSprintStatusFilter}
+                options={[
+                  { value: "", label: "All Statuses" },
+                  { value: "draft", label: "Draft" },
+                  { value: "active", label: "Active" },
+                  { value: "completed", label: "Completed" },
+                  { value: "archived", label: "Archived" },
+                ]}
+                className="lg:w-44"
+              />
+              <CustomSelect
+                value={sprintClassFilter}
+                onChange={setSprintClassFilter}
+                options={[
+                  { value: "", label: "All Classes" },
+                  { value: "XI", label: "Class XI" },
+                  { value: "XII", label: "Class XII" },
+                  { value: "dropper", label: "Dropper" },
+                ]}
+                className="lg:w-40"
+              />
+              <button
+                onClick={() => { setSprintSearch(""); setSprintStatusFilter(""); setSprintClassFilter(""); }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-600 cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+            {isDashboardLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {sprintList.map(s => {
+                {[...Array(6)].map((_, i) => <CardSkeleton key={i} />)}
+              </div>
+            ) : sprintList.length === 0 ? (
+              <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">No sprints created yet. Click &quot;Create Sprint&quot; to define a blueprint.</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {sprintList.map(s => {
                   const sId = String(s._id||s.id);
                   const totalQ = Number(s.totalQuestions || 180);
                   const desc = String(s.description || "");
                   const currentStatus = String(s.status || "draft").toLowerCase();
+                  const sClassLevel = s.classLevel ? String(s.classLevel) : "";
+                  const subjectProgress = Array.isArray(s.subjectProgress)
+                    ? (s.subjectProgress as { subject: string; status: string }[])
+                    : [];
+                  const delReq = (s.deletionRequest as { status?: string; reason?: string; decisionNote?: string } | undefined) || {};
+                  const delPending = delReq.status === "pending";
+                  const delRejected = delReq.status === "rejected";
+                  const subjTone: Record<string, string> = {
+                    physics: "bg-cyan-50 text-cyan-700 border-cyan-200",
+                    chemistry: "bg-amber-50 text-amber-700 border-amber-200",
+                    biology: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                  };
 
                   return (
-                    <div key={sId} className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-3.5 hover:shadow-md transition-all flex flex-col justify-between">
+                    <div key={sId} className={`bg-white p-5 rounded-2xl border shadow-sm space-y-3.5 hover:shadow-md transition-all flex flex-col justify-between ${delPending ? "border-amber-300" : "border-slate-200/90"}`}>
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <h4 className="text-sm font-black text-slate-900 leading-snug">{String(s.name||"Sprint")}</h4>
-                          
-                          {/* Custom Status Dropdown Badge */}
                           <StatusDropdownBadge
                             status={currentStatus}
                             onChange={(newStatus) => handleUpdateSprintStatus(sId, newStatus)}
@@ -1120,7 +1566,27 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         </div>
 
                         {Boolean(desc) && <p className="text-xs text-slate-500 font-medium line-clamp-2">{desc}</p>}
-                        
+
+                        {(subjectProgress.length > 0 || sClassLevel) && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            {sClassLevel && (
+                              <span className="px-2 py-0.5 rounded-md border text-[10px] font-black uppercase bg-indigo-50 text-indigo-700 border-indigo-200">
+                                {sClassLevel === "dropper" ? "Dropper" : `Class ${sClassLevel}`}
+                              </span>
+                            )}
+                            {subjectProgress.map((sp) => (
+                              <span
+                                key={sp.subject}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold capitalize ${subjTone[sp.subject] || "bg-slate-50 text-slate-600 border-slate-200"} ${sp.status !== "done" ? "opacity-60" : ""}`}
+                                title={`${sp.subject}: ${sp.status}`}
+                              >
+                                {sp.status === "done" ? <IconCheck className="w-2.5 h-2.5" /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                                {sp.subject.slice(0, 4)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
                         <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
                           <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg">
                             {totalQ} Questions
@@ -1133,6 +1599,20 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                             </span>
                           )}
                         </div>
+
+                        {delPending && (
+                          <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5">
+                            <span className="text-[10px] font-black uppercase text-amber-800">Deletion awaiting super admin</span>
+                            <button onClick={() => handleCancelSprintDeletionRequest(sId)} className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer">
+                              Withdraw
+                            </button>
+                          </div>
+                        )}
+                        {delRejected && (
+                          <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-500">
+                            Deletion request was rejected{delReq.decisionNote ? `: “${delReq.decisionNote}”` : "."}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs gap-2">
@@ -1141,20 +1621,32 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         </span>
 
                         <div className="flex items-center gap-1.5">
+                          <SprintPaperDownloadButton sprintId={sId} sprintName={String(s.name || "")} showToast={showToast} />
+                          <button onClick={() => setSprintHistoryId(sId)} className="p-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-200 border border-slate-200 cursor-pointer transition-colors" title="Sprint history">
+                            <IconClock className="w-4 h-4" />
+                          </button>
                           {currentStatus === "draft" && (
                             <button onClick={() => openEditSprintBuilder(sId)} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors" title="Edit blueprint">
                               <IconEdit className="w-4 h-4" />
                             </button>
                           )}
-                          <button onClick={() => handleDeleteSprint(sId)} className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors" title="Delete sprint">
-                            <IconTrash className="w-4 h-4" />
-                          </button>
+                          {!delPending && (
+                            <button
+                              onClick={() => handleDeleteSprint(sId)}
+                              className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors"
+                              title={user?.role === "super_admin" ? "Delete sprint" : "Request deletion"}
+                            >
+                              <IconTrash className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+                <PaginationControls currentPage={sprintPage} totalPages={sprintTotalPages} totalItems={sprintTotalItems} onPageChange={setSprintPage} />
+              </>
             )}
           </div>
         )}
@@ -1171,11 +1663,66 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <IconPlus className="w-4 h-4" /><span>Create Batch</span>
               </button>
             </div>
-            {batchList.length === 0 ? (
-              <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">No student batches created yet. Click "Create Batch" to define your first program batch.</div>
-            ) : (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+              <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+                <div className="relative flex-1 min-w-[220px]">
+                  <IconSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    value={batchSearch}
+                    onChange={(e) => setBatchSearch(e.target.value)}
+                    placeholder="Search batch name..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <CustomSelect
+                  value={batchStatusFilter}
+                  onChange={setBatchStatusFilter}
+                  options={[
+                    { value: "", label: "All Statuses" },
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                  ]}
+                  className="lg:w-44"
+                />
+                <CustomSelect
+                  value={batchProgramFilter}
+                  onChange={setBatchProgramFilter}
+                  options={[
+                    { value: "", label: "All Programs" },
+                    { value: "class_xi", label: "Class XI" },
+                    { value: "class_xii", label: "Class XII" },
+                    { value: "dropper", label: "Dropper" },
+                  ]}
+                  className="lg:w-48"
+                />
+                <CustomSelect
+                  value={batchSourceFilter}
+                  onChange={setBatchSourceFilter}
+                  options={[
+                    { value: "", label: "All Sources" },
+                    { value: "coaching", label: "Coaching" },
+                    { value: "public", label: "Public Plans" },
+                  ]}
+                  className="lg:w-48"
+                />
+                <button
+                  onClick={() => { setBatchSearch(""); setBatchStatusFilter(""); setBatchProgramFilter(""); setBatchSourceFilter(""); }}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-600 cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            {batchesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {batchList.map(b => {
+                {[...Array(6)].map((_, i) => <CardSkeleton key={i} />)}
+              </div>
+            ) : batchList.length === 0 ? (
+              <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">No student batches created yet. Click &quot;Create Batch&quot; to define your first program batch.</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {batchList.map(b => {
                   const bId = String(b._id||b.id);
                   const bName = String(b.name||"Batch");
                   const isActive = b.isActive !== false;
@@ -1260,8 +1807,10 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+                <PaginationControls currentPage={batchPage} totalPages={batchTotalPages} totalItems={batchTotalItems} onPageChange={setBatchPage} />
+              </>
             )}
           </div>
         )}
@@ -1275,24 +1824,87 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 <IconPlus className="w-4 h-4" /><span>Create Exam</span>
               </button>
             </div>
-            {examsList.length === 0 ? (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+              <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+                <div className="relative flex-1 min-w-[220px]">
+                  <IconSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    value={examSearch}
+                    onChange={(e) => setExamSearch(e.target.value)}
+                    placeholder="Search exam title..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <CustomSelect
+                  value={examStatusFilter}
+                  onChange={setExamStatusFilter}
+                  options={[
+                    { value: "", label: "All Statuses" },
+                    { value: "draft", label: "Draft" },
+                    { value: "published", label: "Published" },
+                    { value: "completed", label: "Completed" },
+                  ]}
+                  className="lg:w-48"
+                />
+                <CustomSelect
+                  value={examSprintFilter}
+                  onChange={setExamSprintFilter}
+                  options={[
+                    { value: "", label: "All Sprints" },
+                    ...sprintOptions.map((s) => ({ value: String(s._id || s.id), label: String(s.name || "Sprint") })),
+                  ]}
+                  className="lg:w-56"
+                />
+                <CustomSelect
+                  value={examBatchFilter}
+                  onChange={setExamBatchFilter}
+                  options={[
+                    { value: "", label: "All Batches" },
+                    ...batchOptions.map((b) => ({ value: String(b._id || b.id), label: String(b.name || "Batch") })),
+                  ]}
+                  className="lg:w-56"
+                />
+                <button
+                  onClick={() => { setExamSearch(""); setExamStatusFilter(""); setExamSprintFilter(""); setExamBatchFilter(""); }}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-600 cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            {examsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[...Array(6)].map((_, i) => <CardSkeleton key={i} />)}
+              </div>
+            ) : examsList.length === 0 ? (
               <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">No exams yet. Create your first exam above.</div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {examsList.map(ex => {
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {examsList.map(ex => {
                   const exId = String(ex._id||ex.id);
                   const status = String(ex.status||"draft");
                   const title = String(ex.title||"NEET Exam");
+                  const exBatch = ex.batch as Record<string, unknown> | undefined;
+                  const TIER: Record<string, string> = {
+                    "public-trial": "Free tier", "public-signature-entry": "Signature Entry",
+                    "public-core": "Core plan", "public-prime": "Prime plan", "public-elite": "Elite plan",
+                  };
+                  const tierLabel = exBatch?.source === "public" ? (TIER[String(exBatch.slug)] || "Plan") : null;
                   return (
                     <div key={exId} className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="text-sm font-black text-slate-900 leading-snug">{title}</h4>
                         <StatusBadge status={status} />
                       </div>
-                      <div className="flex flex-wrap gap-4 text-[11px] text-slate-500 font-semibold">
+                      <div className="flex flex-wrap gap-4 text-[11px] text-slate-500 font-semibold items-center">
                         <span>Duration: <b className="text-slate-700">{String(ex.durationMinutes||180)} min</b></span>
                         <span>Questions: <b className="text-slate-700">{String(ex.totalQuestions||"—")}</b></span>
-                        {Boolean(ex.batch) && <span>Batch: <b className="text-slate-700">{String((ex.batch as Record<string,unknown>)?.name || ex.batch)}</b></span>}
+                        {tierLabel ? (
+                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase ${tierLabel === "Free tier" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>{tierLabel}</span>
+                        ) : Boolean(exBatch) && (
+                          <span>Batch: <b className="text-slate-700">{String(exBatch?.name || ex.batch)}</b></span>
+                        )}
                       </div>
                       <div className="flex items-center justify-between pt-1">
                         <div className="flex items-center gap-2">
@@ -1320,11 +1932,24 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+                <PaginationControls currentPage={examPage} totalPages={examTotalPages} totalItems={examTotalItems} onPageChange={setExamPage} />
+              </>
             )}
           </div>
         )}
+
+        {/* ══════════════════════════ PLANS & TIERS TAB ═══════════════════════ */}
+        {activeTab === "plans" && (
+          <PlanTiersPanel
+            showToast={showToast}
+            onViewExams={(batchId) => { setExamBatchFilter(batchId); setActiveTab("exams"); }}
+          />
+        )}
+
+        {/* ══════════════════════════ CONTENT HUB TAB ═════════════════════════ */}
+        {activeTab === "content" && <ContentHubPanel showToast={showToast} />}
 
         {/* ══════════════════════════ QUESTIONS TAB ════════════════════════════ */}
         {activeTab === "questions" && <QuestionBankPanel showToast={showToast} />}
@@ -1637,7 +2262,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 onChange={(val) => { setUserBatchFilter(val); setUserPage(1); }}
                 options={[
                   { value: "", label: "All Batches" },
-                  ...batchList.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") }))
+                  ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") }))
                 ]}
                 className="w-full sm:w-auto min-w-[140px]"
               />
@@ -1719,7 +2344,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     onChange={(val) => setSelectedSprintId(val)}
                     options={[
                       { value: "", label: "Select sprint" },
-                      ...sprintList.map(s => ({ value: String(s._id || s.id), label: String(s.name || "Sprint") }))
+                      ...sprintOptions.map(s => ({ value: String(s._id || s.id), label: String(s.name || "Sprint") }))
                     ]}
                   />
                 </div>
@@ -1730,7 +2355,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     onChange={(val) => setReportBatchId(val)}
                     options={[
                       { value: "", label: "All Batches" },
-                      ...batchList.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") }))
+                      ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") }))
                     ]}
                   />
                 </div>
@@ -1836,7 +2461,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </div>
         )}
 
-      </div>{/* end max-w container */}
+      </main>
+      </div>
 
       {/* ══════════════════════════════════════ MODALS ══════════════════════════════════════ */}
       {/* Sprint creation / blueprint editing is a full-screen flow — see the
@@ -1846,7 +2472,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       <CreateBatchModal
         isOpen={showCreateBatchModal}
         onClose={() => setShowCreateBatchModal(false)}
-        onSuccess={loadBatches}
+        onSuccess={refreshBatchesAfterMutation}
         showToast={showToast}
       />
 
@@ -1855,7 +2481,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         isOpen={showEditBatchModal}
         batchData={selectedBatchToEdit}
         onClose={() => setShowEditBatchModal(false)}
-        onSuccess={loadBatches}
+        onSuccess={refreshBatchesAfterMutation}
         showToast={showToast}
       />
 
@@ -1871,8 +2497,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       {/* Create Exam */}
       <CreateExamModal
         isOpen={showCreateExamModal}
-        sprintList={sprintList}
-        batchList={batchList}
+        sprintList={sprintOptions}
+        batchList={batchOptions}
         defaultSprintId={selectedSprintId}
         onClose={() => setShowCreateExamModal(false)}
         onSuccess={loadExams}
@@ -1892,7 +2518,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       <EditStudentModal
         isOpen={showEditUserModal}
         userData={selectedUserToEdit}
-        batchList={batchList}
+        batchList={batchOptions}
         onClose={() => setShowEditUserModal(false)}
         onSuccess={loadUsers}
         showToast={showToast}
@@ -1928,7 +2554,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
               Assigned Batch *
             </label>
             <CustomSelect
-              options={batchList.map((b) => ({
+              options={batchOptions.map((b) => ({
                 value: String(b._id || b.id),
                 label: String(b.name || "Batch"),
               }))}
@@ -1944,16 +2570,14 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         </form>
       </CommonModal>
 
-      {/* Bulk Import */}
-      <CommonModal isOpen={showBulkImportModal} onClose={()=>setShowBulkImportModal(false)} title="Bulk Import Students">
-        <form onSubmit={handleBulkImport} className="space-y-4">
-          <p className="text-xs text-slate-500 font-medium leading-relaxed">Paste a JSON array of student objects. Each must have <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">name</code> and <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">email</code>.</p>
-          <textarea rows={8} required value={bulkImportJson} onChange={e=>setBulkImportJson(e.target.value)}
-            placeholder={'[{"name":"Student A","email":"a@examneeti.com"}]'}
-            className="w-full font-mono text-xs bg-slate-50 border border-slate-200 text-slate-900 p-4 rounded-xl focus:outline-none resize-none" />
-          <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer">Import Students</button>
-        </form>
-      </CommonModal>
+      {/* Bulk Import — .xlsx / .docx roster */}
+      <BulkStudentUploadModal
+        isOpen={showBulkImportModal}
+        batchList={batchOptions}
+        onClose={() => setShowBulkImportModal(false)}
+        onSuccess={loadUsers}
+        showToast={showToast}
+      />
 
       {/* Chapter Topics Specification Modal */}
       <ChapterTopicsModal
@@ -2019,6 +2643,13 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
         topicData={selectedTopicToEdit}
       />
 
-    </div>// end outer wrapper
+      <SprintHistoryModal
+        isOpen={sprintHistoryId !== null}
+        sprintId={sprintHistoryId}
+        onClose={() => setSprintHistoryId(null)}
+        showToast={showToast}
+      />
+
+    </div>
   );
 }

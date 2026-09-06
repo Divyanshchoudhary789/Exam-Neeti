@@ -208,12 +208,13 @@ const reconstructExamQuestions = async (QuestionModel, sprint, examId) => {
   const slots         = sprint.patternSlots;
 
   // Bulk fetch all active questions
-  // status:{$ne:"draft"} (not status:"active") so pre-existing questions with
-  // no status field at all (created before the draft/active workflow existed)
-  // remain exam-eligible without requiring a migration first.
+  // STRICT: only reviewed-and-approved questions ("active") are ever exam-
+  // eligible. A draft (awaiting review) or rejected question is never used.
+  // Pre-existing questions with no status field are backfilled to "active"
+  // by scripts/migrateQuestionStatus.js — run it before deploying this.
   const allCandidates = await QuestionModel.find({
     isActive: true,
-    status: { $ne: "draft" },
+    status: "active",
   }).lean();
 
   // Index candidates by subject (lowercase) for fast lookup, and by _id for
@@ -332,12 +333,13 @@ const getSlotPoolStats = async (QuestionModel, sprint) => {
   const sprintIdStr = sprint._id.toString();
   const slots       = sprint.patternSlots;
 
-  // status:{$ne:"draft"} (not status:"active") so pre-existing questions with
-  // no status field at all (created before the draft/active workflow existed)
-  // remain exam-eligible without requiring a migration first.
+  // STRICT: only reviewed-and-approved questions ("active") are ever exam-
+  // eligible. A draft (awaiting review) or rejected question is never used.
+  // Pre-existing questions with no status field are backfilled to "active"
+  // by scripts/migrateQuestionStatus.js — run it before deploying this.
   const allCandidates = await QuestionModel.find({
     isActive: true,
-    status: { $ne: "draft" },
+    status: "active",
   }).lean();
 
   const bySubject = {};
