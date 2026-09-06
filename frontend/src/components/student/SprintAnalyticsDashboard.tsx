@@ -4,9 +4,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { studentService } from "../../services/apiServices";
 import {
   IconChart, IconBook, IconCheck, IconClock,
-  IconAlertTriangle, IconChevronLeft, IconRefresh, Spinner,
+  IconAlertTriangle, IconChevronLeft, IconRefresh, Spinner, IconTarget,
 } from "../common/UIComponents";
-import { AreaLineChart, RadialMeter } from "../common/Charts";
+import { AreaLineChart, RadialMeter, DonutChart, HBarChart } from "../common/Charts";
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
 
@@ -21,17 +21,19 @@ const IconChevronDown = ({ className = "w-4 h-4" }: { className?: string }) => (
 interface Props {
   sprintId?: string;
   sprintName?: string;
+  activeSprints?: SprintItem[];
+  onSelectSprint?: (sprintId: string) => void;
   onBack: () => void;
   onViewAttempt: (attemptId: string) => void;
 }
 
 export interface SprintItem {
-  _id: string;
+  _id?: string;
   id?: string;
-  name: string;
+  name?: string;
   description?: string;
-  status: string;
-  attemptCount: number;
+  status?: string;
+  attemptCount?: number;
   lastAttemptedAt?: string | null;
   isActive?: boolean;
 }
@@ -71,6 +73,16 @@ interface ChapterEntry {
   incorrect?: number;
   totalQuestions?: number;
   attempted?: number;
+  marksObtained?: number;
+  attemptRate?: number;
+}
+
+interface DifficultyBand {
+  accuracy?: number;
+  attemptRate?: number;
+  totalQuestions?: number;
+  attempted?: number;
+  correct?: number;
 }
 
 interface TopicEntry {
@@ -79,9 +91,40 @@ interface TopicEntry {
   topic?: string;
   accuracy?: number;
   correct?: number;
+  totalQuestions?: number;
   attempted?: number;
   isWeak?: boolean;
   isStrong?: boolean;
+  /** Attempt-rate / accuracy split by difficulty for this topic — absent on
+   *  attempts computed before this breakdown existed. */
+  byDifficulty?: Record<string, DifficultyBand>;
+}
+
+interface DifficultyPerfEntry {
+  difficulty?: string;
+  subject?: string;
+  totalQuestions?: number;
+  attempted?: number;
+  correct?: number;
+  accuracy?: number;
+  attemptRate?: number;
+  avgTimeSeconds?: number;
+}
+
+interface ErrorAnalysis {
+  silly?: number;
+  concept?: number;
+  guess?: number;
+  total?: number;
+}
+
+interface WeightageBand {
+  covered: number;
+  total: number;
+}
+
+interface WeightageCoverage {
+  [subject: string]: { high: WeightageBand; medium: WeightageBand; low: WeightageBand };
 }
 
 interface ConsistencyAcrossTests {
@@ -122,6 +165,10 @@ interface AnalyticsData {
     syllabusCoverage?: number;
     conceptCoverage?: number;
   } | null;
+  difficultyPerformance: DifficultyPerfEntry[];
+  subjectDifficultyPerformance: DifficultyPerfEntry[];
+  errorAnalysis: ErrorAnalysis | null;
+  weightageCoverage: WeightageCoverage | null;
 }
 
 // ─── Colour helpers ───────────────────────────────────────────────────────────
@@ -142,9 +189,30 @@ const accColor = (n: number) =>
 const accBar = (n: number) =>
   n >= 70 ? "bg-emerald-500" : n >= 40 ? "bg-amber-500" : "bg-red-500";
 
+const mergeSprintsById = (...groups: SprintItem[][]) => {
+  const map = new Map<string, SprintItem>();
+  for (const group of groups) {
+    for (const sprint of group) {
+      const id = String(sprint._id || sprint.id || "");
+      if (!id) continue;
+      const previous = map.get(id);
+      map.set(id, {
+        ...previous,
+        ...sprint,
+        _id: sprint._id || previous?._id || id,
+        name: sprint.name || previous?.name || "Sprint",
+        status: sprint.status || previous?.status || "active",
+        attemptCount: Number(sprint.attemptCount ?? previous?.attemptCount ?? 0),
+        isActive: Boolean(sprint.isActive ?? previous?.isActive ?? String(sprint.status || previous?.status || "").toLowerCase() === "active"),
+      });
+    }
+  }
+  return Array.from(map.values());
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props) {
+export function SprintAnalyticsDashboard({ sprintId, sprintName, activeSprints = [], onSelectSprint, onBack }: Props) {
   const [sprintsList, setSprintsList]           = useState<SprintItem[]>([]);
   const [loadingSprints, setLoadingSprints]     = useState(true);
   const [selectedSprintId, setSelectedSprintId] = useState<string>(sprintId || "");
@@ -158,6 +226,9 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
   const [tab, setTab]                         = useState<Tab>("overview");
   const [topicF, setTopicF]                   = useState<"all" | "weak" | "strong">("all");
   const [chapSub, setChapSub]                 = useState("all");
+  const [chapSort, setChapSort]               = useState<"lowest" | "highest" | "mistakes" | "time">("lowest");
+  const [chapBand, setChapBand]               = useState<"all" | "excellent" | "good" | "average" | "weak" | "critical">("all");
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -168,7 +239,8 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
       setLoadingSprints(true);
       try {
         const res = await studentService.getStudentAttemptedSprints();
-        const list: SprintItem[] = res?.data?.sprints || res?.sprints || [];
+        const attemptedList: SprintItem[] = res?.data?.sprints || res?.sprints || [];
+        const list = mergeSprintsById(activeSprints, Array.isArray(attemptedList) ? attemptedList : []);
         if (isMounted) {
           setSprintsList(list);
           if (list.length > 0) {
@@ -178,7 +250,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
             const chosen = match || list.find(s => s.isActive) || list[0];
             const chosenId = String(chosen._id || chosen.id);
             setSelectedSprintId(chosenId);
-            setSelectedSprintName(chosen.name);
+            setSelectedSprintName(chosen.name || "Sprint Analytics");
           }
         }
       } catch (err) {
@@ -189,7 +261,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
     }
     loadSprints();
     return () => { isMounted = false; };
-  }, [sprintId]);
+  }, [activeSprints, sprintId]);
 
   const hasDataRef = useRef(false);
 
@@ -219,6 +291,10 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
         topicProgression: Array.isArray(payload?.topicProgression) ? payload.topicProgression : [],
         timeline: Array.isArray(payload?.timeline) ? payload.timeline : [],
         coverageMetrics: payload?.coverageMetrics ?? null,
+        difficultyPerformance: Array.isArray(payload?.difficultyPerformance) ? payload.difficultyPerformance : [],
+        subjectDifficultyPerformance: Array.isArray(payload?.subjectDifficultyPerformance) ? payload.subjectDifficultyPerformance : [],
+        errorAnalysis: payload?.errorAnalysis ?? null,
+        weightageCoverage: payload?.weightageCoverage && Object.keys(payload.weightageCoverage).length > 0 ? payload.weightageCoverage : null,
       };
       hasDataRef.current = true;
       setData(normalized);
@@ -227,7 +303,11 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       const msg = err?.response?.data?.message || err?.message || "Failed to load sprint analytics.";
       if ((e as { response?: { status?: number } })?.response?.status === 404) {
-        setData({ summary: null, subjectPerformance: [], chapterPerformance: [], topicPerformance: null, topicProgression: [], timeline: [], coverageMetrics: null });
+        setData({
+          summary: null, subjectPerformance: [], chapterPerformance: [], topicPerformance: null,
+          topicProgression: [], timeline: [], coverageMetrics: null, difficultyPerformance: [],
+          subjectDifficultyPerformance: [], errorAnalysis: null, weightageCoverage: null,
+        });
       } else {
         setError(msg);
       }
@@ -253,7 +333,8 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
     const found = sprintsList.find(s => String(s._id || s.id) === newSprintId);
     if (found) {
       setSelectedSprintId(newSprintId);
-      setSelectedSprintName(found.name);
+      setSelectedSprintName(found.name || "Sprint Analytics");
+      onSelectSprint?.(newSprintId);
     }
   };
 
@@ -362,16 +443,51 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
 
   // ── Derived Analytics ──────────────────────────────────────────────────────
   const { summary, subjectPerformance: subjects, chapterPerformance: chapters,
-          topicPerformance: topicsObj, topicProgression, timeline, coverageMetrics } = data;
+          topicPerformance: topicsObj, topicProgression, timeline, coverageMetrics,
+          difficultyPerformance, subjectDifficultyPerformance, errorAnalysis, weightageCoverage } = data;
+
+  // 5-band performance classification (image-2 style) — accuracy thresholds,
+  // client-side since the backend only exposes the raw weak/strong booleans.
+  const perfBand = (acc: number): "excellent" | "good" | "average" | "weak" | "critical" =>
+    acc >= 85 ? "excellent" : acc >= 70 ? "good" : acc >= 50 ? "average" : acc >= 30 ? "weak" : "critical";
+  const PERF_BAND_META: Record<string, { label: string; dot: string; text: string }> = {
+    excellent: { label: "Excellent", dot: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+    good:      { label: "Good",      dot: "bg-blue-500",    text: "text-blue-700 bg-blue-50 border-blue-200" },
+    average:   { label: "Average",   dot: "bg-amber-500",   text: "text-amber-700 bg-amber-50 border-amber-200" },
+    weak:      { label: "Weak",      dot: "bg-orange-500",  text: "text-orange-700 bg-orange-50 border-orange-200" },
+    critical:  { label: "Critical",  dot: "bg-red-500",     text: "text-red-700 bg-red-50 border-red-200" },
+  };
 
   const chapSubjects  = ["all", ...Array.from(new Set(chapters.map(c => String(c.subject || ""))))];
   const filteredChaps = chapters
     .filter(c => chapSub === "all" || String(c.subject || "").toLowerCase() === chapSub)
-    .sort((a, b) => Number(a.accuracy ?? 0) - Number(b.accuracy ?? 0));
+    .filter(c => chapBand === "all" || perfBand(Number(c.accuracy ?? 0)) === chapBand)
+    .sort((a, b) => {
+      if (chapSort === "highest")   return Number(b.accuracy ?? 0) - Number(a.accuracy ?? 0);
+      if (chapSort === "mistakes")  return Number(b.incorrect ?? 0) - Number(a.incorrect ?? 0);
+      if (chapSort === "time")      return Number(b.totalQuestions ?? 0) - Number(a.totalQuestions ?? 0);
+      return Number(a.accuracy ?? 0) - Number(b.accuracy ?? 0); // lowest accuracy first (default)
+    });
 
   const currentTopics: TopicEntry[] = topicsObj
     ? (topicF === "weak" ? topicsObj.weak : topicF === "strong" ? topicsObj.strong : topicsObj.all)
     : [];
+
+  // Group every topic under its chapter — powers each chapter card's
+  // expandable topic list (with per-difficulty bars) in the Chapters tab.
+  const topicsByChapterKey: Record<string, TopicEntry[]> = {};
+  for (const t of (topicsObj?.all ?? [])) {
+    const key = `${t.subject}__${t.chapter}`;
+    (topicsByChapterKey[key] = topicsByChapterKey[key] || []).push(t);
+  }
+
+  const toggleChapter = (key: string) => {
+    setExpandedChapters(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const TABS: { id: Tab; label: string; short: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "overview",  label: "Overview",  short: "Overview",  Icon: IconChart },
@@ -530,6 +646,86 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                 <p className="text-xs text-slate-400 py-6 text-center font-medium">No data yet. Refresh after submitting a test.</p>
               )}
             </div>
+
+            {/* Error Analysis — silly mistake / concept error / guess mix */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <IconAlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />Error Analysis
+              </h3>
+              {errorAnalysis && (errorAnalysis.total ?? 0) > 0 ? (
+                <DonutChart
+                  size={128}
+                  strokeWidth={18}
+                  centerLabel={String(errorAnalysis.total)}
+                  centerSublabel="of Errors"
+                  data={[
+                    { label: "Conceptual Error", value: Number(errorAnalysis.concept ?? 0), color: "#4f46e5" },
+                    { label: "Silly Mistake",    value: Number(errorAnalysis.silly   ?? 0), color: "#7c3aed" },
+                    { label: "Guessing",         value: Number(errorAnalysis.guess   ?? 0), color: "#f59e0b" },
+                  ]}
+                />
+              ) : (
+                <p className="text-xs text-slate-400 py-6 text-center font-medium">No errors recorded yet — great consistency!</p>
+              )}
+            </div>
+
+            {/* Difficulty Type Performance */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <IconTarget className="w-4 h-4 text-indigo-600 shrink-0" />Difficulty Type Performance
+              </h3>
+              {difficultyPerformance.length > 0 ? (
+                <HBarChart
+                  data={(["easy", "medium", "hard"] as const)
+                    .map(diff => difficultyPerformance.find(d => String(d.difficulty || "").toLowerCase() === diff))
+                    .filter((d): d is DifficultyPerfEntry => Boolean(d))
+                    .map(d => ({
+                      label: String(d.difficulty),
+                      value: Number(d.accuracy ?? 0),
+                      color: String(d.difficulty).toLowerCase() === "easy" ? "#10b981" : String(d.difficulty).toLowerCase() === "medium" ? "#f59e0b" : "#ef4444",
+                      detail: `${d.correct ?? 0}/${d.attempted ?? 0} correct`,
+                    }))}
+                />
+              ) : (
+                <p className="text-xs text-slate-400 py-6 text-center font-medium">No difficulty data available yet.</p>
+              )}
+            </div>
+
+            {/* Chapters to Focus On — lowest-accuracy chapters with real attempt volume */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <IconAlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />Chapters to Focus On
+              </h3>
+              {chapters.filter(c => Number(c.attempted ?? 0) > 0).length > 0 ? (
+                <div className="divide-y divide-slate-50">
+                  {[...chapters]
+                    .filter(c => Number(c.attempted ?? 0) > 0)
+                    .sort((a, b) => Number(a.accuracy ?? 0) - Number(b.accuracy ?? 0))
+                    .slice(0, 5)
+                    .map((c, i) => {
+                      const badge = SUB_BADGE[String(c.subject || "").toLowerCase()] || "bg-slate-50 text-slate-600 border-slate-200";
+                      const recoverableMarks = Math.round((Number(c.totalQuestions ?? 0) - Number(c.correct ?? 0)) * 4 * 0.5);
+                      return (
+                        <div key={i} className="flex items-center justify-between gap-3 py-2.5">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 text-[11px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 truncate">{String(c.chapter || "")}</p>
+                              <span className={`inline-block text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border mt-0.5 ${badge}`}>{c.subject}</span>
+                            </div>
+                          </div>
+                          <span className="text-xs font-black text-red-600 tabular-nums shrink-0">− {recoverableMarks} mks</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 py-6 text-center font-medium">Not enough chapter data yet.</p>
+              )}
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 font-semibold">
+                Improving in these chapters can boost your score significantly.
+              </p>
+            </div>
           </div>
         )}
 
@@ -543,15 +739,28 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {subjects.map((s, i) => {
                   const sub     = String(s.subject || `Subject ${i + 1}`);
+                  const subKey  = sub.toLowerCase();
                   const acc     = Number(s.accuracy ?? 0);
                   const marks   = Number(s.marksObtained ?? 0);
                   const correct = Number(s.correct ?? 0);
                   const wrong   = Number(s.incorrect ?? 0);
+                  const skipped = Math.max(0, Number(s.totalQuestions ?? 0) - correct - wrong);
                   const attR    = Number(s.attemptRate ?? 0);
-                  const grad    = SUB_GRAD[sub.toLowerCase()] || "from-slate-400 to-slate-500";
-                  const badge   = SUB_BADGE[sub.toLowerCase()] || "bg-slate-50 text-slate-700 border-slate-200";
+                  const grad    = SUB_GRAD[subKey] || "from-slate-400 to-slate-500";
+                  const badge   = SUB_BADGE[subKey] || "bg-slate-50 text-slate-700 border-slate-200";
+
+                  const diffRows = (["easy", "medium", "hard"] as const)
+                    .map(diff => subjectDifficultyPerformance.find(d => String(d.subject).toLowerCase() === subKey && String(d.difficulty).toLowerCase() === diff))
+                    .filter((d): d is DifficultyPerfEntry => Boolean(d) && Number(d?.attempted ?? 0) > 0);
+
+                  const weightage = weightageCoverage?.[subKey];
+
+                  const weakestChapter = [...chapters]
+                    .filter(c => String(c.subject || "").toLowerCase() === subKey && Number(c.attempted ?? 0) > 0)
+                    .sort((a, b) => Number(a.accuracy ?? 0) - Number(b.accuracy ?? 0))[0];
+
                   return (
-                    <div key={i} className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm">
+                    <div key={i} className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3.5 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between gap-2">
                         <span className={`px-2.5 py-1 rounded-xl border text-[10px] font-extrabold uppercase ${badge}`}>{sub}</span>
                         <span className="text-xl font-black text-slate-900 tabular-nums">
@@ -560,7 +769,7 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-bold">
-                          <span className="text-slate-500">Accuracy</span>
+                          <span className="text-slate-500">Score progress</span>
                           <span className={accColor(acc) + " tabular-nums"}>{acc.toFixed(1)}%</span>
                         </div>
                         <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
@@ -569,9 +778,9 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                       </div>
                       <div className="grid grid-cols-3 gap-1.5 text-center">
                         {[
-                          { label: "Correct",   val: correct,           cls: "text-emerald-600" },
-                          { label: "Wrong",     val: wrong,             cls: "text-red-500" },
-                          { label: "Attempted", val: `${attR.toFixed(0)}%`, cls: "text-indigo-600" },
+                          { label: "Correct",   val: correct,               cls: "text-emerald-600" },
+                          { label: "Incorrect", val: wrong,                 cls: "text-red-500" },
+                          { label: "Skipped",   val: skipped,               cls: "text-slate-500" },
                         ].map(({ label, val, cls }) => (
                           <div key={label} className="bg-slate-50 rounded-xl p-2">
                             <p className={`text-sm font-black ${cls} tabular-nums`}>{val}</p>
@@ -579,6 +788,47 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                           </div>
                         ))}
                       </div>
+                      <div className="text-[10px] font-bold text-slate-500 flex items-center justify-between">
+                        <span>Attempt Rate</span>
+                        <span className="text-indigo-600 tabular-nums">{attR.toFixed(0)}%</span>
+                      </div>
+
+                      {diffRows.length > 0 && (
+                        <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                          <p className="text-[9px] font-extrabold uppercase text-slate-400">Accuracy by Difficulty</p>
+                          {diffRows.map(d => (
+                            <div key={d.difficulty} className="flex items-center gap-2 text-[10px]">
+                              <span className="w-12 shrink-0 font-bold text-slate-500 capitalize">{d.difficulty}</span>
+                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${accBar(Number(d.accuracy ?? 0))}`} style={{ width: `${Math.min(Number(d.accuracy ?? 0), 100)}%` }} />
+                              </div>
+                              <span className="w-9 text-right font-bold text-slate-600 tabular-nums shrink-0">{Number(d.accuracy ?? 0).toFixed(0)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {weightage && (
+                        <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                          <p className="text-[9px] font-extrabold uppercase text-slate-400 flex items-center gap-1">
+                            Chapters Covered by Weightage
+                          </p>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {([["High", weightage.high, "bg-red-50 text-red-700 border-red-200"], ["Medium", weightage.medium, "bg-amber-50 text-amber-700 border-amber-200"], ["Low", weightage.low, "bg-emerald-50 text-emerald-700 border-emerald-200"]] as const).map(([label, band, cls]) => (
+                              <div key={label} className={`rounded-xl border px-2 py-1.5 text-center ${cls}`}>
+                                <p className="text-[9px] font-black uppercase">{label}</p>
+                                <p className="text-xs font-black tabular-nums">{band.covered} / {band.total}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {weakestChapter && (
+                        <p className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                          Weak zone: {String(weakestChapter.chapter)}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -591,7 +841,16 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
         {tab === "chapters" && (
           <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in duration-300">
             <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-black text-slate-900">Chapter-wise Performance</h3>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <h3 className="text-sm font-black text-slate-900">Chapter &amp; Topic Analytics</h3>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  {chapters.length} chapter{chapters.length !== 1 ? "s" : ""}
+                  {chapters.filter(c => perfBand(Number(c.accuracy ?? 0)) === "critical" || perfBand(Number(c.accuracy ?? 0)) === "weak").length > 0 && (
+                    <> · <span className="text-red-600 font-black">{chapters.filter(c => perfBand(Number(c.accuracy ?? 0)) === "critical" || perfBand(Number(c.accuracy ?? 0)) === "weak").length} need attention</span></>
+                  )}
+                </span>
+              </div>
+
               <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
                 {chapSubjects.map(sub => (
                   <button
@@ -605,34 +864,153 @@ export function SprintAnalyticsDashboard({ sprintId, sprintName, onBack }: Props
                   </button>
                 ))}
               </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {([["lowest", "Lowest Accuracy"], ["highest", "Highest Accuracy"], ["mistakes", "Most Mistakes"], ["time", "Most Questions"]] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setChapSort(id)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold whitespace-nowrap cursor-pointer transition-all ${
+                      chapSort === id ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+                <span className="text-[9px] font-extrabold uppercase text-slate-400 shrink-0 mr-0.5">Performance:</span>
+                {(["all", "excellent", "good", "average", "weak", "critical"] as const).map(band => (
+                  <button
+                    key={band}
+                    onClick={() => setChapBand(band)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold capitalize whitespace-nowrap cursor-pointer transition-all shrink-0 border ${
+                      chapBand === band ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {band !== "all" && <span className={`w-1.5 h-1.5 rounded-full ${PERF_BAND_META[band].dot}`} />}
+                    {band === "all" ? "All" : PERF_BAND_META[band].label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {filteredChaps.length === 0 ? (
-              <EmptyTab label="No chapter data available yet." />
+              <EmptyTab label="No chapter data matches these filters yet." />
             ) : (
-              <div className="space-y-2 max-h-[32rem] overflow-y-auto pr-0.5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
                 {filteredChaps.map((c, i) => {
-                  const acc    = Number(c.accuracy ?? 0);
-                  const sub    = String(c.subject || "");
-                  const badge  = SUB_BADGE[sub.toLowerCase()] || "bg-slate-50 text-slate-600 border-slate-200";
+                  const acc      = Number(c.accuracy ?? 0);
+                  const sub      = String(c.subject || "");
+                  const subKey   = sub.toLowerCase();
+                  const chapKey  = `${sub}__${c.chapter}`;
+                  const badge    = SUB_BADGE[subKey] || "bg-slate-50 text-slate-600 border-slate-200";
+                  const band     = perfBand(acc);
+                  const topics   = topicsByChapterKey[chapKey] || [];
+                  const expanded = expandedChapters.has(chapKey);
+                  const attR     = Number(c.attemptRate ?? (Number(c.attempted ?? 0) / Math.max(Number(c.totalQuestions ?? 0), 1)) * 100);
                   return (
-                    <div key={i} className="p-3.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${badge}`}>{sub}</span>
-                            <span className="text-xs font-bold text-slate-800">{String(c.chapter || "")}</span>
+                    <div key={i} className={`rounded-2xl border overflow-hidden shadow-sm transition-all ${band === "critical" || band === "weak" ? "border-red-200" : "border-slate-200"}`}>
+                      <div className={`h-1 ${accBar(acc)}`} />
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${badge}`}>{sub}</span>
+                              <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${PERF_BAND_META[band].text}`}>{PERF_BAND_META[band].label}</span>
+                            </div>
+                            <p className="text-sm font-black text-slate-900 leading-tight">{String(c.chapter || "")}</p>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2.5 text-[10px] text-slate-500 font-semibold mt-1">
-                            <span className="text-emerald-600 font-bold">{Number(c.correct ?? 0)} correct</span>
-                            <span className="text-red-500 font-bold">{Number(c.incorrect ?? 0)} incorrect</span>
-                            <span>{Number(c.totalQuestions ?? 0)} total</span>
+                          <RadialMeter value={acc} size={48} strokeWidth={5} />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className="bg-slate-50 rounded-xl p-2">
+                            <p className="text-xs font-black text-slate-900 tabular-nums">{attR.toFixed(0)}%</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Attempt</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-2">
+                            <p className="text-xs font-black text-slate-900 tabular-nums">{Number(c.marksObtained ?? 0)}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Marks</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-xl p-2">
+                            <p className="text-xs font-black text-slate-900 tabular-nums">{Number(c.totalQuestions ?? 0)}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Questions</p>
                           </div>
                         </div>
-                        <span className={`text-lg font-black shrink-0 tabular-nums ${accColor(acc)}`}>{acc.toFixed(0)}%</span>
-                      </div>
-                      <div className="mt-2.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${accBar(acc)}`} style={{ width: `${Math.min(acc, 100)}%` }} />
+
+                        <div className="flex items-center gap-2.5 text-[10px] font-semibold text-slate-500">
+                          <span className="text-emerald-600 font-bold">{Number(c.correct ?? 0)} correct</span>
+                          <span className="text-red-500 font-bold">{Number(c.incorrect ?? 0)} incorrect</span>
+                        </div>
+
+                        {topics.length > 0 && (
+                          <button
+                            onClick={() => toggleChapter(chapKey)}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-[11px] font-bold text-slate-600 cursor-pointer transition-all"
+                          >
+                            {expanded ? "Hide topics" : `View ${topics.length} topic${topics.length !== 1 ? "s" : ""} inside`}
+                            <IconChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                          </button>
+                        )}
+
+                        {expanded && topics.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            {topics.map((t, ti) => {
+                              const tAcc = Number(t.accuracy ?? 0);
+                              const tBand = perfBand(tAcc);
+                              return (
+                                <div key={ti} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[11px] font-bold text-slate-800 truncate">{String(t.topic || "")}</p>
+                                    <span className={`shrink-0 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${PERF_BAND_META[tBand].text}`}>{PERF_BAND_META[tBand].label}</span>
+                                  </div>
+                                  {t.byDifficulty && Object.keys(t.byDifficulty).length > 0 ? (
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                      <div className="space-y-1">
+                                        <p className="text-[8px] font-extrabold uppercase text-slate-400 flex items-center gap-1">Attempt Rate by Difficulty</p>
+                                        {(["easy", "medium", "hard"] as const).map(diff => {
+                                          const band2 = t.byDifficulty?.[diff];
+                                          if (!band2) return null;
+                                          return (
+                                            <div key={diff} className="flex items-center gap-1.5 text-[9px]">
+                                              <span className="w-9 shrink-0 font-bold text-slate-500 capitalize">{diff}</span>
+                                              <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(Number(band2.attemptRate ?? 0), 100)}%` }} />
+                                              </div>
+                                              <span className="w-7 text-right font-bold text-slate-500 tabular-nums shrink-0">{Number(band2.attemptRate ?? 0).toFixed(0)}%</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="text-[8px] font-extrabold uppercase text-slate-400 flex items-center gap-1">Accuracy by Difficulty</p>
+                                        {(["easy", "medium", "hard"] as const).map(diff => {
+                                          const band2 = t.byDifficulty?.[diff];
+                                          if (!band2) return null;
+                                          return (
+                                            <div key={diff} className="flex items-center gap-1.5 text-[9px]">
+                                              <span className="w-9 shrink-0 font-bold text-slate-500 capitalize">{diff}</span>
+                                              <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full ${accBar(Number(band2.accuracy ?? 0))}`} style={{ width: `${Math.min(Number(band2.accuracy ?? 0), 100)}%` }} />
+                                              </div>
+                                              <span className="w-7 text-right font-bold text-slate-500 tabular-nums shrink-0">{Number(band2.accuracy ?? 0).toFixed(0)}%</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[9px] text-slate-400 font-semibold">
+                                      {Number(t.correct ?? 0)}/{Number(t.attempted ?? 0)} correct · difficulty split not available for older attempts
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

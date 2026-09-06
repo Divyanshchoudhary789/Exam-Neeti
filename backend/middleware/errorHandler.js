@@ -18,12 +18,31 @@ const handleJWTExpiredError = () => new AppError("Your session has expired. Plea
 
 // ─── Dev: full details ────────────────────────────────────────────────────────
 
+// Some thrown errors (e.g. MathJax/TeX parse errors carry a self-referential
+// `note`) contain circular references — JSON.stringify(err) would throw inside
+// the error handler and take the response down with it. Serialise defensively.
+const safeError = (err) => {
+  const seen = new WeakSet();
+  try {
+    return JSON.parse(JSON.stringify(err, (k, v) => {
+      if (typeof v === "object" && v !== null) {
+        if (seen.has(v)) return "[Circular]";
+        seen.add(v);
+      }
+      return v;
+    }));
+  } catch {
+    return { name: err?.name, message: err?.message };
+  }
+};
+
 const sendErrorDev = (err, res) => {
-  res.status(err.statusCode).json({
-    success:    false,
-    message:    err.message,
-    stack:      err.stack,
-    error:      err,
+  res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.message || "Internal error",
+    ...(typeof err.code === "string" ? { errorCode: err.code } : {}),
+    stack:   err.stack,
+    error:   safeError(err),
   });
 };
 
@@ -34,6 +53,9 @@ const sendErrorProd = (err, res) => {
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,
+      // machine-readable branch hint for the client (e.g. "PLAN_LIMIT").
+      // Only a string code from an AppError — never Mongo's numeric codes.
+      ...(typeof err.code === "string" ? { errorCode: err.code } : {}),
     });
   }
   // Programming / unknown error — never leak internals

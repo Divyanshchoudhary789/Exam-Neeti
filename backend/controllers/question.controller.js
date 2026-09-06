@@ -55,7 +55,8 @@ const {
   resolveDocxEquationsAndImages,
   resolveXlsxImages,
 }                                     = require("../services/bulkUploadOrchestrator.service");
-const { ROLES }                      = require("../config/constants");
+const { ROLES, QUESTION_STATUS, ADMIN_ACTIONS } = require("../config/constants");
+const AdminAuditLog                  = require("../models/AdminAuditLog.model");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,28 @@ const makeActivityEntry = (req, action, meta = {}) => ({
   at:       new Date(),
   meta,
 });
+
+/**
+ * Writes an AdminAuditLog row for a question-bank event that the question's
+ * OWN activityLog can't capture — namely a hard delete (the doc's log dies
+ * with it) and a bulk deactivate (spans many docs). Never throws: an audit
+ * write failure must not break the operation the admin actually asked for.
+ */
+const writeQuestionAudit = async (req, action, metadata = {}) => {
+  try {
+    await AdminAuditLog.create({
+      actor:     req.user.id,
+      actorRole: req.user.role,
+      action,
+      target:    null,
+      metadata,
+      ip:        req.ip ?? null,
+      userAgent: req.headers?.["user-agent"] ?? null,
+    });
+  } catch (err) {
+    console.error("[Audit] Failed to write question audit log:", err.message);
+  }
+};
 
 /**
  * Uploads a file buffer to Cloudinary if it exists in req.files[fieldName].
@@ -296,14 +319,15 @@ exports.listQuestions = asyncHandler(async (req, res) => {
 
   if (q.isActive !== undefined) filter.isActive = q.isActive === "true" || q.isActive === true;
   if (q.hasLatex !== undefined) filter.hasLatex = q.hasLatex === "true" || q.hasLatex === true;
-  if (q.status === "draft") {
-    filter.status = "draft";
-  } else if (q.status === "active") {
-    // $ne:"draft" (not a strict "active" match) so pre-existing questions
-    // with no status field at all (created before this field existed) still
-    // show up under the "Active" filter — same reasoning as the exam-
-    // selection query in questionReconstruction.service.js.
-    filter.status = { $ne: "draft" };
+  if (q.status === QUESTION_STATUS.DRAFT) {
+    filter.status = QUESTION_STATUS.DRAFT;
+  } else if (q.status === QUESTION_STATUS.REJECTED) {
+    filter.status = QUESTION_STATUS.REJECTED;
+  } else if (q.status === QUESTION_STATUS.ACTIVE) {
+    // Strict "active" match — mirrors the exam-selection query in
+    // questionReconstruction.service.js. Pre-existing questions with no
+    // status field are backfilled to "active" by scripts/migrateQuestionStatus.js.
+    filter.status = QUESTION_STATUS.ACTIVE;
   }
 
   // mine=true — scope to the requesting admin's OWN questions. The filter is
@@ -351,6 +375,103 @@ exports.getQuestion = asyncHandler(async (req, res, next) => {
   return sendSuccess(res, 200, "Question fetched.", { question });
 });
 
+// ─── HISTORY ──────────────────────────────────────────────────────────────────
+
+/**
+ * GET /questions/:id/history
+ *
+ * Lightweight audit view for one question — attribution + the full
+ * append-only activity trail, without the heavy body/solution/options
+ * payload. Any admin or super_admin may read it (viewing history is
+ * read-only; the ownership rule only gates mutations).
+ */
+exports.getQuestionHistory = asyncHandler(async (req, res, next) => {
+  const QuestionModel = getQuestionModel(req);
+  const question = await QuestionModel.findById(req.params.id)
+    .select("subject chapter topic status createdBy reviewedBy reviewedAt uploadBatch activityLog createdAt updatedAt")
+    .lean();
+  if (!question) return next(new AppError("Question not found.", 404));
+
+  const activityLog = Array.isArray(question.activityLog)
+    ? [...question.activityLog].sort((a, b) => new Date(b.at) - new Date(a.at))
+    : [];
+
+  return sendSuccess(res, 200, "Question history fetched.", {
+    history: {
+      questionId:  question._id,
+      subject:     question.subject,
+      chapter:     question.chapter,
+      topic:       question.topic,
+      status:      question.status || QUESTION_STATUS.ACTIVE,
+      createdBy:   question.createdBy || null,
+      reviewedBy:  question.reviewedBy?.userId ? question.reviewedBy : null,
+      reviewedAt:  question.reviewedAt || null,
+      uploadBatch: question.uploadBatch?.batchId ? question.uploadBatch : null,
+      createdAt:   question.createdAt,
+      updatedAt:   question.updatedAt,
+      activityLog,
+    },
+  });
+});
+
+// ─── REVIEW (approve / reject a draft) ────────────────────────────────────────
+
+/**
+ * PATCH /questions/:id/review   body: { decision: "approve"|"reject", note? }
+ *
+ * The one-click review action for a draft question. Owner-gated (a regular
+ * admin can only review questions they created; super_admin bypasses).
+ * Only a draft can be reviewed — approving flips it to "active" (exam-
+ * eligible), rejecting flips it to "rejected" (kept for the trail, never
+ * exam-eligible). Both stamp reviewedBy/reviewedAt and push one "reviewed"
+ * activity entry carrying the decision + note.
+ */
+exports.reviewQuestion = asyncHandler(async (req, res, next) => {
+  const QuestionModel = getQuestionModel(req);
+  const { decision, note } = req.body;
+
+  const question = await QuestionModel.findById(req.params.id);
+  if (!question) return next(new AppError("Question not found.", 404));
+
+  assertOwnsQuestion(req, question);
+
+  if (question.status !== QUESTION_STATUS.DRAFT) {
+    return next(
+      new AppError(
+        `Only a draft question can be reviewed (this one is "${question.status}").`,
+        409
+      )
+    );
+  }
+
+  const newStatus =
+    decision === "approve" ? QUESTION_STATUS.ACTIVE : QUESTION_STATUS.REJECTED;
+
+  question.status     = newStatus;
+  question.reviewedBy = { userId: req.user.id, email: req.user.email };
+  question.reviewedAt = new Date();
+  question.activityLog.push(
+    makeActivityEntry(req, "reviewed", {
+      decision,
+      note: note || "",
+      via: "review_action",
+      from: QUESTION_STATUS.DRAFT,
+      to: newStatus,
+    })
+  );
+
+  await question.save();
+
+  return sendSuccess(
+    res,
+    200,
+    decision === "approve"
+      ? "Question approved — it's now active and usable in exams."
+      : "Question rejected — it will not be used in any exam.",
+    { question }
+  );
+});
+
 // ─── UPDATE ───────────────────────────────────────────────────────────────────
 
 exports.updateQuestion = asyncHandler(async (req, res, next) => {
@@ -363,7 +484,8 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
 
   const body  = req.body;
   const files = req.files || {};
-  const oldStatus = question.status;
+  const oldStatus   = question.status;
+  const oldIsActive = question.isActive;
 
   // ── 1. Math processing for incoming text fields ────────────────────────────
   if (body.text !== undefined) {
@@ -527,19 +649,42 @@ exports.updateQuestion = asyncHandler(async (req, res, next) => {
 
   question.contentHash = newHash;
 
-  // ── 9. Activity log — "edited" for any real content change, plus a
-  //    dedicated "status_changed" entry when draft/active actually flips
-  //    (the one entry MyQuestionsPanel's review workflow cares most about:
-  //    who activated this question, and when). ──────────────────────────
+  // ── 9. Activity log ───────────────────────────────────────────────────
+  //   • "edited"        — any real content change (not just status/isActive)
+  //   • "reviewed"      — a draft being flipped to active/rejected via the
+  //                       edit form counts as a review decision; stamp
+  //                       reviewedBy/reviewedAt too (same as the dedicated
+  //                       /review endpoint).
+  //   • "status_changed" — any other status transition (e.g. active↔rejected,
+  //                        or sending something back to draft to rework it).
+  //   • "deactivated"/"reactivated" — isActive toggled (soft delete / restore).
   const otherFieldsTouched = Object.keys(body).some(
-    (k) => k !== "status" && !k.startsWith("remove")
+    (k) => k !== "status" && k !== "isActive" && !k.startsWith("remove")
   ) || Object.keys(files).length > 0;
   if (otherFieldsTouched) {
     question.activityLog.push(makeActivityEntry(req, "edited"));
   }
-  if (body.status !== undefined && body.status !== oldStatus) {
+
+  const statusChanged = body.status !== undefined && body.status !== oldStatus;
+  if (statusChanged) {
+    if (oldStatus === QUESTION_STATUS.DRAFT &&
+        (body.status === QUESTION_STATUS.ACTIVE || body.status === QUESTION_STATUS.REJECTED)) {
+      const decision = body.status === QUESTION_STATUS.ACTIVE ? "approve" : "reject";
+      question.reviewedBy = { userId: req.user.id, email: req.user.email };
+      question.reviewedAt = new Date();
+      question.activityLog.push(
+        makeActivityEntry(req, "reviewed", { decision, via: "edit", from: oldStatus, to: body.status })
+      );
+    } else {
+      question.activityLog.push(
+        makeActivityEntry(req, "status_changed", { from: oldStatus, to: body.status })
+      );
+    }
+  }
+
+  if (body.isActive !== undefined && body.isActive !== oldIsActive) {
     question.activityLog.push(
-      makeActivityEntry(req, "status_changed", { from: oldStatus, to: body.status })
+      makeActivityEntry(req, body.isActive ? "reactivated" : "deactivated")
     );
   }
 
@@ -582,6 +727,18 @@ exports.deleteQuestion = asyncHandler(async (req, res, next) => {
   await Promise.allSettled(cleanup);
   await question.deleteOne();
 
+  // The question's own activityLog is gone with it — record the deletion on
+  // the immutable AdminAuditLog so "who deleted what" is still answerable.
+  await writeQuestionAudit(req, ADMIN_ACTIONS.QUESTION_DELETED, {
+    questionId:  String(question._id),
+    subject:     question.subject,
+    chapter:     question.chapter,
+    topic:       question.topic,
+    status:      question.status,
+    textPreview: String(question.text || "").slice(0, 140),
+    createdByEmail: question.createdBy?.email || null,
+  });
+
   return sendSuccess(res, 200, "Question deleted.", { deletedQuestionId: question._id });
 });
 
@@ -610,10 +767,25 @@ exports.bulkDeactivate = asyncHandler(async (req, res, next) => {
   const filter = { _id: { $in: ids } };
   if (req.user.role === ROLES.ADMIN) filter["createdBy.userId"] = req.user.id;
 
+  // Only append the activity entry to docs that are actually flipping
+  // (isActive:true → false) so re-running a bulk deactivate doesn't spam the
+  // trail with no-op "deactivated" entries.
+  filter.isActive = true;
+
   const result = await QuestionModel.updateMany(
     filter,
-    { $set: { isActive: false } }
+    {
+      $set: { isActive: false },
+      $push: { activityLog: makeActivityEntry(req, "deactivated", { via: "bulk" }) },
+    }
   );
+
+  if (result.modifiedCount > 0) {
+    await writeQuestionAudit(req, ADMIN_ACTIONS.QUESTION_BULK_DEACTIVATED, {
+      requestedIds:  ids.length,
+      modifiedCount: result.modifiedCount,
+    });
+  }
 
   return sendSuccess(res, 200, "Questions deactivated.", {
     matchedCount:  result.matchedCount,

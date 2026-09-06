@@ -1,11 +1,15 @@
 /**
  * migrateQuestionStatus.js — one-time backfill for the draft/active status field.
  *
- * NOT required for correctness — questionReconstruction.service.js already
- * treats a missing `status` field as exam-eligible (status: {$ne:"draft"}),
- * so nothing breaks if this never runs. This is purely for dashboard-display
- * cleanliness: it stamps status:"active" onto every pre-existing question so
- * status badges/filters in the UI reflect real values instead of "undefined".
+ * REQUIRED before (or with) the deploy that made exam-eligibility strict:
+ * questionReconstruction.service.js and sprint.controller.js now select only
+ * `status: "active"` (no longer `{$ne:"draft"}`), so any pre-existing question
+ * with NO status field would silently drop out of every exam and every sprint
+ * slot pool until this runs. It stamps status:"active" onto every such
+ * question (these are the legacy seeded/manually-added questions that were
+ * always meant to be exam-eligible).
+ *
+ * Safe + idempotent: only touches docs where `status` is missing.
  *
  * Usage:
  *   node scripts/migrateQuestionStatus.js
@@ -22,7 +26,11 @@ const run = async () => {
     process.exit(1);
   }
 
-  const conn     = await connectDB(process.env.QUESTION_BANK_MONGO_URI, "Question Bank DB");
+  const conn = await connectDB(process.env.QUESTION_BANK_MONGO_URI, "Question Bank DB");
+  // connectDB returns as soon as the Connection object exists; on a cold/slow
+  // Atlas link the actual handshake can take longer than Mongoose's 10s
+  // command-buffering window, so wait for it to be truly ready first.
+  if (conn.readyState !== 1) await conn.asPromise();
   const Question = conn.model("Question", questionSchema);
 
   const result = await Question.updateMany(

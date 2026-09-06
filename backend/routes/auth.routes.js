@@ -6,7 +6,9 @@ const authenticate = require("../middleware/authenticate");
 const validate = require("../middleware/validate");
 const { authLimiter } = require("../middleware/rateLimiter");
 const {
+  selfRegisterSchema,
   loginSchema,
+  googleAuthSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
@@ -15,7 +17,9 @@ const {
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 
+router.post("/register", authLimiter, validate(selfRegisterSchema), authController.register);
 router.post("/login", authLimiter, validate(loginSchema), authController.login);
+router.post("/google", authLimiter, validate(googleAuthSchema), authController.googleAuth);
 router.post("/refresh-token", validate(refreshTokenSchema), authController.refreshToken);
 router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 router.patch("/reset-password/:token", authLimiter, validate(resetPasswordSchema), authController.resetPassword);

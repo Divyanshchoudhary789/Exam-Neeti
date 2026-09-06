@@ -112,6 +112,16 @@ const attemptSchema = new mongoose.Schema(
       ref: "Exam",
       required: [true, "Exam reference is required."],
     },
+    /**
+     * Which attempt of this exam this is for this student. A student may attempt
+     * a given exam up to MAX_ATTEMPTS_PER_EXAM times (see config/constants).
+     * Existing pre-migration documents are backfilled to 1.
+     */
+    attemptNumber: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
     sprint: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Sprint",
@@ -171,8 +181,10 @@ const attemptSchema = new mongoose.Schema(
   }
 );
 
-// Enforce one attempt per student per exam
-attemptSchema.index({ student: 1, exam: 1 }, { unique: true });
+// Enforce one document per (student, exam, attemptNumber) — a student may have
+// up to MAX_ATTEMPTS_PER_EXAM attempts of the same exam, each with a distinct
+// attemptNumber. (Replaces the old { student, exam } unique index.)
+attemptSchema.index({ student: 1, exam: 1, attemptNumber: 1 }, { unique: true });
 attemptSchema.index({ student: 1, sprint: 1 });
 attemptSchema.index({ exam: 1 });
 attemptSchema.index({ batch: 1, sprint: 1 });

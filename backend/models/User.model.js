@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const { ROLES } = require("../config/constants");
+const { ROLES, PROGRAM_TYPES, AUTH_PROVIDERS } = require("../config/constants");
 
 const userSchema = new mongoose.Schema(
   {
@@ -22,6 +22,29 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "Password is required."],
       minlength: [8, "Password must be at least 8 characters."],
+      select: false,
+    },
+    /**
+     * authProvider — how this account signs in.
+     *   "local"  → email + password (default)
+     *   "google" → account was first created via Google Sign-In. Such accounts
+     *              still get a random unusable password on creation so the
+     *              schema stays consistent; the user can claim a real password
+     *              anytime via the "forgot password" flow.
+     */
+    authProvider: {
+      type: String,
+      enum: Object.values(AUTH_PROVIDERS),
+      default: AUTH_PROVIDERS.LOCAL,
+    },
+    /**
+     * googleId — the Google account's stable subject identifier ("sub" claim).
+     * Set on the first Google Sign-In (whether the account was created by it or
+     * an existing password account was linked to it). Never exposed to clients.
+     */
+    googleId: {
+      type: String,
+      default: null,
       select: false,
     },
     role: {
@@ -90,6 +113,16 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    /**
+     * programType — the "Target Exam" goal a student picks at self-registration
+     * (e.g. NEET 2026/2027/Repeater). Purely informational/personalization —
+     * actual content access is driven by `batch`, not this field.
+     */
+    programType: {
+      type: String,
+      enum: [...Object.values(PROGRAM_TYPES), null],
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -130,5 +163,6 @@ userSchema.methods.changedPasswordAfter = function (jwtTimestamp) {
 // ─── Indexes ───────────────────────────────────────────────────────────────────
 userSchema.index({ role: 1 });
 userSchema.index({ batch: 1 });
+userSchema.index({ googleId: 1 }, { sparse: true });
 
 module.exports = mongoose.model("User", userSchema);

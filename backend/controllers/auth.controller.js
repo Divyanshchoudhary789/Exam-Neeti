@@ -1,5 +1,10 @@
+const { OAuth2Client } = require("google-auth-library");
+
 const User = require("../models/User.model");
 const AdminAuditLog = require("../models/AdminAuditLog.model");
+const Batch = require("../models/Batch.model");
+const Plan = require("../models/Plan.model");
+const Subscription = require("../models/Subscription.model");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
@@ -12,18 +17,175 @@ const {
 } = require("../utils/token");
 const { setAuthCookies, clearAuthCookies } = require("../utils/cookies");
 const { sendEmail, templates } = require("../services/email.service");
-const { NOTIFICATION_TRIGGER, ROLES, ADMIN_ACTIONS } = require("../config/constants");
+const {
+  NOTIFICATION_TRIGGER,
+  ROLES,
+  AUTH_PROVIDERS,
+  ADMIN_ACTIONS,
+  BATCH_SOURCE,
+  PLAN_KEYS,
+  SUBSCRIPTION_STATUS,
+} = require("../config/constants");
+
+const getPrimaryClientUrl = () => (process.env.CLIENT_URL || "http://localhost:3000").split(",")[0].trim();
+
+// Lazily instantiated Google OAuth2 client — used only to verify the ID token
+// (JWT "credential") that Google Identity Services mints in the browser.
+let googleOAuthClient = null;
+const getGoogleClient = () => {
+  if (!process.env.GOOGLE_CLIENT_ID) return null;
+  if (!googleOAuthClient) googleOAuthClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  return googleOAuthClient;
+};
+
+/**
+ * The login screen has a "Student" / "Admin" toggle. `portal` carries that
+ * choice so we can reject a mismatch *before* issuing any session — e.g. an
+ * admin trying to enter through the Student tab, or vice versa. A user has
+ * exactly one role in the DB; the toggle only decides which door they use.
+ * Returns an AppError to forward, or null when the portal matches (or none
+ * was supplied).
+ */
+const portalMismatchError = (portal, role) => {
+  if (portal !== "student" && portal !== "admin") return null;
+  const isAdminRole = role === ROLES.ADMIN || role === ROLES.SUPER_ADMIN;
+  if (portal === "admin" && !isAdminRole) {
+    return new AppError(
+      "This is a student account. Please use the Student tab to sign in.",
+      403
+    );
+  }
+  if (portal === "student" && isAdminRole) {
+    return new AppError(
+      "This is an administrator account. Please switch to the Admin tab to sign in.",
+      403
+    );
+  }
+  return null;
+};
+
+async function reconcilePublicSubscription(user) {
+  const batch = user.batch && typeof user.batch === "object" ? user.batch : null;
+  if (!batch || batch.source !== BATCH_SOURCE.PUBLIC) return user;
+
+  const subscription = await Subscription.findOne({ student: user._id })
+    .sort({ createdAt: -1 })
+    .populate("plan", "key");
+
+  if (
+    subscription?.status === SUBSCRIPTION_STATUS.ACTIVE &&
+    subscription.expiresAt &&
+    subscription.expiresAt.getTime() <= Date.now()
+  ) {
+    subscription.status = SUBSCRIPTION_STATUS.EXPIRED;
+    await subscription.save();
+
+    const trialBatch = await Batch.findOne({ slug: "public-trial", source: BATCH_SOURCE.PUBLIC });
+    if (trialBatch) {
+      user.batch = trialBatch._id;
+      await user.save({ validateBeforeSave: false });
+      await user.populate("batch", "name source slug");
+    }
+  }
+
+  return user;
+}
+
+const shapeAuthUser = (user) => ({
+  _id:         user._id,
+  name:        user.name,
+  email:       user.email,
+  role:        user.role,
+  batch:       user.batch,
+  programType: user.programType,
+  lastLoginAt: user.lastLoginAt,
+});
+
+// ─── Public Self-Registration ────────────────────────────────────────────────
+
+exports.register = asyncHandler(async (req, res, next) => {
+  const { name, email, password, phone, programType } = req.body;
+
+  const existing = await User.findOne({ email }).select("_id");
+  if (existing) return next(new AppError("This email is already registered.", 409));
+
+  const [trialBatch, trialPlan] = await Promise.all([
+    Batch.findOne({ slug: "public-trial", source: BATCH_SOURCE.PUBLIC }),
+    Plan.findOne({ key: PLAN_KEYS.TRIAL, isActive: true }),
+  ]);
+
+  if (!trialBatch || !trialPlan) {
+    return next(new AppError("Public trial access is not configured. Please run seed:plans.", 500));
+  }
+
+  const now = new Date();
+  const user = await User.create({
+    name,
+    email,
+    phone: phone || null,
+    password,
+    programType: programType || null,
+    role: ROLES.STUDENT,
+    batch: trialBatch._id,
+  });
+
+  await Subscription.create({
+    student: user._id,
+    plan: trialPlan._id,
+    status: SUBSCRIPTION_STATUS.TRIAL,
+    startedAt: now,
+    expiresAt: null,
+  });
+
+  const payload      = { id: user._id, role: user.role, email: user.email };
+  const accessToken  = generateAccessToken(payload);
+  const refreshToken = generateRefreshToken(payload);
+
+  user.refreshTokenHash         = hashToken(refreshToken);
+  user.previousRefreshTokenHash = null;
+  user.lastLoginAt              = now;
+  await user.save({ validateBeforeSave: false });
+  await user.populate("batch", "name source slug");
+
+  setAuthCookies(res, { accessToken, refreshToken });
+
+  setImmediate(() => {
+    sendEmail({
+      to: user.email,
+      subject: "Welcome to Exam Neeti",
+      html: templates.selfRegisteredWelcome({
+        name: user.name,
+        dashboardUrl: `${getPrimaryClientUrl()}/student`,
+      }),
+      trigger: NOTIFICATION_TRIGGER.SELF_REGISTERED,
+      recipientId: user._id,
+      contextRef: user._id,
+    }).catch((err) => console.error("[Auth] Welcome email failed:", err.message));
+  });
+
+  const responseData = { user: shapeAuthUser(user) };
+  if (process.env.NODE_ENV !== "production") responseData.accessToken = accessToken;
+
+  return sendSuccess(res, 201, "Registration successful.", responseData);
+});
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 exports.login = asyncHandler(async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, portal } = req.body;
 
-  const user = await User.findOne({ email, isActive: true }).select("+password");
+  const user = await User.findOne({ email, isActive: true })
+    .select("+password")
+    .populate("batch", "name source slug");
 
   if (!user || !(await user.comparePassword(password))) {
     return next(new AppError("Invalid email or password.", 401));
   }
+
+  // Enforce the login screen's Student / Admin toggle before issuing any
+  // session — an admin can't slip in through the Student tab, or vice versa.
+  const mismatch = portalMismatchError(portal, user.role);
+  if (mismatch) return next(mismatch);
 
   const payload      = { id: user._id, role: user.role, email: user.email };
   const accessToken  = generateAccessToken(payload);
@@ -36,6 +198,7 @@ exports.login = asyncHandler(async (req, res, next) => {
   user.previousRefreshTokenHash = null;
   user.lastLoginAt              = new Date();
   await user.save({ validateBeforeSave: false });
+  await reconcilePublicSubscription(user);
 
   // Set httpOnly cookies — browser handles storage automatically
   setAuthCookies(res, { accessToken, refreshToken });
@@ -61,14 +224,7 @@ exports.login = asyncHandler(async (req, res, next) => {
   // localhost can use it via Authorization: Bearer header (cross-origin
   // HTTP→HTTPS environments don't support SameSite=None cookies).
   const responseData = {
-    user: {
-      _id:         user._id,
-      name:        user.name,
-      email:       user.email,
-      role:        user.role,
-      batch:       user.batch,
-      lastLoginAt: user.lastLoginAt,
-    },
+    user: shapeAuthUser(user),
   };
 
   // Only expose token in body in non-production for dev convenience
@@ -77,6 +233,172 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
 
   return sendSuccess(res, 200, "Login successful.", responseData);
+});
+
+// ─── Google Sign-In ──────────────────────────────────────────────────────────
+//
+// The browser (Google Identity Services) returns a signed ID token — the
+// `credential` — after the user picks a Google account. We verify that token
+// against Google's public keys here, then either log the matching user in or
+// create a fresh student account (mirroring public self-registration). Google
+// is never trusted for anything beyond "this verified email belongs to this
+// person" — role, batch and access are always decided by our own DB.
+
+exports.googleAuth = asyncHandler(async (req, res, next) => {
+  const client = getGoogleClient();
+  if (!client) {
+    return next(new AppError("Google sign-in is not configured on this server.", 503));
+  }
+
+  const { credential, programType, portal } = req.body;
+
+  let profile;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    profile = ticket.getPayload();
+  } catch {
+    return next(new AppError("Google sign-in could not be verified. Please try again.", 401));
+  }
+
+  if (!profile?.email || profile.email_verified === false) {
+    return next(new AppError("Your Google account email is not verified.", 401));
+  }
+
+  const email    = profile.email.toLowerCase();
+  const googleId = profile.sub;
+  const now      = new Date();
+
+  let user = await User.findOne({ email })
+    .select("+googleId")
+    .populate("batch", "name source slug");
+  let isNewUser = false;
+
+  if (user) {
+    if (!user.isActive) {
+      return next(new AppError("This account has been deactivated. Please contact support.", 403));
+    }
+
+    // Respect the Student / Admin toggle for existing accounts too.
+    const mismatch = portalMismatchError(portal, user.role);
+    if (mismatch) return next(mismatch);
+
+    // Link the Google identity to an existing (password) account on first use,
+    // and backfill an avatar if we don't have one yet.
+    let dirty = false;
+    if (!user.googleId) {
+      user.googleId = googleId;
+      dirty = true;
+    }
+    if (!user.profilePicture && profile.picture) {
+      user.profilePicture = profile.picture;
+      dirty = true;
+    }
+    if (dirty) await user.save({ validateBeforeSave: false });
+  } else {
+    // Google sign-in only ever creates a student account. Someone who picked
+    // the Admin tab and has no account can't be provisioned this way.
+    if (portal === "admin") {
+      return next(
+        new AppError(
+          "No administrator account is linked to this Google address. Admins sign in with email and password.",
+          403
+        )
+      );
+    }
+
+    // No account yet — create a student exactly like public self-registration.
+    const [trialBatch, trialPlan] = await Promise.all([
+      Batch.findOne({ slug: "public-trial", source: BATCH_SOURCE.PUBLIC }),
+      Plan.findOne({ key: PLAN_KEYS.TRIAL, isActive: true }),
+    ]);
+
+    if (!trialBatch || !trialPlan) {
+      return next(new AppError("Public trial access is not configured. Please run seed:plans.", 500));
+    }
+
+    user = await User.create({
+      name:           profile.name || email.split("@")[0],
+      email,
+      // Random, unusable password — keeps the schema consistent. A Google user
+      // who wants a password can set one anytime via "forgot password".
+      password:       generateSecureToken(48),
+      googleId,
+      authProvider:   AUTH_PROVIDERS.GOOGLE,
+      profilePicture: profile.picture || null,
+      programType:    programType || null,
+      role:           ROLES.STUDENT,
+      batch:          trialBatch._id,
+    });
+
+    await Subscription.create({
+      student:   user._id,
+      plan:      trialPlan._id,
+      status:    SUBSCRIPTION_STATUS.TRIAL,
+      startedAt: now,
+      expiresAt: null,
+    });
+
+    await user.populate("batch", "name source slug");
+    isNewUser = true;
+  }
+
+  // Issue the session — identical token/cookie handling to password login.
+  const payload      = { id: user._id, role: user.role, email: user.email };
+  const accessToken  = generateAccessToken(payload);
+  const refreshToken = generateRefreshToken(payload);
+
+  user.refreshTokenHash         = hashToken(refreshToken);
+  user.previousRefreshTokenHash = null;
+  user.lastLoginAt              = now;
+  await user.save({ validateBeforeSave: false });
+
+  if (!isNewUser) await reconcilePublicSubscription(user);
+
+  setAuthCookies(res, { accessToken, refreshToken });
+
+  if (user.role === ROLES.ADMIN || user.role === ROLES.SUPER_ADMIN) {
+    try {
+      await AdminAuditLog.create({
+        actor:     user._id,
+        actorRole: user.role,
+        action:    ADMIN_ACTIONS.LOGIN,
+        metadata:  { email: user.email, via: "google" },
+        ip:        req.ip || null,
+        userAgent: req.headers?.["user-agent"] || null,
+      });
+    } catch (err) {
+      console.error("[Audit] Google login audit write failed:", err.message);
+    }
+  }
+
+  if (isNewUser) {
+    setImmediate(() => {
+      sendEmail({
+        to: user.email,
+        subject: "Welcome to Exam Neeti",
+        html: templates.selfRegisteredWelcome({
+          name: user.name,
+          dashboardUrl: `${getPrimaryClientUrl()}/student`,
+        }),
+        trigger: NOTIFICATION_TRIGGER.SELF_REGISTERED,
+        recipientId: user._id,
+        contextRef: user._id,
+      }).catch((err) => console.error("[Auth] Google welcome email failed:", err.message));
+    });
+  }
+
+  const responseData = { user: shapeAuthUser(user), isNewUser };
+  if (process.env.NODE_ENV !== "production") responseData.accessToken = accessToken;
+
+  return sendSuccess(
+    res,
+    isNewUser ? 201 : 200,
+    isNewUser ? "Account created successfully." : "Login successful.",
+    responseData
+  );
 });
 
 // ─── Refresh Token ────────────────────────────────────────────────────────────
@@ -115,7 +437,11 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
   // the same valid hash before either writes, and whichever loses the race
   // then looks like "reuse" on its own next refresh — which used to nuke every
   // active session, forcing a hard logout even though no token was ever stolen.
-  const GRACE_WINDOW_MS = 15 * 1000;
+  // 60s grace: comfortably absorbs the burst of parallel refreshes a data-heavy
+  // page fires on load (and React dev double-effects) without meaningfully
+  // weakening reuse detection — a token replayed a full minute later is still
+  // caught outside this window.
+  const GRACE_WINDOW_MS = 60 * 1000;
   const rotated = await User.findOneAndUpdate(
     { _id: decoded.id, refreshTokenHash: submittedHash, isActive: true },
     {
@@ -223,11 +549,13 @@ exports.logoutAll = asyncHandler(async (req, res, _next) => {
 // ─── Get Current User ─────────────────────────────────────────────────────────
 
 exports.getMe = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.user.id).populate("batch", "name");
+  const user = await User.findById(req.user.id).populate("batch", "name source slug");
 
   if (!user || !user.isActive) {
     return next(new AppError("User not found.", 404));
   }
+
+  await reconcilePublicSubscription(user);
 
   return sendSuccess(res, 200, "User profile fetched.", { user });
 });

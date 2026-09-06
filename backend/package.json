@@ -10,8 +10,10 @@
     "seed:admin": "node seedAdmin.js",
     "seed:syllabus": "node scripts/seedSyllabus.js",
     "seed:blueprint": "node scripts/seedBlueprint.js",
+    "seed:plans": "node scripts/seedPublicPlansAndBatches.js",
     "seed:questions": "node scripts/seedQuestions.js",
     "migrate:question-status": "node scripts/migrateQuestionStatus.js",
+    "migrate:sprint-governance": "node scripts/migrateSprintGovernance.js",
     "recompute:analytics": "node scripts/recomputeAnalytics.js",
     "seed:all": "node seedAdmin.js && node scripts/seedSyllabus.js && node scripts/seedBlueprint.js",
     "extract:docx": "node scripts/extractDocx.js"
@@ -30,20 +32,26 @@
     "cloudinary": "^2.5.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dejavu-fonts-ttf": "^2.37.3",
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
     "exceljs": "3.10.0",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.1",
+    "google-auth-library": "^11.0.2",
     "helmet": "^8.3.0",
     "joi": "^18.2.3",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.1",
     "katex": "^0.16.22",
+    "mathjax-full": "^3.2.2",
+    "mathml2omml": "^0.5.0",
     "mongoose": "^9.8.0",
     "multer": "^2.0.1",
     "nodemailer": "^9.0.3",
-    "pdfkit": "^0.16.0"
+    "pdfkit": "^0.16.0",
+    "razorpay": "^2.9.8",
+    "svg-to-pdfkit": "^0.1.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

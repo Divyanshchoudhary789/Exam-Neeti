@@ -1,0 +1,349 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  IconCheck,
+  IconTarget,
+  IconShield,
+  IconChart,
+  IconArrowRight,
+  IconRocket,
+} from "../common/UIComponents";
+
+interface PricingProps {
+  onOpenAuth: (type: "login" | "join", planKey?: string) => void;
+}
+
+const IconPlay = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-6.518-3.76A1 1 0 007 8.24v7.52a1 1 0 001.234.972l6.518-3.76a1 1 0 000-1.804z" />
+    <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconTrophy = ({ className = "w-7 h-7" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 5H4a1 1 0 00-1 1v1a4 4 0 004 4M17 5h3a1 1 0 011 1v1a4 4 0 01-4 4" />
+  </svg>
+);
+
+const IconDiamond = ({ className = "w-7 h-7" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12l3 5-9 13L3 8l3-5zM3 8h18M9 3l3 5-3 13M15 3l-3 5 3 13" />
+  </svg>
+);
+
+const HERO_FEATURES = [
+  { icon: IconShield, label: "NCERT First Approach" },
+  { icon: IconChart, label: "Data Driven Preparation" },
+  { icon: IconPlay, label: "Live + Recorded Classes" },
+  { icon: IconTarget, label: "Rank Focused Practice" },
+];
+
+const ENTRY_FEATURES = [
+  "1 Diagnostic Test",
+  "Detailed Performance Analysis",
+  "Subject & Chapter-wise Insights",
+  "Actionable Improvement Areas",
+];
+
+const PLAN_FEATURES = [
+  "NCERT-Aligned Coverage",
+  "Filtered Practice at NEET Level",
+  "Gradual Syllabus Coverage",
+  "Recoverable Marks Identified",
+  "Detailed Analytics for Every Test",
+  "Self-Reflective Tests to Improve",
+];
+
+const PLANS = [
+  {
+    key: "core",
+    name: "CORE",
+    icon: IconRocket,
+    badge: "For Class 11th",
+    tagline: "Build the strongest base.",
+    price: "1,999",
+    stats: { minor: 10, semi: 2, major: 4, total: 16 },
+    theme: {
+      name: "text-emerald-600",
+      iconWrap: "bg-emerald-50 text-emerald-600",
+      badge: "bg-emerald-50 text-emerald-700",
+      check: "text-emerald-500",
+      price: "text-emerald-600",
+      cta: "bg-emerald-600 hover:bg-emerald-700",
+    },
+  },
+  {
+    key: "prime",
+    name: "PRIME",
+    icon: IconTrophy,
+    badge: "For Class 12th",
+    tagline: "Strengthen concepts. Perform smarter.",
+    price: "2,599",
+    stats: { minor: 10, semi: 2, major: 6, total: 18 },
+    theme: {
+      name: "text-blue-600",
+      iconWrap: "bg-blue-50 text-blue-600",
+      badge: "bg-blue-50 text-blue-700",
+      check: "text-blue-500",
+      price: "text-blue-600",
+      cta: "bg-blue-600 hover:bg-blue-700",
+    },
+    highlighted: true,
+  },
+  {
+    key: "elite",
+    name: "ELITE",
+    icon: IconDiamond,
+    badge: "For Dropper",
+    tagline: "Maximize your potential.",
+    price: "2,999",
+    stats: { minor: 10, semi: 2, major: 12, total: 24 },
+    theme: {
+      name: "text-violet-600",
+      iconWrap: "bg-violet-50 text-violet-600",
+      badge: "bg-violet-50 text-violet-700",
+      check: "text-violet-500",
+      price: "text-violet-600",
+      cta: "bg-violet-600 hover:bg-violet-700",
+    },
+  },
+];
+
+const DEFAULT_PLAN_INDEX = PLANS.findIndex((p) => p.highlighted);
+
+export function Pricing({ onOpenAuth }: PricingProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [activeIndex, setActiveIndex] = useState(DEFAULT_PLAN_INDEX);
+  const scrollFrame = useRef<number | null>(null);
+
+  // Default view on small screens: center the highlighted (Prime) plan,
+  // with Core/Elite reachable by scrolling left/right. Sets the carousel's
+  // own scrollLeft directly (never scrollIntoView) so mounting this section
+  // can't drag the whole page's scroll position with it.
+  useEffect(() => {
+    const track = trackRef.current;
+    const defaultCard = cardRefs.current[DEFAULT_PLAN_INDEX];
+    if (!track || !defaultCard) return;
+    track.scrollLeft = defaultCard.offsetLeft + defaultCard.offsetWidth / 2 - track.clientWidth / 2;
+  }, []);
+
+  const handleTrackScroll = () => {
+    if (scrollFrame.current) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = requestAnimationFrame(() => {
+      const track = trackRef.current;
+      if (!track) return;
+      const trackCenter = track.scrollLeft + track.clientWidth / 2;
+      let closestIdx = 0;
+      let closestDist = Infinity;
+      cardRefs.current.forEach((card, idx) => {
+        if (!card) return;
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+        const dist = Math.abs(cardCenter - trackCenter);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIdx = idx;
+        }
+      });
+      setActiveIndex(closestIdx);
+    });
+  };
+
+  const scrollToPlan = (idx: number) => {
+    const track = trackRef.current;
+    const card = cardRefs.current[idx];
+    if (!track || !card) return;
+    const targetLeft = card.offsetLeft + card.offsetWidth / 2 - track.clientWidth / 2;
+    track.scrollTo({ left: targetLeft, behavior: "smooth" });
+  };
+
+  return (
+    <section id="pricing" className="relative bg-white py-20 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden w-full max-w-full">
+      {/* Decorative dot grid + plus (desktop only) */}
+      <div className="hidden lg:grid absolute left-8 top-28 grid-cols-6 gap-2.5 opacity-60 pointer-events-none">
+        {Array.from({ length: 24 }).map((_, i) => (
+          <span key={i} className="h-1.5 w-1.5 rounded-full bg-slate-200" />
+        ))}
+      </div>
+      <svg className="hidden lg:block absolute right-10 top-16 w-14 h-14 text-indigo-100 pointer-events-none" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M11 2h2v9h9v2h-9v9h-2v-9H2v-2h9V2z" />
+      </svg>
+
+      <div className="relative mx-auto max-w-4xl text-center">
+        <span className="inline-flex items-center gap-2 rounded-full bg-indigo-50 text-indigo-600 text-[11px] sm:text-xs font-bold uppercase tracking-wide px-4 py-2">
+          <span className="text-indigo-400">✦</span>
+          SIGNATURE – The Complete NEET Prep System
+        </span>
+        <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight mt-6">
+          One Journey. Three <span className="text-indigo-600">SIGNATURE</span> Plans.
+        </h2>
+        <p className="text-sm sm:text-base text-slate-500 leading-relaxed mt-4">
+          Structured prep. Smarter practice. Higher scores.
+          <br className="hidden sm:block" />
+          Pick the plan built for where you are in your NEET journey.
+        </p>
+
+        <div className="flex flex-wrap items-center justify-center border-b pb-10 gap-2.5 sm:gap-3.5 mt-8">
+          {HERO_FEATURES.map((f) => (
+            <div
+              key={f.label}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 sm:px-4 py-2 sm:py-2.5 shadow-sm"
+            >
+              <f.icon className="w-4 h-4 text-slate-500 shrink-0" />
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-700 whitespace-nowrap">{f.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Signature Entry banner */}
+      <div className="relative mx-auto max-w-6xl mt-12 sm:mt-14">
+        <div className="bg-slate-950 rounded-3xl p-6 sm:p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-8">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
+                <IconTarget className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <p className="text-[10.5px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                  Just want to know where you stand?
+                </p>
+                <h3 className="text-lg sm:text-2xl font-extrabold text-white tracking-tight mt-1">
+                  SIGNATURE ENTRY
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">Your first step into SIGNATURE.</p>
+              </div>
+            </div>
+
+            <div className="hidden lg:block w-px self-stretch bg-white/10" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 flex-1">
+              {ENTRY_FEATURES.map((f) => (
+                <div key={f} className="flex items-center gap-2.5 text-sm text-slate-200">
+                  <IconCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden lg:block w-px self-stretch bg-white/10" />
+
+            <div className="flex items-center justify-between lg:justify-end gap-5 sm:gap-6">
+              <div className="text-left lg:text-right shrink-0">
+                <div className="text-2xl sm:text-3xl font-extrabold text-red-500 leading-none">₹149</div>
+                <div className="text-[11px] text-slate-400 mt-1.5">One-time Access</div>
+              </div>
+              <button
+                onClick={() => onOpenAuth("join", "signature_entry")}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all shrink-0 cursor-pointer"
+              >
+                <span>Start Now</span>
+                <IconArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Plan cards — horizontal snap-scroll carousel below lg, 3-col grid from lg up */}
+      <div className="relative mx-auto max-w-7xl mt-8 sm:mt-10">
+        <div
+          ref={trackRef}
+          onScroll={handleTrackScroll}
+          className="flex overflow-x-auto scrollbar-none snap-x snap-mandatory gap-4 px-[9%] sm:px-[18%] -mx-4 sm:mx-0 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-3 lg:gap-8 lg:overflow-visible lg:snap-none"
+        >
+          {PLANS.map((plan, idx) => (
+            <div
+              key={plan.key}
+              ref={(el) => { cardRefs.current[idx] = el; }}
+              className={`flex flex-col rounded-3xl border bg-white shadow-sm hover:shadow-lg transition-all overflow-hidden shrink-0 w-[82%] sm:w-[64%] snap-center lg:w-auto lg:shrink lg:snap-align-none ${
+                plan.highlighted ? "border-blue-200 ring-2 ring-blue-500/70 lg:scale-[1.02] lg:z-10" : "border-slate-200"
+              }`}
+            >
+            <div className="p-6 sm:p-7 flex-1 flex flex-col">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Signature</span>
+                  <h3 className={`text-3xl sm:text-4xl font-black tracking-tight leading-none mt-1.5 ${plan.theme.name}`}>
+                    {plan.name}
+                  </h3>
+                </div>
+                <div className={`h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 ${plan.theme.iconWrap}`}>
+                  <plan.icon className="w-6 h-6 sm:w-7 sm:h-7" />
+                </div>
+              </div>
+
+              <span className={`inline-flex w-fit items-center mt-4 px-3 py-1 rounded-full text-[11px] font-bold ${plan.theme.badge}`}>
+                {plan.badge}
+              </span>
+              <p className="text-sm text-slate-500 mt-3">{plan.tagline}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mt-6">
+                {PLAN_FEATURES.map((f) => (
+                  <div key={f} className="flex items-start gap-2 text-xs sm:text-[13px] text-slate-600 leading-snug">
+                    <IconCheck className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${plan.theme.check}`} />
+                    <span>{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-auto pt-7">
+                <div className="flex items-end justify-between gap-4 flex-wrap">
+                  <div>
+                    <span className={`text-2xl sm:text-3xl font-black tracking-tight ${plan.theme.price}`}>₹{plan.price}</span>
+                    <span className="text-xs text-slate-400 font-medium ml-1.5">/year + GST</span>
+                  </div>
+                  <button
+                    onClick={() => onOpenAuth("join", plan.key)}
+                    className={`inline-flex items-center gap-1.5 text-white text-xs sm:text-sm font-bold px-4 sm:px-5 py-2.5 rounded-xl transition-all shrink-0 cursor-pointer ${plan.theme.cta}`}
+                  >
+                    <span>Choose {plan.name.charAt(0) + plan.name.slice(1).toLowerCase()}</span>
+                    <IconArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 border-t border-slate-100 divide-x divide-slate-100 bg-slate-50/60">
+              {[
+                ["Minor Tests", plan.stats.minor],
+                ["Semi Major Tests", plan.stats.semi],
+                ["Major Tests", plan.stats.major],
+                ["Total Tests", plan.stats.total],
+              ].map(([label, value]) => (
+                <div key={label as string} className="text-center py-3 sm:py-4 px-1">
+                  <div className="text-sm sm:text-lg font-extrabold text-slate-900">{value}</div>
+                  <div className="text-[8.5px] sm:text-[10px] text-slate-400 font-semibold mt-0.5 leading-tight">{label}</div>
+                </div>
+              ))}
+            </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile-only: swipe hint + dot indicators for the carousel */}
+        <div className="lg:hidden flex flex-col items-center gap-3 mt-6">
+          <div className="flex items-center gap-2">
+            {PLANS.map((plan, idx) => (
+              <button
+                key={plan.key}
+                onClick={() => scrollToPlan(idx)}
+                aria-label={`Show ${plan.name} plan`}
+                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                  activeIndex === idx ? "w-6 bg-indigo-600" : "w-1.5 bg-slate-300 hover:bg-slate-400"
+                }`}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+            <IconArrowRight className="w-3 h-3 rotate-180" />
+            Swipe to see all plans
+            <IconArrowRight className="w-3 h-3" />
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}

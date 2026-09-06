@@ -190,6 +190,22 @@ const templates = {
       <p style="color:#e74c3c;"><strong>Important:</strong> Please change your password immediately after your first login.</p>
     `),
 
+  selfRegisteredWelcome: ({ name, dashboardUrl }) =>
+    baseTemplate(`
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Welcome to <strong>Exam Neeti</strong>! Your account is ready and you have <strong>1 free diagnostic test</strong> waiting on your dashboard.</p>
+      <p>Take it to see exactly where you stand — then pick the SIGNATURE plan that fits your prep.</p>
+      <a href="${escHtml(dashboardUrl)}" class="btn">Go to Dashboard</a>
+    `),
+
+  subscriptionActivated: ({ name, planName, expiresAt, dashboardUrl }) =>
+    baseTemplate(`
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Your payment was successful and your <strong>${escHtml(planName)}</strong> plan is now active${expiresAt ? ` until <strong>${escHtml(expiresAt)}</strong>` : ""}.</p>
+      <p>All tests included in your plan are now unlocked on your dashboard.</p>
+      <a href="${escHtml(dashboardUrl)}" class="btn">Go to Dashboard</a>
+    `),
+
   adminDeleted: ({ name, deletedBy }) =>
     baseTemplate(`
       <p>Hi <strong>${escHtml(name)}</strong>,</p>

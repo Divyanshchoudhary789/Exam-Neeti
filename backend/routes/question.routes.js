@@ -36,6 +36,7 @@ const {
   updateQuestionSchema,
   listQuestionsSchema,
   templateQuerySchema,
+  reviewQuestionSchema,
 } = require("../validators/question.validator");
 const { ROLES } = require("../config/constants");
 
@@ -116,6 +117,18 @@ router.post(
 
 // GET /questions/:id
 router.get("/:id", questionController.getQuestion);
+
+// GET /questions/:id/history — attribution + full activity trail (read-only,
+// any admin/super_admin)
+router.get("/:id/history", questionController.getQuestionHistory);
+
+// PATCH /questions/:id/review — one-click approve/reject a draft (owner-gated
+// in the controller; super_admin bypasses)
+router.patch(
+  "/:id/review",
+  validate(reviewQuestionSchema),
+  questionController.reviewQuestion
+);
 
 // PATCH /questions/:id  — multipart/form-data
 router.patch(

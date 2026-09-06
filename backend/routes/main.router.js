@@ -14,6 +14,11 @@ const adminTeamRoutes  = require("./adminTeam.routes");
 const syllabusRoutes   = require("./syllabus.routes");
 const questionRoutes   = require("./question.routes");
 const questionFieldDefinitionRoutes = require("./questionFieldDefinition.routes");
+const planRoutes         = require("./plan.routes");
+const paymentRoutes      = require("./payment.routes");
+const subscriptionRoutes = require("./subscription.routes");
+const blogRoutes         = require("./blog.routes");
+const resourceRoutes     = require("./resource.routes");
 
 mainRouter.use("/auth",        authRoutes);
 mainRouter.use("/users",       userRoutes);
@@ -28,5 +33,10 @@ mainRouter.use("/admin-team",  adminTeamRoutes);
 mainRouter.use("/syllabus",    syllabusRoutes);
 mainRouter.use("/questions",   questionRoutes);
 mainRouter.use("/question-field-definitions", questionFieldDefinitionRoutes);
+mainRouter.use("/plans",        planRoutes);
+mainRouter.use("/payments",     paymentRoutes);
+mainRouter.use("/subscriptions", subscriptionRoutes);
+mainRouter.use("/blogs",        blogRoutes);
+mainRouter.use("/resources",    resourceRoutes);
 
 module.exports = mainRouter;

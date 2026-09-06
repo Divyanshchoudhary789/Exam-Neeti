@@ -1,7 +1,8 @@
 const Joi = require("joi");
-const { DIFFICULTY, QUESTION_TYPE, SUBJECTS, SPRINT_STATUS } = require("../config/constants");
+const { DIFFICULTY, QUESTION_TYPE, SUBJECTS, SPRINT_STATUS, CLASS_LEVELS } = require("../config/constants");
 
 const objectIdRule = Joi.string().pattern(/^[a-f\d]{24}$/i);
+const classLevelRule = Joi.string().valid(...Object.values(CLASS_LEVELS)).allow(null, "");
 
 const patternSlotSchema = Joi.object({
   position: Joi.number().integer().min(1).required(),
@@ -28,6 +29,7 @@ const createSprintSchema = Joi.object({
   name: Joi.string().trim().min(2).max(150).required(),
   description: Joi.string().trim().allow("").default(""),
   status: Joi.string().valid(...Object.values(SPRINT_STATUS)).default(SPRINT_STATUS.DRAFT),
+  classLevel: classLevelRule.default(null),
   totalQuestions: Joi.number().integer().min(1).required(),
   patternSlots: Joi.array().items(patternSlotSchema).min(1).required(),
   startDate: Joi.date().allow(null).default(null),
@@ -38,9 +40,26 @@ const updateSprintSchema = Joi.object({
   name:        Joi.string().trim().min(2).max(150),
   description: Joi.string().trim().allow(""),
   status:      Joi.string().valid(...Object.values(SPRINT_STATUS)),
+  classLevel:  classLevelRule,
   startDate:   Joi.date().allow(null),
   endDate:     Joi.date().allow(null),
 }).min(1);
+
+// Mark (or reopen) one subject's slice of the blueprint in the multi-admin flow.
+const subjectProgressSchema = Joi.object({
+  subject: Joi.string().valid(...Object.values(SUBJECTS)).required(),
+  status:  Joi.string().valid("pending", "in_progress", "done").required(),
+  note:    Joi.string().trim().allow("").max(500).default(""),
+});
+
+// Admin raises a deletion request; super_admin decides.
+const deletionRequestSchema = Joi.object({
+  reason: Joi.string().trim().allow("").max(1000).default(""),
+});
+const deletionDecisionSchema = Joi.object({
+  decision: Joi.string().valid("approve", "reject").required(),
+  note:     Joi.string().trim().allow("").max(1000).default(""),
+});
 
 /**
  * Replaces the full blueprint (meta + every pattern slot) of a DRAFT sprint.
@@ -51,6 +70,7 @@ const updateSprintBlueprintSchema = Joi.object({
   name: Joi.string().trim().min(2).max(150),
   description: Joi.string().trim().allow(""),
   status: Joi.string().valid(SPRINT_STATUS.DRAFT, SPRINT_STATUS.ACTIVE),
+  classLevel: classLevelRule,
   totalQuestions: Joi.number().integer().min(1).required(),
   patternSlots: Joi.array().items(patternSlotSchema).min(1).required(),
   startDate: Joi.date().allow(null),
@@ -71,9 +91,26 @@ const slotQuestionsQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).default(24),
 });
 
+const paperQuerySchema = Joi.object({
+  format: Joi.string().valid("pdf", "docx").default("pdf"),
+});
+
+const listSprintsQuerySchema = Joi.object({
+  status:     Joi.string().valid(...Object.values(SPRINT_STATUS)),
+  classLevel: Joi.string().valid(...Object.values(CLASS_LEVELS)),
+  search:     Joi.string().trim().max(200).allow(""),
+  page:       Joi.number().integer().min(1).default(1),
+  limit:      Joi.number().integer().min(1).max(100).default(10),
+}).unknown(true);
+
 module.exports = {
   createSprintSchema,
   updateSprintSchema,
   updateSprintBlueprintSchema,
   slotQuestionsQuerySchema,
+  listSprintsQuerySchema,
+  paperQuerySchema,
+  subjectProgressSchema,
+  deletionRequestSchema,
+  deletionDecisionSchema,
 };

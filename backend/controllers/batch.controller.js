@@ -13,10 +13,24 @@ const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
 const { sendPaginated } = require("../utils/response");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
-const { ROLES, ADMIN_ACTIONS } = require("../config/constants");
+const { ROLES, ADMIN_ACTIONS, PROGRAM_TYPES, BATCH_SOURCE } = require("../config/constants");
 
 /** Escape special regex characters to prevent ReDoS */
-const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegex = (str) => String(str).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * "public" batches back the self-serve plan catalog (one per plan) and are
+ * seed-managed — deactivating/renaming/deleting one silently breaks that plan's
+ * checkout + access. Block those mutations here; use scripts/seedPublicPlansAndBatches.js.
+ */
+const assertNotPublicBatch = (batch) => {
+  if (batch && batch.source === BATCH_SOURCE.PUBLIC) {
+    throw new AppError(
+      "This is a system-managed plan batch. It can't be edited or removed here — manage plans via the seed script.",
+      403
+    );
+  }
+};
 
 exports.createBatch = asyncHandler(async (req, res, next) => {
   const { name, description, programType } = req.body;
@@ -33,11 +47,28 @@ exports.createBatch = asyncHandler(async (req, res, next) => {
 
 exports.listBatches = asyncHandler(async (req, res, next) => {
   const { page, limit, skip } = getPaginationParams(req.query);
-  const { isActive, search } = req.query;
+  const { isActive, search, programType, source } = req.query;
 
   const filter = {};
-  if (isActive !== undefined) filter.isActive = isActive === "true";
-  if (search) filter.name = { $regex: escapeRegex(search), $options: "i" };
+  if (isActive !== undefined) {
+    if (!["true", "false"].includes(isActive)) {
+      return next(new AppError("Invalid isActive filter. Allowed: true, false.", 400));
+    }
+    filter.isActive = isActive === "true";
+  }
+  if (String(search || "").trim()) filter.name = { $regex: escapeRegex(search), $options: "i" };
+  if (programType) {
+    if (!Object.values(PROGRAM_TYPES).includes(programType)) {
+      return next(new AppError(`Invalid programType filter. Allowed: ${Object.values(PROGRAM_TYPES).join(", ")}.`, 400));
+    }
+    filter.programType = programType;
+  }
+  if (source) {
+    if (!Object.values(BATCH_SOURCE).includes(source)) {
+      return next(new AppError(`Invalid source filter. Allowed: ${Object.values(BATCH_SOURCE).join(", ")}.`, 400));
+    }
+    filter.source = source;
+  }
 
   const [batches, total] = await Promise.all([
     Batch.find(filter)
@@ -74,12 +105,14 @@ exports.updateBatch = asyncHandler(async (req, res, next) => {
   if (isActive    !== undefined) updates.isActive    = isActive;
   if (programType !== undefined) updates.programType = programType;
 
+  const target = await Batch.findById(req.params.id);
+  if (!target) return next(new AppError("Batch not found.", 404));
+  assertNotPublicBatch(target);
+
   const batch = await Batch.findByIdAndUpdate(req.params.id, updates, {
     returnDocument: "after",
     runValidators: true,
   });
-
-  if (!batch) return next(new AppError("Batch not found.", 404));
 
   return sendSuccess(res, 200, "Batch updated.", { batch });
 });
@@ -87,6 +120,7 @@ exports.updateBatch = asyncHandler(async (req, res, next) => {
 exports.deactivateBatch = asyncHandler(async (req, res, next) => {
   const batch = await Batch.findById(req.params.id);
   if (!batch) return next(new AppError("Batch not found.", 404));
+  assertNotPublicBatch(batch);
 
   if (!batch.isActive) {
     return next(new AppError("Batch is already inactive.", 409));
@@ -157,6 +191,7 @@ exports.deleteBatch = asyncHandler(async (req, res, next) => {
 
   const batch = await Batch.findById(req.params.id);
   if (!batch) return next(new AppError("Batch not found.", 404));
+  assertNotPublicBatch(batch);
 
   // Require the caller to echo the batch name back
   if (!confirmName || confirmName.trim() !== batch.name.trim()) {

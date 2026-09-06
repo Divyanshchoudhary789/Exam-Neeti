@@ -34,7 +34,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+  if (!user || user.role !== "admin") {
     return (
       <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans select-none antialiased">
         <Navbar currentView="home" />

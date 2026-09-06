@@ -5,10 +5,67 @@ export interface UserProfile {
   name: string;
   email: string;
   role: "student" | "admin" | "super_admin";
-  batch?: { _id: string; name: string; programType?: string } | string;
+  batch?: { _id: string; name: string; programType?: string; source?: string; slug?: string } | string;
   phoneNumber?: string;
+  phone?: string;
+  programType?: string | null;
   isActive?: boolean;
   createdAt?: string;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  programType?: "class_xi" | "class_xii" | "dropper" | null;
+}
+
+export interface Plan {
+  _id?: string;
+  key: "trial" | "signature_entry" | "core" | "prime" | "elite";
+  name: string;
+  priceRupees: number;
+  durationDays: number | null;
+  testsIncluded: number;
+  description?: string;
+}
+
+export interface Subscription {
+  _id: string;
+  status: "trial" | "active" | "expired" | "cancelled";
+  startedAt: string;
+  expiresAt: string | null;
+  plan?: Plan;
+}
+
+export interface PlanAccess {
+  selfServe: boolean;
+  tier: "trial" | "one_time" | "subscription" | "coaching";
+  status: "trial" | "active" | "expired" | null;
+  plan: { key: string; name: string; testsIncluded: number; durationDays: number | null; priceRupees: number } | null;
+  testsIncluded: number;
+  capped: boolean;
+  distinctExamsAttempted: number;
+  remaining: number | null;
+  atLimit: boolean;
+  expiresAt: string | null;
+}
+
+export interface PlanOverviewRow {
+  key: string;
+  name: string;
+  priceRupees: number;
+  durationDays: number | null;
+  testsIncluded: number;
+  isActive: boolean;
+  batchId: string | null;
+  batchSlug: string;
+  batchName: string | null;
+  examCount: number;
+  publishedCount: number;
+  studentCount: number;
+  isFreeTier: boolean;
 }
 
 export interface ExamResponsePayload {
@@ -30,8 +87,20 @@ export interface ExamResponsePayload {
 // AUTH SERVICES
 // ----------------------------------------------------
 export const authService = {
+  register: async (payload: RegisterPayload) => {
+    const res = await api.post("/auth/register", payload);
+    return res.data;
+  },
   login: async (email: string, pass: string) => {
     const res = await api.post("/auth/login", { email, password: pass });
+    return res.data;
+  },
+  /**
+   * Exchange a Google ID token ("credential" from Google Identity Services)
+   * for an Exam Neeti session. Creates a student account on first use.
+   */
+  googleLogin: async (credential: string, programType?: string) => {
+    const res = await api.post("/auth/google", { credential, programType });
     return res.data;
   },
   logout: async () => {
@@ -52,6 +121,130 @@ export const authService = {
   },
   resetPassword: async (token: string, newPassword: string) => {
     const res = await api.patch(`/auth/reset-password/${token}`, { newPassword });
+    return res.data;
+  },
+};
+
+// ----------------------------------------------------
+// SELF-SERVE PLANS / PAYMENTS / SUBSCRIPTIONS
+// ----------------------------------------------------
+export const planService = {
+  listPlans: async () => {
+    const res = await api.get("/plans");
+    return res.data;
+  },
+};
+
+export const paymentService = {
+  createOrder: async (planKey: Plan["key"]) => {
+    const res = await api.post("/payments/create-order", { planKey });
+    return res.data;
+  },
+  verifyPayment: async (payload: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) => {
+    const res = await api.post("/payments/verify", payload);
+    return res.data;
+  },
+};
+
+// ----------------------------------------------------
+// CONTENT HUB — BLOGS & RESOURCES (public reads + admin writes)
+// ----------------------------------------------------
+
+export interface BlogStyle {
+  fontFamily: "sans" | "serif" | "mono";
+  fontSizePx: number;
+  lineHeight: number;
+  textColor: string;
+  headingColor: string;
+  accentColor: string;
+  align: "left" | "center" | "justify";
+}
+export interface Blog {
+  _id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content?: string;
+  coverImage?: { url: string | null };
+  category: string;
+  tags: string[];
+  status: "draft" | "published";
+  style: BlogStyle;
+  readMinutes: number;
+  author?: { name?: string; email?: string };
+  publishedAt?: string | null;
+  views?: number;
+  createdAt?: string;
+}
+export interface ResourceItem {
+  _id: string;
+  title: string;
+  description: string;
+  detail: string;
+  kind: "past_paper" | "notes" | "guide" | "video" | "link";
+  file?: { url: string | null; fileName?: string; sizeBytes?: number };
+  youtubeUrl?: string | null;
+  externalUrl?: string | null;
+  coverImage?: { url: string | null };
+  subject?: string | null;
+  classLevel?: string | null;
+  tags: string[];
+  status: "draft" | "published";
+  publishedAt?: string | null;
+  createdAt?: string;
+}
+
+const listQuery = (params?: Record<string, string | number | undefined>) => {
+  const q = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => { if (v !== undefined && v !== "") q.set(k, String(v)); });
+  const s = q.toString();
+  return s ? `?${s}` : "";
+};
+
+export const blogService = {
+  list: async (params?: { page?: number; limit?: number; category?: string; tag?: string; search?: string; status?: string }) => {
+    const res = await api.get(`/blogs${listQuery(params)}`);
+    return res.data;
+  },
+  get: async (slug: string) => {
+    const res = await api.get(`/blogs/${slug}`);
+    return res.data;
+  },
+  create: async (fd: FormData) => (await api.post("/blogs", fd, { headers: { "Content-Type": "multipart/form-data" } })).data,
+  update: async (id: string, fd: FormData) => (await api.patch(`/blogs/${id}`, fd, { headers: { "Content-Type": "multipart/form-data" } })).data,
+  remove: async (id: string) => (await api.delete(`/blogs/${id}`)).data,
+  /** Upload one inline image for the block editor; returns { url }. */
+  uploadImage: async (file: File): Promise<{ url: string }> => {
+    const fd = new FormData();
+    fd.append("image", file);
+    const res = await api.post("/blogs/upload-image", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    return { url: res.data?.data?.url || res.data?.url || "" };
+  },
+};
+
+export const resourceService = {
+  list: async (params?: { page?: number; limit?: number; kind?: string; subject?: string; classLevel?: string; tag?: string; search?: string; status?: string }) => {
+    const res = await api.get(`/resources${listQuery(params)}`);
+    return res.data;
+  },
+  get: async (id: string) => (await api.get(`/resources/${id}`)).data,
+  create: async (fd: FormData) => (await api.post("/resources", fd, { headers: { "Content-Type": "multipart/form-data" } })).data,
+  update: async (id: string, fd: FormData) => (await api.patch(`/resources/${id}`, fd, { headers: { "Content-Type": "multipart/form-data" } })).data,
+  remove: async (id: string) => (await api.delete(`/resources/${id}`)).data,
+};
+
+export const subscriptionService = {
+  getMine: async () => {
+    const res = await api.get("/subscriptions/me");
+    return res.data;
+  },
+  /** Plan-access summary: tier, tests remaining, at-limit flag. */
+  getMyAccess: async () => {
+    const res = await api.get("/subscriptions/me/access");
     return res.data;
   },
 };
@@ -79,14 +272,108 @@ export interface GenerateReportPayload {
   sprintId?: string;
 }
 
+export interface MyExamsParams {
+  page?: number;
+  limit?: number;
+  sprintId?: string;
+  status?: "published" | "completed";
+  search?: string;
+  /** Title-keyword category — see backend EXAM_CATEGORY_KEYWORDS. */
+  category?: "major" | "semi-major" | "minor" | "full";
+  /** The student's own progress on the exam — distinct from `status` above. */
+  attemptStatus?: "not_attempted" | "in_progress" | "completed";
+}
+
+/** Metric keys accepted by GET /analytics/sprint/:id/me/question-insights */
+export type QuestionInsightMetric =
+  | "silly_mistakes"
+  | "concept_errors"
+  | "guesses"
+  | "missed_high_roi"
+  | "low_roi_early"
+  | "slowest"
+  | "fastest"
+  | "negative_marking"
+  | "incorrect"
+  | "unattempted"
+  | "correct"
+  | "weak_topic";
+
+export interface InsightQuestion {
+  attemptId: string;
+  examId: string;
+  examTitle: string;
+  examNumber: number | null;
+  slotPosition: number;
+  questionId: string;
+  subject: string;
+  chapter: string;
+  topic: string;
+  difficulty: string;
+  yourAnswer: string | null;
+  correctAnswer: string | null;
+  isCorrect: boolean | null;
+  isAttempted: boolean;
+  marksAwarded: number;
+  timeSpentSeconds: number;
+  confidence: number | null;
+  wasReattempted: boolean;
+  reason: string;
+  questionText?: string;
+  hasLatex?: boolean;
+  questionImage?: { url?: string | null } | null;
+  options?: { key: string; text: string; image?: { url?: string | null } | null }[];
+  solution?: { text?: string; hasLatex?: boolean; image?: { url?: string | null } | null; images?: { url?: string | null }[] } | null;
+  idealTimeSeconds?: number | null;
+}
+
+export interface QuestionInsightsPayload {
+  metric: QuestionInsightMetric;
+  totalCount: number;
+  byExam: { examId: string; examTitle: string; examNumber: number | null; count: number; marks: number }[];
+  bySubject: { subject: string; count: number; marks: number }[];
+  questions: InsightQuestion[];
+}
+
+export interface MyAttemptsParams {
+  page?: number;
+  limit?: number;
+  sprintId?: string;
+  search?: string;
+  scoreBand?: "high" | "medium" | "low";
+  dateFrom?: string;
+  dateTo?: string;
+  examId?: string;
+}
+
 export const studentService = {
-  /** Get exams available to this student's batch for the active sprint */
-  getMyExams: async () => {
-    const res = await api.get("/exams/my-exams");
+  /** Get exams available to this student's batch for the active sprint — paginated + filterable */
+  getMyExams: async (params?: MyExamsParams) => {
+    const q: Record<string, string> = {};
+    if (params?.page)     q.page = String(params.page);
+    if (params?.limit)    q.limit = String(params.limit);
+    if (params?.sprintId) q.sprintId = params.sprintId;
+    if (params?.status)        q.status = params.status;
+    if (params?.search)        q.search = params.search;
+    if (params?.category)      q.category = params.category;
+    if (params?.attemptStatus) q.attemptStatus = params.attemptStatus;
+    const query = new URLSearchParams(q).toString();
+    const res = await api.get(`/exams/my-exams${query ? `?${query}` : ""}`);
     return res.data;
   },
-  getMyAttempts: async () => {
-    const res = await api.get("/exams/my-attempts");
+  /** Get this student's submitted attempts — paginated + filterable */
+  getMyAttempts: async (params?: MyAttemptsParams) => {
+    const q: Record<string, string> = {};
+    if (params?.page)      q.page = String(params.page);
+    if (params?.limit)     q.limit = String(params.limit);
+    if (params?.sprintId)  q.sprintId = params.sprintId;
+    if (params?.search)    q.search = params.search;
+    if (params?.scoreBand) q.scoreBand = params.scoreBand;
+    if (params?.dateFrom)  q.dateFrom = params.dateFrom;
+    if (params?.dateTo)    q.dateTo = params.dateTo;
+    if (params?.examId)    q.examId = params.examId;
+    const query = new URLSearchParams(q).toString();
+    const res = await api.get(`/exams/my-attempts${query ? `?${query}` : ""}`);
     return res.data;
   },
   startExamAttempt: async (examId: string) => {
@@ -126,6 +413,31 @@ export const studentService = {
   /** Get all sprints attempted by student (plus active sprint) */
   getStudentAttemptedSprints: async () => {
     const res = await api.get("/analytics/sprints/me");
+    return res.data;
+  },
+  /**
+   * Sprint-level question drill-down — the exact questions behind a metric
+   * (silly mistakes, guesses, negative marking, missed high-ROI, weak topic…).
+   * `metric` is required; every other param narrows the set.
+   */
+  getSprintQuestionInsights: async (
+    sprintId: string,
+    params: {
+      metric: QuestionInsightMetric;
+      subject?: string;
+      chapter?: string;
+      topic?: string;
+      difficulty?: string;
+      examId?: string;
+    },
+  ) => {
+    const q: Record<string, string> = { metric: params.metric };
+    if (params.subject)    q.subject = params.subject;
+    if (params.chapter)    q.chapter = params.chapter;
+    if (params.topic)      q.topic = params.topic;
+    if (params.difficulty) q.difficulty = params.difficulty;
+    if (params.examId)     q.examId = params.examId;
+    const res = await api.get(`/analytics/sprint/${sprintId}/me/question-insights?${new URLSearchParams(q).toString()}`);
     return res.data;
   },
   /** Submit/update chapter-level self-assessment questionnaire for a sprint */
@@ -203,11 +515,68 @@ export const studentService = {
 // ADMIN SERVICES
 // ----------------------------------------------------
 export const adminService = {
-  // Sprints
-  getSprints: async (status?: string) => {
-    const query = status ? `?status=${status}` : "";
-    const res = await api.get(`/sprints${query}`);
+  /** Per-plan overview (exam + student counts) for the Plans & Tiers panel. */
+  getPlanOverview: async () => {
+    const res = await api.get("/plans/admin/overview");
     return res.data;
+  },
+  // Sprints
+  getSprints: async (params?: string | { status?: string; search?: string; page?: number; limit?: number; classLevel?: string }) => {
+    const queryObj: Record<string, string> = {};
+    if (typeof params === "string") {
+      if (params) queryObj.status = params;
+    } else if (params) {
+      if (params.status) queryObj.status = params.status;
+      if (params.search) queryObj.search = params.search;
+      if (params.page) queryObj.page = String(params.page);
+      if (params.limit) queryObj.limit = String(params.limit);
+      if (params.classLevel) queryObj.classLevel = params.classLevel;
+    }
+    const query = new URLSearchParams(queryObj).toString();
+    const res = await api.get(`/sprints${query ? `?${query}` : ""}`);
+    return res.data;
+  },
+  /** Attribution + full activity trail + per-subject progress for one sprint. */
+  getSprintHistory: async (id: string) => {
+    const res = await api.get(`/sprints/${id}/history`);
+    return res.data;
+  },
+  /** Multi-admin workflow: mark (or reopen) one subject's slice of the blueprint. */
+  markSprintSubject: async (id: string, subject: string, status: "pending" | "in_progress" | "done", note?: string) => {
+    const res = await api.patch(`/sprints/${id}/subject-progress`, { subject, status, note: note || "" });
+    return res.data;
+  },
+  /** Admin: raise a deletion request (super admin must approve). */
+  requestSprintDeletion: async (id: string, reason?: string) => {
+    const res = await api.post(`/sprints/${id}/deletion-request`, { reason: reason || "" });
+    return res.data;
+  },
+  /** Requester (or super admin): withdraw a pending deletion request. */
+  cancelSprintDeletionRequest: async (id: string) => {
+    const res = await api.delete(`/sprints/${id}/deletion-request`);
+    return res.data;
+  },
+  /** Super admin: approve (→ deletes the sprint) or reject a deletion request. */
+  decideSprintDeletion: async (id: string, decision: "approve" | "reject", note?: string) => {
+    const res = await api.patch(`/sprints/${id}/deletion-request`, { decision, note: note || "" });
+    return res.data;
+  },
+  /** Super admin: queue of pending sprint deletion requests. */
+  listSprintDeletionRequests: async (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    const res = await api.get(`/sprints/deletion-requests${q.toString() ? `?${q}` : ""}`);
+    return res.data;
+  },
+  /** Download the full sprint question paper (blueprint-slot order) as PDF or Word. */
+  downloadSprintPaper: async (id: string, format: "pdf" | "docx"): Promise<{ objectUrl: string; filename: string }> => {
+    const res = await api.get(`/sprints/${id}/paper?format=${format}`, { responseType: "blob" });
+    const cd = res.headers["content-disposition"] || "";
+    const match = cd.match(/filename="?([^";\n]+)"?/);
+    const filename = match?.[1] || `sprint_question_paper.${format}`;
+    const objectUrl = URL.createObjectURL(res.data as Blob);
+    return { objectUrl, filename };
   },
   getActiveSprint: async () => {
     const res = await api.get("/sprints/active");
@@ -260,8 +629,16 @@ export const adminService = {
   },
 
   // Batches
-  getBatches: async () => {
-    const res = await api.get("/batches");
+  getBatches: async (params?: { page?: number; limit?: number; search?: string; isActive?: boolean; programType?: string; source?: string }) => {
+    const queryObj: Record<string, string> = {};
+    if (params?.page) queryObj.page = String(params.page);
+    if (params?.limit) queryObj.limit = String(params.limit);
+    if (params?.search) queryObj.search = params.search;
+    if (params?.isActive !== undefined) queryObj.isActive = String(params.isActive);
+    if (params?.programType) queryObj.programType = params.programType;
+    if (params?.source) queryObj.source = params.source;
+    const query = new URLSearchParams(queryObj).toString();
+    const res = await api.get(`/batches${query ? `?${query}` : ""}`);
     return res.data;
   },
   getBatchById: async (id: string) => {
@@ -294,11 +671,14 @@ export const adminService = {
   },
 
   // Exams
-  getExams: async (params?: { sprint?: string; batch?: string; status?: string }) => {
+  getExams: async (params?: { sprint?: string; batch?: string; status?: string; search?: string; page?: number; limit?: number }) => {
     const queryObj: Record<string, string> = {};
     if (params?.sprint) queryObj.sprint = params.sprint;
     if (params?.batch) queryObj.batch = params.batch;
     if (params?.status) queryObj.status = params.status;
+    if (params?.search) queryObj.search = params.search;
+    if (params?.page) queryObj.page = String(params.page);
+    if (params?.limit) queryObj.limit = String(params.limit);
     const q = new URLSearchParams(queryObj).toString();
     const res = await api.get(`/exams${q ? `?${q}` : ""}`);
     return res.data;
@@ -325,7 +705,7 @@ export const adminService = {
   },
 
   // Questions
-  getQuestions: async (params?: { subject?: string; difficulty?: string; classLevel?: string; chapter?: string; page?: number; limit?: number; search?: string; mine?: boolean; status?: "draft" | "active" }) => {
+  getQuestions: async (params?: { subject?: string; difficulty?: string; classLevel?: string; chapter?: string; page?: number; limit?: number; search?: string; mine?: boolean; status?: "draft" | "active" | "rejected" | "" }) => {
     const queryObj: Record<string, string> = {};
     if (params?.subject) queryObj.subject = params.subject;
     if (params?.difficulty) queryObj.difficulty = params.difficulty;
@@ -367,6 +747,16 @@ export const adminService = {
   },
   deleteQuestion: async (id: string) => {
     const res = await api.delete(`/questions/${id}`);
+    return res.data;
+  },
+  /** One-click approve/reject a draft question. */
+  reviewQuestion: async (id: string, decision: "approve" | "reject", note?: string) => {
+    const res = await api.patch(`/questions/${id}/review`, { decision, note: note || "" });
+    return res.data;
+  },
+  /** Attribution + full activity trail for one question (read-only). */
+  getQuestionHistory: async (id: string) => {
+    const res = await api.get(`/questions/${id}/history`);
     return res.data;
   },
   previewQuestionMath: async (data: Record<string, unknown>) => {
@@ -587,9 +977,26 @@ export const adminService = {
     const res = await api.post("/users", data);
     return res.data;
   },
-  bulkImportStudents: async (students: Record<string, unknown>[]) => {
-    const res = await api.post("/users/bulk-import", { students });
+  bulkImportStudents: async (students: Record<string, unknown>[], batchId: string) => {
+    const res = await api.post("/users/bulk-import", { students, batchId });
     return res.data;
+  },
+  /** Bulk-import students from an uploaded .xlsx / .docx roster into a batch. */
+  bulkImportStudentsFile: async (file: File, batchId: string) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("batchId", batchId);
+    const res = await api.post("/users/bulk-import/file", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    return res.data;
+  },
+  /** Download the sample student-roster template (xlsx | docx). */
+  downloadStudentTemplate: async (format: "xlsx" | "docx"): Promise<{ objectUrl: string; filename: string }> => {
+    const res = await api.get(`/users/bulk-import/template?format=${format}`, { responseType: "blob" });
+    const cd = res.headers["content-disposition"] || "";
+    const match = cd.match(/filename="?([^";\n]+)"?/);
+    const filename = match?.[1] || `exam-neeti-student-roster-template.${format}`;
+    const objectUrl = URL.createObjectURL(res.data as Blob);
+    return { objectUrl, filename };
   },
   updateUser: async (id: string, data: Record<string, unknown>) => {
     const res = await api.patch(`/users/${id}`, data);

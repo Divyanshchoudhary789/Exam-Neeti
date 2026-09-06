@@ -15,6 +15,8 @@ const { sendPaginated } = require("../utils/response");
 const { sendEmail, templates } = require("../services/email.service");
 const { NOTIFICATION_TRIGGER, ROLES, ADMIN_ACTIONS } = require("../config/constants");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
+const { parseStudentRoster } = require("../utils/studentRosterParser");
+const { getStudentTemplateBuffer } = require("../utils/studentRosterTemplate");
 const crypto = require("crypto");
 
 /** Escape special regex characters to prevent ReDoS */
@@ -75,99 +77,142 @@ exports.createStudent = asyncHandler(async (req, res, next) => {
 
 // ─── Admin: Bulk import students into a batch ─────────────────────────────────
 
+/**
+ * Shared: create a list of {name,email,phone,password?} students into one
+ * batch. Skips already-registered emails, creates the rest in parallel, and
+ * fires welcome emails in the background. Returns { created, failed }.
+ */
+async function createStudentsInBatch(students, batchId, preSkipped = []) {
+  const emails = students.map((s) => s.email.toLowerCase().trim());
+  const existing = await User.find({ email: { $in: emails } }, "email").lean();
+  const existingEmails = new Set(existing.map((u) => u.email.toLowerCase()));
+
+  const toCreate = [];
+  const failed = preSkipped.map((s) => ({ row: s.row, email: s.email || null, reason: s.reason }));
+
+  for (const s of students) {
+    const email = s.email?.toLowerCase().trim();
+    if (!email) { failed.push({ row: s._row, email: s.email || "(empty)", reason: "Email is required." }); continue; }
+    if (existingEmails.has(email)) { failed.push({ row: s._row, email: s.email, reason: "Email already registered." }); continue; }
+    toCreate.push(s);
+  }
+
+  const createResults = await Promise.allSettled(
+    toCreate.map(async (s) => {
+      const plainPassword = s.password || crypto.randomBytes(6).toString("hex");
+      const student = await User.create({
+        name: s.name, email: s.email, phone: s.phone || null,
+        password: plainPassword, role: ROLES.STUDENT, batch: batchId,
+      });
+      return { student, plainPassword };
+    })
+  );
+
+  const created = [];
+  const emailQueue = [];
+  createResults.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      created.push({ _id: r.value.student._id, email: r.value.student.email, name: r.value.student.name });
+      emailQueue.push(r.value);
+    } else {
+      failed.push({ row: toCreate[i]._row, email: toCreate[i].email, reason: r.reason?.message || "Could not create." });
+    }
+  });
+
+  setImmediate(() => {
+    Promise.allSettled(
+      emailQueue.map(({ student, plainPassword }) =>
+        sendEmail({
+          to: student.email,
+          subject: "Welcome to Exam Neeti — Your Account is Ready",
+          html: templates.accountCreated({ name: student.name, email: student.email, password: plainPassword }),
+          trigger: NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
+          recipientId: student._id,
+          contextRef: student._id,
+        })
+      )
+    ).then((settled) => {
+      const n = settled.filter((r) => r.status === "rejected").length;
+      if (n > 0) console.error(`[bulkImport] ${n} welcome email(s) failed to send.`);
+    });
+  });
+
+  return { created, failed };
+}
+
+// ─── Admin: Bulk import students (JSON body) ─────────────────────────────────
+
 exports.bulkImportStudents = asyncHandler(async (req, res, next) => {
   const { students, batchId } = req.body;
 
   const batch = await Batch.findById(batchId);
   if (!batch) return next(new AppError("Batch not found.", 404));
 
-  // FIX: Single DB query to find all already-registered emails (was N queries)
-  const emails = students.map((s) => s.email.toLowerCase().trim());
-  const existingUsers = await User.find(
-    { email: { $in: emails } },
-    "email"
-  ).lean();
-  const existingEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
-
-  const toCreate   = [];
-  const failedFast = [];
-
-  for (const studentData of students) {
-    const email = studentData.email?.toLowerCase().trim();
-    if (!email) {
-      failedFast.push({ email: studentData.email || "(empty)", reason: "Email is required." });
-      continue;
-    }
-    if (existingEmails.has(email)) {
-      failedFast.push({ email: studentData.email, reason: "Email already registered." });
-      continue;
-    }
-    toCreate.push(studentData);
-  }
-
-  // FIX: Parallel creates instead of sequential
-  const createResults = await Promise.allSettled(
-    toCreate.map(async (studentData) => {
-      const plainPassword = studentData.password || crypto.randomBytes(6).toString("hex");
-      const student = await User.create({
-        name:     studentData.name,
-        email:    studentData.email,
-        phone:    studentData.phone || null,
-        password: plainPassword,
-        role:     ROLES.STUDENT,
-        batch:    batchId,
-      });
-      return { student, plainPassword };
-    })
-  );
-
-  const results = { created: [], failed: [...failedFast] };
-
-  // FIX: Collect created students and fire emails in background (non-blocking)
-  const emailQueue = [];
-  for (let i = 0; i < createResults.length; i++) {
-    const r = createResults[i];
-    if (r.status === "fulfilled") {
-      const { student, plainPassword } = r.value;
-      results.created.push({ _id: student._id, email: student.email, name: student.name });
-      emailQueue.push({ student, plainPassword });
-    } else {
-      results.failed.push({ email: toCreate[i].email, reason: r.reason?.message || "Unknown error." });
-    }
-  }
-
-  // Send welcome emails in the background — do not block the HTTP response
-  setImmediate(() => {
-    Promise.allSettled(
-      emailQueue.map(({ student, plainPassword }) =>
-        sendEmail({
-          to:          student.email,
-          subject:     "Welcome to Exam Neeti — Your Account is Ready",
-          html:        templates.accountCreated({
-            name:     student.name,
-            email:    student.email,
-            password: plainPassword,
-          }),
-          trigger:     NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
-          recipientId: student._id,
-          contextRef:  student._id,
-        })
-      )
-    ).then((settled) => {
-      const failed = settled.filter((r) => r.status === "rejected");
-      if (failed.length > 0) {
-        console.error(`[bulkImport] ${failed.length} welcome email(s) failed to send.`);
-      }
-    });
-  });
+  const { created, failed } = await createStudentsInBatch(students, batchId);
 
   return sendSuccess(res, 207, "Bulk import completed.", {
     totalProcessed: students.length,
-    totalCreated:   results.created.length,
-    totalFailed:    results.failed.length,
-    created:        results.created,
-    failed:         results.failed,
+    totalCreated:   created.length,
+    totalFailed:    failed.length,
+    created,
+    failed,
   });
+});
+
+// ─── Admin: Bulk import students from an uploaded .xlsx / .docx roster ────────
+
+exports.bulkImportStudentsFile = asyncHandler(async (req, res, next) => {
+  if (!req.file) {
+    return next(new AppError('No file uploaded. Attach a .xlsx or .docx file as "file".', 400));
+  }
+  const batchId = req.body.batchId || req.body.batch;
+  if (!batchId || !/^[a-f\d]{24}$/i.test(batchId)) {
+    return next(new AppError("A valid target batchId is required.", 400));
+  }
+  const batch = await Batch.findById(batchId);
+  if (!batch) return next(new AppError("Batch not found.", 404));
+
+  const isXlsx = req.file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const format = isXlsx ? "xlsx" : "docx";
+
+  let parsed;
+  try {
+    parsed = await parseStudentRoster(req.file.buffer, format);
+  } catch (err) {
+    return next(err); // AppError with a specific 400 message
+  }
+
+  if (parsed.students.length > 500) {
+    return next(new AppError(`Too many students in one file (${parsed.students.length}). Maximum 500 per upload.`, 400));
+  }
+
+  const { created, failed } = await createStudentsInBatch(parsed.students, batchId, parsed.skipped);
+
+  return sendSuccess(res, 207, "Bulk import completed.", {
+    fileName:       req.file.originalname,
+    batchName:      batch.name,
+    totalRows:      parsed.students.length + parsed.skipped.length,
+    totalCreated:   created.length,
+    totalFailed:    failed.length,
+    created,
+    failed,
+  });
+});
+
+// ─── Admin: Download the sample student roster template ──────────────────────
+
+exports.downloadStudentTemplate = asyncHandler(async (req, res) => {
+  const format = req.query.format === "docx" ? "docx" : "xlsx";
+  const buffer = await getStudentTemplateBuffer(format);
+
+  const contentType = format === "xlsx"
+    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="exam-neeti-student-roster-template.${format}"`);
+  res.setHeader("Content-Length", buffer.length);
+  return res.send(buffer);
 });
 
 // ─── Admin: List all students (paginated, filterable by batch) ────────────────
