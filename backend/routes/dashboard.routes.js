@@ -4,6 +4,7 @@ const router = express.Router();
 const dashboardController = require("../controllers/dashboard.controller");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
+const { heavyOperationLimiter } = require("../middleware/rateLimiter");
 const { ROLES } = require("../config/constants");
 
 // Dashboard is strictly admin/super_admin territory.
@@ -27,5 +28,17 @@ router.get("/sprint/:sprintId/student-status", dashboardController.getStudentAtt
 
 // Admin: full attempt history for a single student across a sprint
 router.get("/sprint/:sprintId/student/:studentId/history", dashboardController.getStudentAttemptHistory);
+
+// Admin: complete cross-sprint performance profile for one student.
+// Powers the "Student Performance Profile" inspector. ?sprintId=<id> scopes it.
+router.get("/student/:studentId/profile", dashboardController.getStudentPerformanceProfile);
+
+// Admin: the same profile as a branded, downloadable PDF report.
+// Rate-limited — renders a multi-section PDF per call.
+router.get(
+  "/student/:studentId/profile/report",
+  heavyOperationLimiter,
+  dashboardController.downloadStudentPerformanceReport
+);
 
 module.exports = router;

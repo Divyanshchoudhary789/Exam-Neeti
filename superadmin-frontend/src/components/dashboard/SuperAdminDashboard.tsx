@@ -1892,9 +1892,10 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                           </button>
                         </div>
 
-                        {/* Hard delete is super_admin-only on the backend (DELETE /batches/:id) —
-                            hide it for regular admins instead of showing a control that always 403s. */}
-                        {user?.role === "super_admin" && (
+                        {/* Hard delete is super_admin-only on the backend (DELETE /batches/:id).
+                            A "public" batch backs a self-serve plan — delete the plan instead
+                            (Plans & Tiers), so hide the control that would always 409 here. */}
+                        {user?.role === "super_admin" && String(b.source) !== "public" && (
                           <button
                             onClick={() => handleDeleteBatch(bId, bName)}
                             className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors"
@@ -2044,6 +2045,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {activeTab === "plans" && (
           <PlanTiersPanel
             showToast={showToast}
+            role={user?.role}
             onViewExams={(batchId) => { setExamBatchFilter(batchId); setActiveTab("exams"); }}
           />
         )}

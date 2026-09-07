@@ -235,6 +235,16 @@ const templates = {
       <p>If your question is urgent, you can also call us at <strong>+91 98765 40000</strong> (Mon–Sat, 9 AM – 7 PM IST).</p>
       <p>— Team Exam Neeti</p>
     `),
+
+  // ── Newsletter ────────────────────────────────────────────────────────────
+  newsletterWelcome: ({ email }) =>
+    baseTemplate(`
+      <p>You're in.</p>
+      <p>Thanks for subscribing to <strong>Exam Neeti Strategy Briefings</strong> — weekly, no-fluff notes on mock-test strategy, percentile optimisation, and cutting negative marks.</p>
+      <p>Your first briefing lands in your inbox soon.</p>
+      <p style="color:#888;font-size:12px;margin-top:20px;">You're receiving this because <strong>${escHtml(email)}</strong> was used to subscribe on our website. Not you? Ignore this email and you won't be added.</p>
+      <p>— Team Exam Neeti</p>
+    `),
 };
 
 /**

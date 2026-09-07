@@ -8,12 +8,23 @@ const { ROLES, BATCH_SOURCE, PLAN_KEYS } = require("../config/constants");
 
 const SUPER_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "superadmin@examneeti.com";
 
+const { PROGRAM_TYPES } = require("../config/constants");
+
+const PLAN_FEATURES = [
+  "NCERT-Aligned Coverage",
+  "Filtered Practice at NEET Level",
+  "Gradual Syllabus Coverage",
+  "Recoverable Marks Identified",
+  "Detailed Analytics for Every Test",
+  "Self-Reflective Tests to Improve",
+];
+
 const PUBLIC_BATCHES = [
-  { slug: "public-trial", name: "Public Trial" },
-  { slug: "public-signature-entry", name: "Public Signature Entry" },
-  { slug: "public-core", name: "Public Core" },
-  { slug: "public-prime", name: "Public Prime" },
-  { slug: "public-elite", name: "Public Elite" },
+  { slug: "public-trial",            name: "Public Trial",            programType: null },
+  { slug: "public-signature-entry",  name: "Public Signature Entry",  programType: null },
+  { slug: "public-core",             name: "Public Core",             programType: PROGRAM_TYPES.CLASS_XI },
+  { slug: "public-prime",            name: "Public Prime",            programType: PROGRAM_TYPES.CLASS_XII },
+  { slug: "public-elite",            name: "Public Elite",            programType: PROGRAM_TYPES.DROPPER },
 ];
 
 const PLANS = [
@@ -25,6 +36,12 @@ const PLANS = [
     batchSlug: "public-trial",
     testsIncluded: 1,
     description: "One free diagnostic test with basic performance visibility.",
+    programType: null,
+    tagline: "",
+    features: [],
+    examBreakdown: { minor: 0, semiMajor: 0, major: 0 },
+    featured: false,
+    sortOrder: 0,
   },
   {
     key: PLAN_KEYS.SIGNATURE_ENTRY,
@@ -34,6 +51,17 @@ const PLANS = [
     batchSlug: "public-signature-entry",
     testsIncluded: 1,
     description: "One-time diagnostic access with detailed performance analysis.",
+    programType: null,
+    tagline: "Your first step into SIGNATURE.",
+    features: [
+      "1 Diagnostic Test",
+      "Detailed Performance Analysis",
+      "Subject & Chapter-wise Insights",
+      "Actionable Improvement Areas",
+    ],
+    examBreakdown: { minor: 1, semiMajor: 0, major: 0 },
+    featured: false,
+    sortOrder: 1,
   },
   {
     key: PLAN_KEYS.CORE,
@@ -43,6 +71,12 @@ const PLANS = [
     batchSlug: "public-core",
     testsIncluded: 16,
     description: "Class 11 focused yearly test series with analytics.",
+    programType: PROGRAM_TYPES.CLASS_XI,
+    tagline: "Build the strongest base.",
+    features: PLAN_FEATURES,
+    examBreakdown: { minor: 10, semiMajor: 2, major: 4 },
+    featured: false,
+    sortOrder: 2,
   },
   {
     key: PLAN_KEYS.PRIME,
@@ -52,6 +86,12 @@ const PLANS = [
     batchSlug: "public-prime",
     testsIncluded: 18,
     description: "Class 12 focused yearly test series with analytics.",
+    programType: PROGRAM_TYPES.CLASS_XII,
+    tagline: "Strengthen concepts. Perform smarter.",
+    features: PLAN_FEATURES,
+    examBreakdown: { minor: 10, semiMajor: 2, major: 6 },
+    featured: true,
+    sortOrder: 3,
   },
   {
     key: PLAN_KEYS.ELITE,
@@ -61,6 +101,12 @@ const PLANS = [
     batchSlug: "public-elite",
     testsIncluded: 24,
     description: "Dropper focused yearly test series with the full test set.",
+    programType: PROGRAM_TYPES.DROPPER,
+    tagline: "Maximize your potential.",
+    features: PLAN_FEATURES,
+    examBreakdown: { minor: 10, semiMajor: 2, major: 12 },
+    featured: false,
+    sortOrder: 4,
   },
 ];
 
@@ -90,7 +136,7 @@ async function seed() {
           ...batch,
           description: "Self-serve public access batch managed through the public plan catalog.",
           source: BATCH_SOURCE.PUBLIC,
-          programType: null,
+          programType: batch.programType || null,
           isActive: true,
           createdBy: superAdmin._id,
         },

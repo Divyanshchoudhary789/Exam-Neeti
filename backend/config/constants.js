@@ -170,6 +170,11 @@ const ADMIN_ACTIONS = Object.freeze({
   SPRINT_DELETE_APPROVED:  "sprint_delete_approved",
   SPRINT_DELETE_REJECTED:  "sprint_delete_rejected",
   SPRINT_DELETED:          "sprint_deleted",
+  // Self-serve plan catalog — the plan's linked public batch is created /
+  // removed alongside it, so these capture the whole lifecycle.
+  PLAN_CREATED:            "plan_created",
+  PLAN_UPDATED:            "plan_updated",
+  PLAN_DELETED:            "plan_deleted",
 });
 
 // Test types: minor (chapter test), semi-major (half-sprint), major (full syllabus)

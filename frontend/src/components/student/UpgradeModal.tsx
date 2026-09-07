@@ -16,7 +16,6 @@ declare global {
   }
 }
 
-const PLAN_ORDER: Plan["key"][] = ["signature_entry", "core", "prime", "elite"];
 const RAZORPAY_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
 
 function getErrorMessage(err: unknown) {
@@ -88,7 +87,11 @@ export function UpgradeModal({
   }, [open]);
 
   const orderedPlans = useMemo(() => {
-    return [...plans].sort((a, b) => PLAN_ORDER.indexOf(a.key) - PLAN_ORDER.indexOf(b.key));
+    // Trial isn't a purchasable upgrade; order the rest by the catalog's
+    // sortOrder, then price — works for any admin-defined plan.
+    return [...plans]
+      .filter((p) => p.priceRupees > 0)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.priceRupees - b.priceRupees);
   }, [plans]);
 
   const selectedPlan = orderedPlans.find((plan) => plan.key === selectedKey) || orderedPlans[0];

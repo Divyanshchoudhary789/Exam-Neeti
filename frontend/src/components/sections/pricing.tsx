@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconCheck,
   IconTarget,
@@ -9,6 +9,7 @@ import {
   IconArrowRight,
   IconRocket,
 } from "../common/UIComponents";
+import { planService, type Plan } from "../../services/apiServices";
 
 interface PricingProps {
   onOpenAuth: (type: "login" | "join", planKey?: string) => void;
@@ -56,79 +57,140 @@ const PLAN_FEATURES = [
   "Self-Reflective Tests to Improve",
 ];
 
-const PLANS = [
-  {
-    key: "core",
-    name: "CORE",
-    icon: IconRocket,
-    badge: "For Class 11th",
-    tagline: "Build the strongest base.",
-    price: "1,999",
-    stats: { minor: 10, semi: 2, major: 4, total: 16 },
-    theme: {
-      name: "text-emerald-600",
-      iconWrap: "bg-emerald-50 text-emerald-600",
-      badge: "bg-emerald-50 text-emerald-700",
-      check: "text-emerald-500",
-      price: "text-emerald-600",
-      cta: "bg-emerald-600 hover:bg-emerald-700",
-    },
-  },
-  {
-    key: "prime",
-    name: "PRIME",
-    icon: IconTrophy,
-    badge: "For Class 12th",
-    tagline: "Strengthen concepts. Perform smarter.",
-    price: "2,599",
-    stats: { minor: 10, semi: 2, major: 6, total: 18 },
-    theme: {
-      name: "text-blue-600",
-      iconWrap: "bg-blue-50 text-blue-600",
-      badge: "bg-blue-50 text-blue-700",
-      check: "text-blue-500",
-      price: "text-blue-600",
-      cta: "bg-blue-600 hover:bg-blue-700",
-    },
-    highlighted: true,
-  },
-  {
-    key: "elite",
-    name: "ELITE",
-    icon: IconDiamond,
-    badge: "For Dropper",
-    tagline: "Maximize your potential.",
-    price: "2,999",
-    stats: { minor: 10, semi: 2, major: 12, total: 24 },
-    theme: {
-      name: "text-violet-600",
-      iconWrap: "bg-violet-50 text-violet-600",
-      badge: "bg-violet-50 text-violet-700",
-      check: "text-violet-500",
-      price: "text-violet-600",
-      cta: "bg-violet-600 hover:bg-violet-700",
-    },
-  },
+type PlanTheme = {
+  name: string; iconWrap: string; badge: string; check: string; price: string; cta: string;
+};
+type PlanIcon = typeof IconRocket;
+type PlanCard = {
+  key: string;
+  name: string;
+  icon: PlanIcon;
+  badge: string;
+  tagline: string;
+  price: string;
+  stats: { minor: number; semi: number; major: number; total: number } | null;
+  features: string[];
+  theme: PlanTheme;
+  highlighted: boolean;
+};
+
+const THEMES: PlanTheme[] = [
+  { name: "text-emerald-600", iconWrap: "bg-emerald-50 text-emerald-600", badge: "bg-emerald-50 text-emerald-700", check: "text-emerald-500", price: "text-emerald-600", cta: "bg-emerald-600 hover:bg-emerald-700" },
+  { name: "text-blue-600",    iconWrap: "bg-blue-50 text-blue-600",       badge: "bg-blue-50 text-blue-700",       check: "text-blue-500",    price: "text-blue-600",    cta: "bg-blue-600 hover:bg-blue-700" },
+  { name: "text-violet-600",  iconWrap: "bg-violet-50 text-violet-600",   badge: "bg-violet-50 text-violet-700",   check: "text-violet-500",  price: "text-violet-600",  cta: "bg-violet-600 hover:bg-violet-700" },
 ];
 
-const DEFAULT_PLAN_INDEX = PLANS.findIndex((p) => p.highlighted);
+const PROGRAM_META: Record<string, { icon: PlanIcon; badge: string; theme: PlanTheme }> = {
+  class_xi:  { icon: IconRocket,  badge: "For Class 11th",  theme: THEMES[0] },
+  class_xii: { icon: IconTrophy,  badge: "For Class 12th",  theme: THEMES[1] },
+  dropper:   { icon: IconDiamond, badge: "For Droppers",    theme: THEMES[2] },
+};
+
+const inr = (n: number) => n.toLocaleString("en-IN");
+
+const THEMES_ICON: PlanIcon[] = [IconRocket, IconTrophy, IconDiamond];
+
+/** Turn the live plan catalog into the pricing-page shape, preserving the design. */
+function shapeCatalog(raw: Plan[]): { cards: PlanCard[]; entry: { key: string; price: number; tagline: string; features: string[] } | null } {
+  const paid = raw.filter((p) => p.priceRupees > 0);
+  // "entry" = cheapest one-time paid plan (Signature Entry today) → the dark banner.
+  const oneTime = paid
+    .filter((p) => p.durationDays == null)
+    .sort((a, b) => a.priceRupees - b.priceRupees);
+  const entryPlan = oneTime[0] || null;
+  const entrySlugs = new Set(oneTime.slice(0, 1).map((p) => p.key));
+
+  const cards: PlanCard[] = paid
+    .filter((p) => !entrySlugs.has(p.key))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.priceRupees - b.priceRupees)
+    .map((p, i) => {
+      const meta = (p.programType && PROGRAM_META[p.programType]) || null;
+      const bk = p.examBreakdown;
+      const bkTotal = bk ? bk.minor + bk.semiMajor + bk.major : 0;
+      return {
+        key: p.key,
+        name: p.name.toUpperCase(),
+        icon: meta?.icon || THEMES_ICON[i % 3],
+        badge: meta?.badge || p.tagline || "SIGNATURE Plan",
+        tagline: p.tagline || "",
+        price: inr(p.priceRupees),
+        stats: bkTotal > 0
+          ? { minor: bk!.minor, semi: bk!.semiMajor, major: bk!.major, total: bkTotal }
+          : p.testsIncluded > 0
+            ? { minor: 0, semi: 0, major: 0, total: p.testsIncluded }
+            : null,
+        features: p.features?.length ? p.features : PLAN_FEATURES,
+        theme: meta?.theme || THEMES[i % 3],
+        highlighted: Boolean(p.featured),
+      };
+    });
+
+  if (cards.length && !cards.some((c) => c.highlighted)) {
+    cards[Math.min(1, cards.length - 1)].highlighted = true;
+  }
+
+  return {
+    cards,
+    entry: entryPlan
+      ? {
+          key: entryPlan.key,
+          price: entryPlan.priceRupees,
+          tagline: entryPlan.tagline || "Your first step into SIGNATURE.",
+          features: entryPlan.features?.length ? entryPlan.features : ENTRY_FEATURES,
+        }
+      : null,
+  };
+}
+
+// Static fallback shown while the catalog loads or if the request fails.
+const FALLBACK = shapeCatalog([
+  { key: "core",  name: "Core",  priceRupees: 1999, durationDays: 365, testsIncluded: 16, programType: "class_xi",  tagline: "Build the strongest base.",            featured: false, sortOrder: 2, examBreakdown: { minor: 10, semiMajor: 2, major: 4 },  features: PLAN_FEATURES },
+  { key: "prime", name: "Prime", priceRupees: 2599, durationDays: 365, testsIncluded: 18, programType: "class_xii", tagline: "Strengthen concepts. Perform smarter.", featured: true,  sortOrder: 3, examBreakdown: { minor: 10, semiMajor: 2, major: 6 },  features: PLAN_FEATURES },
+  { key: "elite", name: "Elite", priceRupees: 2999, durationDays: 365, testsIncluded: 24, programType: "dropper",   tagline: "Maximize your potential.",              featured: false, sortOrder: 4, examBreakdown: { minor: 10, semiMajor: 2, major: 12 }, features: PLAN_FEATURES },
+  { key: "signature_entry", name: "Signature Entry", priceRupees: 149, durationDays: null, testsIncluded: 1, tagline: "Your first step into SIGNATURE.", featured: false, sortOrder: 1, features: ENTRY_FEATURES },
+]);
 
 export function Pricing({ onOpenAuth }: PricingProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [activeIndex, setActiveIndex] = useState(DEFAULT_PLAN_INDEX);
   const scrollFrame = useRef<number | null>(null);
 
-  // Default view on small screens: center the highlighted (Prime) plan,
-  // with Core/Elite reachable by scrolling left/right. Sets the carousel's
-  // own scrollLeft directly (never scrollIntoView) so mounting this section
+  const [catalog, setCatalog] = useState(FALLBACK);
+  const PLANS = catalog.cards;
+  const ENTRY = catalog.entry;
+  const defaultIndex = useMemo(() => {
+    const i = PLANS.findIndex((p) => p.highlighted);
+    return i >= 0 ? i : Math.min(1, Math.max(0, PLANS.length - 1));
+  }, [PLANS]);
+  const [activeIndex, setActiveIndex] = useState(defaultIndex);
+
+  // Load the live catalog; the static FALLBACK renders until it arrives.
+  useEffect(() => {
+    let cancelled = false;
+    planService
+      .listPlans()
+      .then((res) => {
+        const raw: Plan[] = res?.data?.plans || res?.plans || [];
+        if (!cancelled && Array.isArray(raw) && raw.length) {
+          const shaped = shapeCatalog(raw);
+          if (shaped.cards.length) setCatalog(shaped);
+        }
+      })
+      .catch(() => { /* keep FALLBACK */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Default view on small screens: center the highlighted plan, with the
+  // others reachable by scrolling left/right. Sets the carousel's own
+  // scrollLeft directly (never scrollIntoView) so mounting this section
   // can't drag the whole page's scroll position with it.
   useEffect(() => {
     const track = trackRef.current;
-    const defaultCard = cardRefs.current[DEFAULT_PLAN_INDEX];
+    const defaultCard = cardRefs.current[defaultIndex];
     if (!track || !defaultCard) return;
     track.scrollLeft = defaultCard.offsetLeft + defaultCard.offsetWidth / 2 - track.clientWidth / 2;
-  }, []);
+    setActiveIndex(defaultIndex);
+  }, [defaultIndex, PLANS.length]);
 
   const handleTrackScroll = () => {
     if (scrollFrame.current) cancelAnimationFrame(scrollFrame.current);
@@ -177,7 +239,7 @@ export function Pricing({ onOpenAuth }: PricingProps) {
           SIGNATURE – The Complete NEET Prep System
         </span>
         <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight mt-6">
-          One Journey. Three <span className="text-indigo-600">SIGNATURE</span> Plans.
+          One Journey. <span className="text-indigo-600">SIGNATURE</span> Plans.
         </h2>
         <p className="text-sm sm:text-base text-slate-500 leading-relaxed mt-4">
           Structured prep. Smarter practice. Higher scores.
@@ -199,6 +261,7 @@ export function Pricing({ onOpenAuth }: PricingProps) {
       </div>
 
       {/* Signature Entry banner */}
+      {ENTRY && (
       <div className="relative mx-auto max-w-6xl mt-12 sm:mt-14">
         <div className="bg-slate-950 rounded-3xl p-6 sm:p-8">
           <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-8">
@@ -213,14 +276,14 @@ export function Pricing({ onOpenAuth }: PricingProps) {
                 <h3 className="text-lg sm:text-2xl font-extrabold text-white tracking-tight mt-1">
                   SIGNATURE ENTRY
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">Your first step into SIGNATURE.</p>
+                <p className="text-xs text-slate-400 mt-1">{ENTRY.tagline}</p>
               </div>
             </div>
 
             <div className="hidden lg:block w-px self-stretch bg-white/10" />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 flex-1">
-              {ENTRY_FEATURES.map((f) => (
+              {ENTRY.features.map((f) => (
                 <div key={f} className="flex items-center gap-2.5 text-sm text-slate-200">
                   <IconCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{f}</span>
@@ -232,11 +295,11 @@ export function Pricing({ onOpenAuth }: PricingProps) {
 
             <div className="flex items-center justify-between lg:justify-end gap-5 sm:gap-6">
               <div className="text-left lg:text-right shrink-0">
-                <div className="text-2xl sm:text-3xl font-extrabold text-red-500 leading-none">₹149</div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-red-500 leading-none">₹{inr(ENTRY.price)}</div>
                 <div className="text-[11px] text-slate-400 mt-1.5">One-time Access</div>
               </div>
               <button
-                onClick={() => onOpenAuth("join", "signature_entry")}
+                onClick={() => onOpenAuth("join", ENTRY.key)}
                 className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all shrink-0 cursor-pointer"
               >
                 <span>Start Now</span>
@@ -246,6 +309,7 @@ export function Pricing({ onOpenAuth }: PricingProps) {
           </div>
         </div>
       </div>
+      )}
 
       {/* Plan cards — horizontal snap-scroll carousel below lg, 3-col grid from lg up */}
       <div className="relative mx-auto max-w-7xl mt-8 sm:mt-10">
@@ -281,7 +345,7 @@ export function Pricing({ onOpenAuth }: PricingProps) {
               <p className="text-sm text-slate-500 mt-3">{plan.tagline}</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mt-6">
-                {PLAN_FEATURES.map((f) => (
+                {plan.features.map((f) => (
                   <div key={f} className="flex items-start gap-2 text-xs sm:text-[13px] text-slate-600 leading-snug">
                     <IconCheck className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${plan.theme.check}`} />
                     <span>{f}</span>
@@ -306,19 +370,26 @@ export function Pricing({ onOpenAuth }: PricingProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 border-t border-slate-100 divide-x divide-slate-100 bg-slate-50/60">
-              {[
-                ["Minor Tests", plan.stats.minor],
-                ["Semi Major Tests", plan.stats.semi],
-                ["Major Tests", plan.stats.major],
-                ["Total Tests", plan.stats.total],
-              ].map(([label, value]) => (
-                <div key={label as string} className="text-center py-3 sm:py-4 px-1">
-                  <div className="text-sm sm:text-lg font-extrabold text-slate-900">{value}</div>
-                  <div className="text-[8.5px] sm:text-[10px] text-slate-400 font-semibold mt-0.5 leading-tight">{label}</div>
-                </div>
-              ))}
-            </div>
+            {plan.stats && (plan.stats.minor || plan.stats.semi || plan.stats.major) ? (
+              <div className="grid grid-cols-4 border-t border-slate-100 divide-x divide-slate-100 bg-slate-50/60">
+                {([
+                  ["Minor Tests", plan.stats.minor],
+                  ["Semi Major Tests", plan.stats.semi],
+                  ["Major Tests", plan.stats.major],
+                  ["Total Tests", plan.stats.total],
+                ] as [string, number][]).map(([label, value]) => (
+                  <div key={label as string} className="text-center py-3 sm:py-4 px-1">
+                    <div className="text-sm sm:text-lg font-extrabold text-slate-900">{value}</div>
+                    <div className="text-[8.5px] sm:text-[10px] text-slate-400 font-semibold mt-0.5 leading-tight">{label}</div>
+                  </div>
+                ))}
+              </div>
+            ) : plan.stats ? (
+              <div className="border-t border-slate-100 bg-slate-50/60 text-center py-3.5 px-1">
+                <span className="text-sm sm:text-lg font-extrabold text-slate-900">{plan.stats.total}</span>
+                <span className="text-[10px] text-slate-400 font-semibold ml-1.5">Tests Included</span>
+              </div>
+            ) : null}
             </div>
           ))}
         </div>

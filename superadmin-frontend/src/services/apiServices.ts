@@ -26,20 +26,57 @@ export interface ExamResponsePayload {
   reattemptDelaySeconds?: number | null;
 }
 
+export type PlanProgramType = "class_xi" | "class_xii" | "dropper" | null;
+
+export interface PlanExamBreakdown {
+  minor: number;
+  semiMajor: number;
+  major: number;
+}
+
 export interface PlanOverviewRow {
+  _id: string;
   key: string;
   name: string;
   priceRupees: number;
   durationDays: number | null;
   testsIncluded: number;
+  description: string;
+  programType: PlanProgramType;
+  tagline: string;
+  features: string[];
+  examBreakdown: PlanExamBreakdown;
+  featured: boolean;
+  sortOrder: number;
   isActive: boolean;
+  isTrial: boolean;
   batchId: string | null;
   batchSlug: string;
   batchName: string | null;
   examCount: number;
   publishedCount: number;
   studentCount: number;
+  subscriberCount: number;
   isFreeTier: boolean;
+}
+
+export interface PlanFormPayload {
+  name: string;
+  priceRupees: number;
+  durationDays: number | null;
+  testsIncluded: number;
+  description?: string;
+  programType?: PlanProgramType;
+  tagline?: string;
+  features?: string[];
+  examBreakdown?: PlanExamBreakdown;
+  featured?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+  /** create only */
+  batchMode?: "create" | "link";
+  batchName?: string;
+  batchSlug?: string;
 }
 
 // ----------------------------------------------------
@@ -151,6 +188,27 @@ export const contactService = {
   setStatus: async (id: string, status: ContactMessage["status"]) =>
     (await api.patch(`/contact/${id}`, { status })).data,
   remove: async (id: string) => (await api.delete(`/contact/${id}`)).data,
+};
+
+// ----------------------------------------------------
+// NEWSLETTER — "Strategy Briefings" subscribers
+// ----------------------------------------------------
+
+export interface Subscriber {
+  _id: string;
+  email: string;
+  source: "contact_section" | "footer" | "other";
+  status: "active" | "unsubscribed";
+  createdAt: string;
+  unsubscribedAt?: string | null;
+}
+
+export const newsletterService = {
+  list: async (params?: { page?: number; limit?: number; status?: string; source?: string; search?: string }) => {
+    const res = await api.get(`/subscribers${listQuery(params)}`);
+    return res.data;
+  },
+  remove: async (id: string) => (await api.delete(`/subscribers/${id}`)).data,
 };
 
 // ----------------------------------------------------
@@ -375,9 +433,23 @@ export const studentService = {
 // ADMIN SERVICES
 // ----------------------------------------------------
 export const adminService = {
-  /** Per-plan overview (exam + student counts) for the Plans & Tiers panel. */
+  /** Per-plan overview (exam + student + subscriber counts) for Plans & Tiers. */
   getPlanOverview: async () => {
     const res = await api.get("/plans/admin/overview");
+    return res.data;
+  },
+  /** Create a plan — auto-provisions its linked public batch by default. */
+  createPlan: async (payload: PlanFormPayload) => {
+    const res = await api.post("/plans", payload);
+    return res.data;
+  },
+  updatePlan: async (id: string, payload: Partial<PlanFormPayload>) => {
+    const res = await api.patch(`/plans/${id}`, payload);
+    return res.data;
+  },
+  /** Hard delete — super_admin only, and only when the plan has no history. */
+  deletePlan: async (id: string) => {
+    const res = await api.delete(`/plans/${id}`);
     return res.data;
   },
   // Sprints
@@ -723,6 +795,25 @@ export const adminService = {
   getStudentAttemptById: async (attemptId: string) => {
     const res = await api.get(`/analytics/attempt/${attemptId}`);
     return res.data;
+  },
+  /** Complete cross-sprint performance profile for one student. Omit sprintId
+   *  (or pass "all") for the student's entire history; pass an id to scope it. */
+  getStudentPerformanceProfile: async (studentId: string, sprintId?: string) => {
+    const q = sprintId && sprintId !== "all" ? `?sprintId=${sprintId}` : "";
+    const res = await api.get(`/dashboard/student/${studentId}/profile${q}`);
+    return res.data;
+  },
+  /** Download the student's performance profile as a branded PDF report. */
+  downloadStudentPerformanceReport: async (
+    studentId: string, sprintId?: string
+  ): Promise<{ objectUrl: string; filename: string }> => {
+    const q = sprintId && sprintId !== "all" ? `?sprintId=${sprintId}` : "";
+    const res = await api.get(`/dashboard/student/${studentId}/profile/report${q}`, { responseType: "blob" });
+    const cd = res.headers["content-disposition"] || "";
+    const match = cd.match(/filename="?([^";\n]+)"?/);
+    const filename = match?.[1] || `student_performance_report.pdf`;
+    const objectUrl = URL.createObjectURL(res.data as Blob);
+    return { objectUrl, filename };
   },
 
   // Formula Config Tuning

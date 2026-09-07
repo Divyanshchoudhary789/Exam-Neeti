@@ -20,6 +20,7 @@ const subscriptionRoutes = require("./subscription.routes");
 const blogRoutes         = require("./blog.routes");
 const resourceRoutes     = require("./resource.routes");
 const contactRoutes      = require("./contact.routes");
+const subscriberRoutes   = require("./subscriber.routes");
 
 mainRouter.use("/auth",        authRoutes);
 mainRouter.use("/users",       userRoutes);
@@ -40,5 +41,6 @@ mainRouter.use("/subscriptions", subscriptionRoutes);
 mainRouter.use("/blogs",        blogRoutes);
 mainRouter.use("/resources",    resourceRoutes);
 mainRouter.use("/contact",      contactRoutes);
+mainRouter.use("/subscribers",  subscriberRoutes);
 
 module.exports = mainRouter;

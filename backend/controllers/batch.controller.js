@@ -1,4 +1,5 @@
 const Batch = require("../models/Batch.model");
+const Plan = require("../models/Plan.model");
 const User = require("../models/User.model");
 const Attempt = require("../models/Attempt.model");
 const AnalyticsResult = require("../models/AnalyticsResult.model");
@@ -19,15 +20,18 @@ const { ROLES, ADMIN_ACTIONS, PROGRAM_TYPES, BATCH_SOURCE } = require("../config
 const escapeRegex = (str) => String(str).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * "public" batches back the self-serve plan catalog (one per plan) and are
- * seed-managed — deactivating/renaming/deleting one silently breaks that plan's
- * checkout + access. Block those mutations here; use scripts/seedPublicPlansAndBatches.js.
+ * "public" batches back the self-serve plan catalog (one per plan). Their
+ * name / description / programType / active state are freely editable from the
+ * dashboard (the Plans & Tiers panel keeps programType in sync too), but a
+ * hard delete would orphan the plan that points at this batch's slug — that's
+ * blocked in deleteBatch. `slug` and `source` are immutable (not in
+ * updateBatchSchema).
  */
-const assertNotPublicBatch = (batch) => {
-  if (batch && batch.source === BATCH_SOURCE.PUBLIC) {
+const assertBatchNotLinkedToPlan = async (batch) => {
+  if (batch && batch.source === BATCH_SOURCE.PUBLIC && (await Plan.exists({ batchSlug: batch.slug }))) {
     throw new AppError(
-      "This is a system-managed plan batch. It can't be edited or removed here — manage plans via the seed script.",
-      403
+      "A self-serve plan is linked to this batch. Delete the plan first from the Plans & Tiers panel.",
+      409
     );
   }
 };
@@ -107,7 +111,6 @@ exports.updateBatch = asyncHandler(async (req, res, next) => {
 
   const target = await Batch.findById(req.params.id);
   if (!target) return next(new AppError("Batch not found.", 404));
-  assertNotPublicBatch(target);
 
   const batch = await Batch.findByIdAndUpdate(req.params.id, updates, {
     returnDocument: "after",
@@ -120,7 +123,6 @@ exports.updateBatch = asyncHandler(async (req, res, next) => {
 exports.deactivateBatch = asyncHandler(async (req, res, next) => {
   const batch = await Batch.findById(req.params.id);
   if (!batch) return next(new AppError("Batch not found.", 404));
-  assertNotPublicBatch(batch);
 
   if (!batch.isActive) {
     return next(new AppError("Batch is already inactive.", 409));
@@ -191,7 +193,7 @@ exports.deleteBatch = asyncHandler(async (req, res, next) => {
 
   const batch = await Batch.findById(req.params.id);
   if (!batch) return next(new AppError("Batch not found.", 404));
-  assertNotPublicBatch(batch);
+  await assertBatchNotLinkedToPlan(batch);
 
   // Require the caller to echo the batch name back
   if (!confirmName || confirmName.trim() !== batch.name.trim()) {
