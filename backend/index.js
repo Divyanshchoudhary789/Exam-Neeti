@@ -96,8 +96,10 @@ app.use(
     },
     credentials: true,                    // required for cookies to work cross-origin
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    exposedHeaders: [],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Auth-Client"],
+    // Content-Disposition must be exposed so the browser download picks up the
+    // friendly filename we set on report / sprint-paper downloads.
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 
@@ -131,6 +133,18 @@ app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
+
+// ─── Auth-cookie namespacing ──────────────────────────────────────────────────
+// The Super Admin console and the main student/admin site both call this API
+// and, in local dev, share the `localhost` cookie jar — so without a namespace
+// one app's login would clobber the other's session. Clients send
+// `X-Auth-Client: superadmin` to get their own `sa_`-prefixed auth cookies.
+// `res.locals.authClient` is read by utils/cookies.js + authenticate.js.
+app.use((req, res, next) => {
+  res.locals.authClient =
+    (req.get("x-auth-client") || "").toLowerCase() === "superadmin" ? "sa_" : "";
+  next();
+});
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 

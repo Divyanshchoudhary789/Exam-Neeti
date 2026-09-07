@@ -1,19 +1,28 @@
 const mongoose = require("mongoose");
-const { PLAN_KEYS } = require("../config/constants");
+const { PROGRAM_TYPES } = require("../config/constants");
 
 /**
- * Plan — the self-serve pricing catalog (Signature Entry / Core / Prime / Elite
- * / the free Trial). Seed-managed (see scripts/seedPublicPlansAndBatches.js);
- * buying a plan is just: create a Subscription + point the student's `batch`
- * at `batchSlug`'s Batch. See payment.controller.js / subscription.service.js.
+ * Plan — the self-serve pricing catalog (the free Trial + one-time / yearly
+ * paid tiers). Created and edited from the admin / super-admin "Plans & Tiers"
+ * panel; `scripts/seedPublicPlansAndBatches.js` restores the default set.
+ *
+ * Buying a plan = create a Subscription + point the student's `batch` at the
+ * Batch whose `slug` matches `batchSlug` (a `source: "public"` batch, created
+ * alongside the plan). See payment.controller.js / subscription.service.js.
+ *
+ * One plan ⇄ one public Batch. The `trial` key is structural (referenced by
+ * auth.controller / planAccess.service) and cannot be deleted or renamed.
  */
 const planSchema = new mongoose.Schema(
   {
     key: {
       type: String,
-      enum: Object.values(PLAN_KEYS),
       unique: true,
       required: true,
+      immutable: true,
+      lowercase: true,
+      trim: true,
+      match: [/^[a-z0-9-]{2,40}$/, "Plan key must be 2-40 chars of a-z, 0-9 or '-'."],
     },
     name: {
       type: String,
@@ -25,7 +34,7 @@ const planSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    // null => never expires (Trial, Signature Entry one-time access)
+    // null => never expires (Trial, one-time access tiers)
     durationDays: {
       type: Number,
       default: null,
@@ -48,6 +57,42 @@ const planSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+
+    // ── Marketing / presentation (drives the public pricing page) ────────────
+    // Links the plan to a class level — also mirrored onto the linked batch.
+    programType: {
+      type: String,
+      enum: [...Object.values(PROGRAM_TYPES), null],
+      default: null,
+    },
+    // Short one-liner under the plan name on the pricing card.
+    tagline: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    // Per-plan feature bullets; empty => the pricing page uses its default list.
+    features: {
+      type: [String],
+      default: [],
+    },
+    // The "Minor / Semi Major / Major Tests" footer on the pricing card.
+    examBreakdown: {
+      minor:     { type: Number, default: 0, min: 0 },
+      semiMajor: { type: Number, default: 0, min: 0 },
+      major:     { type: Number, default: 0, min: 0 },
+    },
+    // The highlighted card on the pricing page (should be true for one plan).
+    featured: {
+      type: Boolean,
+      default: false,
+    },
+    // Ascending display order on the pricing page + in-app upgrade modal.
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
+
     isActive: {
       type: Boolean,
       default: true,

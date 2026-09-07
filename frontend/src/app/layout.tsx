@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AppFeedback } from "@/components/common/feedback";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://examneeti.com";
 
@@ -90,9 +91,19 @@ export default function RootLayout({
         <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="shortcut icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Primary UI typeface (Plus Jakarta Sans + Inter) preloaded here so first
+            paint uses the brand font; curated blog typefaces (Lora, Poppins) are
+            author-selected per-article in the Content Hub. */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Lora:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden w-full max-w-full" suppressHydrationWarning>
         {children}
+        <AppFeedback />
       </body>
     </html>
   );

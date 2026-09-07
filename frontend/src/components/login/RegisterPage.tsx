@@ -41,7 +41,9 @@ const GOALS: { label: string; value: RegisterPayload["programType"] }[] = [
   { label: "Repeater / Dropper", value: "dropper" },
 ];
 
-const PAID_PLAN_KEYS = new Set(["signature_entry", "core", "prime", "elite"]);
+// Any plan param other than the free trial routes the new student into the
+// in-app payment prompt (`/student?plan=<key>`). Works for admin-defined plans.
+const isPaidPlanParam = (key: string) => Boolean(key) && key !== "trial";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -90,7 +92,7 @@ export default function RegisterPage() {
       expires.setDate(expires.getDate() + 14);
       document.cookie = `auth-role=student; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
 
-      const nextUrl = PAID_PLAN_KEYS.has(selectedPlan)
+      const nextUrl = isPaidPlanParam(selectedPlan)
         ? `/student?plan=${encodeURIComponent(selectedPlan)}`
         : "/student";
       router.push(nextUrl);
@@ -121,7 +123,7 @@ export default function RegisterPage() {
       expires.setDate(expires.getDate() + 14);
       document.cookie = `auth-role=student; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
 
-      const nextUrl = PAID_PLAN_KEYS.has(selectedPlan)
+      const nextUrl = isPaidPlanParam(selectedPlan)
         ? `/student?plan=${encodeURIComponent(selectedPlan)}`
         : "/student";
       router.push(nextUrl);
@@ -199,10 +201,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="w-full max-w-md mx-auto my-auto py-6">
-          <div className="mb-5">
-            <BrandLogo href="/" size="sm" />
-          </div>
-
+          
           <div className="space-y-1 mb-6">
             <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Create your student account</h2>
             <p className="text-xs sm:text-sm text-slate-500 font-medium">Your free diagnostic test is unlocked immediately after signup.</p>

@@ -5,6 +5,7 @@
 
 const mongoose = require("mongoose");
 const AnalyticsResult = require("../models/AnalyticsResult.model");
+const AdvancedAnalytics = require("../models/AdvancedAnalytics.model");
 const Attempt = require("../models/Attempt.model");
 const Exam = require("../models/Exam.model");
 const User = require("../models/User.model");
@@ -14,6 +15,8 @@ const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
 const { ROLES, ATTEMPT_STATUS } = require("../config/constants");
+const { getCoverageMetrics } = require("../services/coverage.service");
+const { buildStudentReportPDF } = require("../services/studentReport.service");
 
 /** Safe ObjectId cast — returns null on invalid input instead of throwing */
 const toObjectId = (id) => {
@@ -581,4 +584,345 @@ exports.getStudentAttemptHistory = asyncHandler(async (req, res, next) => {
     summary,
     history,
   });
+});
+
+// ─── Full student performance profile (admin inspector) ──────────────────────
+// One endpoint that powers the "Student Performance Profile" modal in the
+// admin / super-admin Students tab. Unlike getStudentSprintSummary (single
+// sprint, student-facing) this defaults to the student's ENTIRE history across
+// every sprint and also returns a per-sprint rollup so the modal's scope
+// selector can drill into any one sprint. Pass ?sprintId=<id> to scope it.
+
+async function assembleStudentPerformanceProfile(student, studentOid, scopedSprintOid) {
+  const round = (v) => parseFloat(Number(v || 0).toFixed(2));
+  const mean = (arr) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0);
+  const stdDev = (arr) => {
+    if (arr.length < 2) return 0;
+    const m = mean(arr);
+    return Math.sqrt(arr.reduce((s, v) => s + Math.pow(v - m, 2), 0) / arr.length);
+  };
+
+  const analyticsQuery = { student: studentOid };
+  if (scopedSprintOid) analyticsQuery.sprint = scopedSprintOid;
+
+  const allAnalytics = await AnalyticsResult.find(analyticsQuery)
+    .populate("exam", "title examNumber totalMarks")
+    .populate("sprint", "name sprintNumber")
+    .populate("attempt", "attemptNumber status submittedAt")
+    .sort({ computedAt: 1 })
+    .limit(1000)
+    .lean();
+
+  const emptyProfile = {
+    student,
+    scope: scopedSprintOid ? String(scopedSprintOid) : "all",
+    summary: null,
+    sprints: [],
+    subjectPerformance: [],
+    chapterPerformance: [],
+    topicPerformance: { weak: [], strong: [] },
+    difficultyPerformance: [],
+    errorAnalysis: { silly: 0, concept: 0, guess: 0, total: 0 },
+    coverage: null,
+    timeline: [],
+  };
+
+  if (!allAnalytics.length) return emptyProfile;
+
+  // Dedupe to the latest attempt per exam for every aggregate (a weaker first
+  // attempt must not drag down a stronger reattempt or be double-counted).
+  const latestByExam = new Map();
+  for (const ar of allAnalytics) {
+    const examId = String(ar.exam?._id || ar.exam || "");
+    if (!examId) continue;
+    const existing = latestByExam.get(examId);
+    if (!existing) { latestByExam.set(examId, ar); continue; }
+    const arNum = ar.attempt?.attemptNumber || 1;
+    const exNum = existing.attempt?.attemptNumber || 1;
+    if (arNum > exNum || (arNum === exNum && new Date(ar.computedAt) > new Date(existing.computedAt))) {
+      latestByExam.set(examId, ar);
+    }
+  }
+  const deduped = Array.from(latestByExam.values());
+
+  // ── Overall summary ──────────────────────────────────────────────────────
+  const scores      = deduped.map((a) => a.score || 0);
+  const percentages = deduped.map((a) => a.percentage || 0);
+  const accuracies  = deduped.map((a) => a.overallAccuracy || 0);
+  const attemptRates = deduped.map((a) => a.overallAttemptRate || 0);
+  const totalNegative    = round(deduped.reduce((s, a) => s + (a.totalNegativeMarks || 0), 0));
+  const totalRecoverable = round(deduped.reduce((s, a) => s + (a.recoverableMarks?.totalRecoverable || 0), 0));
+  const accStd = round(stdDev(accuracies));
+
+  const attemptDates = allAnalytics
+    .map((a) => a.attempt?.submittedAt || a.computedAt)
+    .filter(Boolean)
+    .map((d) => new Date(d))
+    .sort((a, b) => a - b);
+
+  const summary = {
+    totalTests:        deduped.length,
+    totalAttempts:     allAnalytics.length,
+    totalScore:        round(scores.reduce((s, v) => s + v, 0)),
+    averageScore:      round(mean(scores)),
+    highestScore:      Math.max(...scores),
+    lowestScore:       Math.min(...scores),
+    averagePercentage: round(mean(percentages)),
+    averageAccuracy:   round(mean(accuracies)),
+    averageAttemptRate: round(mean(attemptRates)),
+    totalNegativeMarks: totalNegative,
+    totalRecoverableMarks: totalRecoverable,
+    consistency: {
+      scoreStdDev: round(stdDev(scores)),
+      accuracyStdDev: accStd,
+      interpretation:
+        deduped.length < 2 ? "insufficient_data" :
+        accStd <= 5  ? "very_consistent" :
+        accStd <= 12 ? "consistent" :
+        accStd <= 20 ? "variable" : "highly_variable",
+    },
+    firstAttemptAt: attemptDates[0] || null,
+    lastAttemptAt:  attemptDates[attemptDates.length - 1] || null,
+  };
+
+  // ── Per-sprint rollup (from the deduped set — spans every sprint when
+  //    unscoped, or just the one sprint when ?sprintId= is passed) ──────────
+  const sprintAgg = {};
+  for (const ar of deduped) {
+    const sid = String(ar.sprint?._id || ar.sprint || "unknown");
+    if (!sprintAgg[sid]) {
+      sprintAgg[sid] = {
+        sprintId: sid,
+        name: ar.sprint?.name || "Sprint",
+        sprintNumber: ar.sprint?.sprintNumber || null,
+        tests: 0, scoreSum: 0, pctSum: 0, accSum: 0,
+        negative: 0, recoverable: 0, lastAttemptAt: null,
+      };
+    }
+    const g = sprintAgg[sid];
+    g.tests += 1;
+    g.scoreSum += ar.score || 0;
+    g.pctSum += ar.percentage || 0;
+    g.accSum += ar.overallAccuracy || 0;
+    g.negative += ar.totalNegativeMarks || 0;
+    g.recoverable += ar.recoverableMarks?.totalRecoverable || 0;
+    const at = ar.attempt?.submittedAt || ar.computedAt;
+    if (at && (!g.lastAttemptAt || new Date(at) > new Date(g.lastAttemptAt))) g.lastAttemptAt = at;
+  }
+  const sprints = Object.values(sprintAgg)
+    .map((g) => ({
+      sprintId: g.sprintId,
+      name: g.name,
+      sprintNumber: g.sprintNumber,
+      tests: g.tests,
+      averageScore: round(g.scoreSum / g.tests),
+      averagePercentage: round(g.pctSum / g.tests),
+      averageAccuracy: round(g.accSum / g.tests),
+      totalNegativeMarks: round(g.negative),
+      totalRecoverableMarks: round(g.recoverable),
+      lastAttemptAt: g.lastAttemptAt,
+    }))
+    .sort((a, b) => new Date(b.lastAttemptAt || 0) - new Date(a.lastAttemptAt || 0));
+
+  // ── Subject aggregates ───────────────────────────────────────────────────
+  const subjectAgg = {};
+  for (const ar of deduped) {
+    for (const s of ar.subjectAccuracy || []) {
+      if (!subjectAgg[s.subject]) {
+        subjectAgg[s.subject] = { subject: s.subject, totalQuestions: 0, attempted: 0, correct: 0, incorrect: 0, marksObtained: 0, negativeMarks: 0 };
+      }
+      const g = subjectAgg[s.subject];
+      g.totalQuestions += s.totalQuestions || 0;
+      g.attempted      += s.attempted      || 0;
+      g.correct        += s.correct        || 0;
+      g.incorrect      += s.incorrect      || 0;
+      g.marksObtained  += s.marksObtained  || 0;
+      g.negativeMarks  += s.negativeMarks  || 0;
+    }
+  }
+  const subjectPerformance = Object.values(subjectAgg).map((s) => ({
+    ...s,
+    marksObtained: round(s.marksObtained),
+    negativeMarks: round(s.negativeMarks),
+    accuracy:    round((s.correct   / Math.max(s.attempted,      1)) * 100),
+    attemptRate: round((s.attempted / Math.max(s.totalQuestions, 1)) * 100),
+  })).sort((a, b) => b.totalQuestions - a.totalQuestions);
+
+  // ── Chapter aggregates ───────────────────────────────────────────────────
+  const chapterAgg = {};
+  for (const ar of deduped) {
+    for (const c of ar.chapterAccuracy || []) {
+      const key = `${c.subject}__${c.chapter}`;
+      if (!chapterAgg[key]) {
+        chapterAgg[key] = { subject: c.subject, chapter: c.chapter, totalQuestions: 0, attempted: 0, correct: 0, incorrect: 0 };
+      }
+      const g = chapterAgg[key];
+      g.totalQuestions += c.totalQuestions || 0;
+      g.attempted      += c.attempted      || 0;
+      g.correct        += c.correct        || 0;
+      g.incorrect      += c.incorrect      || 0;
+    }
+  }
+  const chapterPerformance = Object.values(chapterAgg).map((c) => ({
+    ...c,
+    accuracy:    round((c.correct   / Math.max(c.attempted,      1)) * 100),
+    attemptRate: round((c.attempted / Math.max(c.totalQuestions, 1)) * 100),
+  })).sort((a, b) => a.accuracy - b.accuracy);
+
+  // ── Topic aggregates → weak / strong ─────────────────────────────────────
+  const WEAK = 40;
+  const STRONG = 80;
+  const topicAgg = {};
+  for (const ar of deduped) {
+    for (const t of ar.topicAccuracy || []) {
+      const key = `${t.subject}__${t.chapter}__${t.topic}`;
+      if (!topicAgg[key]) {
+        topicAgg[key] = { subject: t.subject, chapter: t.chapter, topic: t.topic, totalQuestions: 0, attempted: 0, correct: 0 };
+      }
+      topicAgg[key].totalQuestions += t.totalQuestions || 0;
+      topicAgg[key].attempted      += t.attempted      || 0;
+      topicAgg[key].correct        += t.correct        || 0;
+    }
+  }
+  const topics = Object.values(topicAgg).map((t) => ({
+    ...t,
+    accuracy:    round((t.correct   / Math.max(t.attempted,      1)) * 100),
+    attemptRate: round((t.attempted / Math.max(t.totalQuestions, 1)) * 100),
+  }));
+  const topicPerformance = {
+    weak:   topics.filter((t) => t.attempted > 0 && t.accuracy <  WEAK).sort((a, b) => a.accuracy - b.accuracy),
+    strong: topics.filter((t) => t.attempted > 0 && t.accuracy >= STRONG).sort((a, b) => b.accuracy - a.accuracy),
+  };
+
+  // ── Difficulty aggregates ────────────────────────────────────────────────
+  const diffAgg = {};
+  for (const ar of deduped) {
+    for (const d of ar.difficultySummary || []) {
+      if (!diffAgg[d.difficulty]) {
+        diffAgg[d.difficulty] = { difficulty: d.difficulty, totalQuestions: 0, attempted: 0, correct: 0, incorrect: 0, unattempted: 0, totalTimeSeconds: 0 };
+      }
+      const g = diffAgg[d.difficulty];
+      g.totalQuestions   += d.totalQuestions   || 0;
+      g.attempted        += d.attempted        || 0;
+      g.correct          += d.correct          || 0;
+      g.incorrect        += d.incorrect        || 0;
+      g.unattempted      += d.unattempted      || 0;
+      g.totalTimeSeconds += d.totalTimeSeconds || 0;
+    }
+  }
+  const difficultyPerformance = Object.values(diffAgg).map((d) => ({
+    ...d,
+    accuracy:       round((d.correct   / Math.max(d.attempted,      1)) * 100),
+    attemptRate:    round((d.attempted / Math.max(d.totalQuestions, 1)) * 100),
+    avgTimeSeconds: round(d.totalTimeSeconds / Math.max(d.attempted, 1)),
+  }));
+
+  // ── Error analysis (silly / concept from AdvancedAnalytics, guess from AR) ─
+  const dedupedAttemptIds = deduped.map((ar) => ar.attempt?._id || ar.attempt).filter(Boolean);
+  const advancedRows = dedupedAttemptIds.length
+    ? await AdvancedAnalytics.find({ attempt: { $in: dedupedAttemptIds } }).select("errorClassification").lean()
+    : [];
+  const errorAnalysis = advancedRows.reduce(
+    (acc, row) => {
+      acc.silly   += row.errorClassification?.sillyMistakes || 0;
+      acc.concept += row.errorClassification?.conceptErrors || 0;
+      return acc;
+    },
+    { silly: 0, concept: 0, guess: 0, total: 0 }
+  );
+  errorAnalysis.guess = deduped.reduce((s, ar) => s + (ar.totalGuessAttempts || 0), 0);
+  errorAnalysis.total = errorAnalysis.silly + errorAnalysis.concept + errorAnalysis.guess;
+
+  // ── Coverage (per-sprint when scoped, union-of-all otherwise) ────────────
+  let coverage = null;
+  try {
+    coverage = await getCoverageMetrics(studentOid, scopedSprintOid ? String(scopedSprintOid) : "all");
+  } catch (_) { /* coverage is best-effort */ }
+
+  // ── Timeline — every attempt, chronological ──────────────────────────────
+  const timeline = allAnalytics.map((ar, idx) => ({
+    attemptId:        ar.attempt?._id || ar.attempt || null,
+    examId:           ar.exam?._id || null,
+    examTitle:        ar.exam?.title || `Exam ${ar.exam?.examNumber || idx + 1}`,
+    examNumber:       ar.exam?.examNumber || null,
+    sprintId:         String(ar.sprint?._id || ar.sprint || ""),
+    sprintName:       ar.sprint?.name || "",
+    attemptNumber:    ar.attempt?.attemptNumber || 1,
+    attemptedAt:      ar.attempt?.submittedAt || ar.computedAt,
+    score:            round(ar.score),
+    totalMarks:       ar.totalMarks || ar.exam?.totalMarks || 720,
+    percentage:       round(ar.percentage),
+    accuracy:         round(ar.overallAccuracy),
+    attemptRate:      round(ar.overallAttemptRate),
+    negativeMarks:    round(ar.totalNegativeMarks),
+    recoverableMarks: round(ar.recoverableMarks?.totalRecoverable || 0),
+    improvementFromPrev: idx > 0 ? round((ar.score || 0) - (allAnalytics[idx - 1].score || 0)) : 0,
+  }));
+
+  return {
+    student,
+    scope: scopedSprintOid ? String(scopedSprintOid) : "all",
+    summary,
+    sprints,
+    subjectPerformance,
+    chapterPerformance,
+    topicPerformance,
+    difficultyPerformance,
+    errorAnalysis,
+    coverage,
+    timeline,
+  };
+}
+
+/** Shared prelude for both the JSON and the PDF endpoints. */
+async function resolveStudentAndScope(req, next) {
+  const { studentId } = req.params;
+  const { sprintId } = req.query;
+
+  const studentOid = toObjectId(studentId);
+  if (!studentOid) { next(new AppError("Invalid student ID.", 400)); return null; }
+
+  const scoped = sprintId && sprintId !== "all" && sprintId !== "overall";
+  const scopedSprintOid = scoped ? toObjectId(sprintId) : null;
+  if (scoped && !scopedSprintOid) { next(new AppError("Invalid sprint ID.", 400)); return null; }
+
+  const student = await User.findOne({ _id: studentOid, role: ROLES.STUDENT })
+    .select("name email batch createdAt isActive programType")
+    .populate("batch", "name")
+    .lean();
+  if (!student) { next(new AppError("Student not found.", 404)); return null; }
+
+  return { student, studentOid, scopedSprintOid };
+}
+
+exports.getStudentPerformanceProfile = asyncHandler(async (req, res, next) => {
+  const ctx = await resolveStudentAndScope(req, next);
+  if (!ctx) return;
+
+  const profile = await assembleStudentPerformanceProfile(ctx.student, ctx.studentOid, ctx.scopedSprintOid);
+  return sendSuccess(
+    res, 200,
+    profile.summary ? "Student performance profile fetched." : "No analytics for this student yet.",
+    profile
+  );
+});
+
+// ─── Download the same profile as a branded PDF ──────────────────────────────
+
+exports.downloadStudentPerformanceReport = asyncHandler(async (req, res, next) => {
+  const ctx = await resolveStudentAndScope(req, next);
+  if (!ctx) return;
+
+  const profile = await assembleStudentPerformanceProfile(ctx.student, ctx.studentOid, ctx.scopedSprintOid);
+
+  const scopeLabel = ctx.scopedSprintOid
+    ? (profile.sprints[0]?.name || "Selected sprint")
+    : "All sprints";
+
+  const { buffer, filename } = await buildStudentReportPDF(profile, scopeLabel);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length", buffer.length);
+  return res.end(buffer);
 });

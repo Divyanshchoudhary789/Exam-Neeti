@@ -15,7 +15,7 @@ const {
   generateSecureToken,
   hashToken,
 } = require("../utils/token");
-const { setAuthCookies, clearAuthCookies } = require("../utils/cookies");
+const { setAuthCookies, clearAuthCookies, readRefreshCookie } = require("../utils/cookies");
 const { sendEmail, templates } = require("../services/email.service");
 const {
   NOTIFICATION_TRIGGER,
@@ -404,9 +404,10 @@ exports.googleAuth = asyncHandler(async (req, res, next) => {
 // ─── Refresh Token ────────────────────────────────────────────────────────────
 
 exports.refreshToken = asyncHandler(async (req, res, next) => {
-  // Read from signed cookie first; fall back to request body for API clients
+  // Read from the client's namespaced signed cookie first; fall back to the
+  // request body for non-browser API clients.
   const refreshToken =
-    req.signedCookies?.refresh_token || req.body?.refreshToken;
+    readRefreshCookie(req, res) || req.body?.refreshToken;
 
   if (!refreshToken) {
     return next(new AppError("Refresh token not found. Please log in again.", 401));

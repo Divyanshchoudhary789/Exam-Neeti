@@ -10,87 +10,75 @@
  *              Use "none" only if frontend is on different domain AND secure=true
  *  signed    — COOKIE_SECRET signs the cookie value; tamper-evident
  *  path      — refresh token scoped to its own endpoint only
+ *
+ * Namespacing:
+ *  `res.locals.authClient` (set by an app-level middleware in index.js from the
+ *  `X-Auth-Client` header) prefixes the cookie names — the Super Admin console
+ *  sends `superadmin` and gets `sa_access_token` / `sa_refresh_token`, keeping
+ *  its session isolated from the main site that shares the same API + (in dev)
+ *  the same `localhost` cookie jar.
  */
 
 const isProd = () => process.env.NODE_ENV === "production";
 
-// Access token cookie — 15 minutes
+// Base cookie names — a per-client prefix (e.g. "sa_") may be prepended.
 const ACCESS_TOKEN_COOKIE = "access_token";
-const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 min in ms
-
-// Refresh token cookie — 30 days, scoped to refresh endpoint only
 const REFRESH_TOKEN_COOKIE = "refresh_token";
-const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000;                 // 15 min
+const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000;      // 30 days
 
-/**
- * Determine sameSite value based on environment.
- * - Production: always "none" with secure:true (supports cross-origin cookies)
- * - Development: "lax" (works with localhost cross-port scenarios)
- *
- * In production, we default to "none" because:
- * 1. Frontend is typically on a different domain (Vercel, Netlify, etc.)
- * 2. Backend is on Render or another host
- * 3. Cross-origin cookies REQUIRE SameSite=None AND Secure=true
- * 4. If same-origin in production (rare), "none" still works but is slightly
- *    less restrictive than "lax" — acceptable tradeoff for simpler config.
- */
-const getSameSiteValue = () => {
-  return isProd() ? "none" : "lax";
-};
+/** Per-request cookie-name prefix ("" for the main site, "sa_" for the console). */
+const prefixOf = (res) => (res && res.locals && res.locals.authClient) || "";
 
-/**
- * Attach both tokens as httpOnly cookies on the response.
- */
+const accessCookieName = (res) => `${prefixOf(res)}${ACCESS_TOKEN_COOKIE}`;
+const refreshCookieName = (res) => `${prefixOf(res)}${REFRESH_TOKEN_COOKIE}`;
+/** The refresh cookie is scoped to the refresh endpoint only. */
+const REFRESH_PATH = "/api/v1/auth/refresh-token";
+
+const getSameSiteValue = () => (isProd() ? "none" : "lax");
+
+/** Attach both tokens as httpOnly cookies on the response. */
 const setAuthCookies = (res, { accessToken, refreshToken }) => {
   const sameSite = getSameSiteValue();
-  const secure = isProd(); // Always true in production, false in development
+  const secure = isProd();
 
-  res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
-    httpOnly:  true,
-    secure:    secure,
-    sameSite:  sameSite,
-    signed:    true,
-    maxAge:    ACCESS_TOKEN_MAX_AGE,
+  res.cookie(accessCookieName(res), accessToken, {
+    httpOnly: true,
+    secure,
+    sameSite,
+    signed: true,
+    maxAge: ACCESS_TOKEN_MAX_AGE,
   });
 
-  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
-    httpOnly:  true,
-    secure:    secure,
-    sameSite:  sameSite,
-    signed:    true,
-    maxAge:    REFRESH_TOKEN_MAX_AGE,
-    // Scope refresh token cookie to the refresh endpoint only.
-    // Browser will NOT send it to any other route — limits exposure.
-    path:      "/api/v1/auth/refresh-token",
+  res.cookie(refreshCookieName(res), refreshToken, {
+    httpOnly: true,
+    secure,
+    sameSite,
+    signed: true,
+    maxAge: REFRESH_TOKEN_MAX_AGE,
+    path: REFRESH_PATH,
   });
 };
 
-/**
- * Clear both auth cookies on logout.
- */
+/** Clear both auth cookies on logout / invalid-token. */
 const clearAuthCookies = (res) => {
   const sameSite = getSameSiteValue();
   const secure = isProd();
 
-  res.clearCookie(ACCESS_TOKEN_COOKIE, {
-    httpOnly: true,
-    secure:   secure,
-    sameSite: sameSite,
-    signed:   true,
-  });
-
-  res.clearCookie(REFRESH_TOKEN_COOKIE, {
-    httpOnly: true,
-    secure:   secure,
-    sameSite: sameSite,
-    signed:   true,
-    path:     "/api/v1/auth/refresh-token",
-  });
+  res.clearCookie(accessCookieName(res), { httpOnly: true, secure, sameSite, signed: true });
+  res.clearCookie(refreshCookieName(res), { httpOnly: true, secure, sameSite, signed: true, path: REFRESH_PATH });
 };
+
+/** Read the access token from the correctly-namespaced signed cookie. */
+const readAccessCookie = (req, res) => req.signedCookies?.[accessCookieName(res)];
+/** Read the refresh token from the correctly-namespaced signed cookie. */
+const readRefreshCookie = (req, res) => req.signedCookies?.[refreshCookieName(res)];
 
 module.exports = {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   setAuthCookies,
   clearAuthCookies,
+  readAccessCookie,
+  readRefreshCookie,
 };

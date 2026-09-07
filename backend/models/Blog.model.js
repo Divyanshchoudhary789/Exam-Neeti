@@ -8,7 +8,7 @@ const mongoose = require("mongoose");
  */
 const blogStyleSchema = new mongoose.Schema(
   {
-    fontFamily:   { type: String, default: "sans", enum: ["sans", "serif", "mono"] },
+    fontFamily:   { type: String, default: "sans", enum: ["sans", "serif", "mono", "inter", "poppins", "lora"] },
     fontSizePx:   { type: Number, default: 16, min: 12, max: 24 },
     lineHeight:   { type: Number, default: 1.7, min: 1.2, max: 2.4 },
     textColor:    { type: String, default: "#1f2937" },

@@ -21,14 +21,29 @@ export interface RegisterPayload {
   programType?: "class_xi" | "class_xii" | "dropper" | null;
 }
 
+export type PlanProgramType = "class_xi" | "class_xii" | "dropper" | null;
+
+export interface PlanExamBreakdown {
+  minor: number;
+  semiMajor: number;
+  major: number;
+}
+
 export interface Plan {
   _id?: string;
-  key: "trial" | "signature_entry" | "core" | "prime" | "elite";
+  /** Stable slug — "trial" is structural; the rest are admin-defined. */
+  key: string;
   name: string;
   priceRupees: number;
   durationDays: number | null;
   testsIncluded: number;
   description?: string;
+  programType?: PlanProgramType;
+  tagline?: string;
+  features?: string[];
+  examBreakdown?: PlanExamBreakdown;
+  featured?: boolean;
+  sortOrder?: number;
 }
 
 export interface Subscription {
@@ -53,19 +68,48 @@ export interface PlanAccess {
 }
 
 export interface PlanOverviewRow {
+  _id: string;
   key: string;
   name: string;
   priceRupees: number;
   durationDays: number | null;
   testsIncluded: number;
+  description: string;
+  programType: PlanProgramType;
+  tagline: string;
+  features: string[];
+  examBreakdown: PlanExamBreakdown;
+  featured: boolean;
+  sortOrder: number;
   isActive: boolean;
+  isTrial: boolean;
   batchId: string | null;
   batchSlug: string;
   batchName: string | null;
   examCount: number;
   publishedCount: number;
   studentCount: number;
+  subscriberCount: number;
   isFreeTier: boolean;
+}
+
+export interface PlanFormPayload {
+  name: string;
+  priceRupees: number;
+  durationDays: number | null;
+  testsIncluded: number;
+  description?: string;
+  programType?: PlanProgramType;
+  tagline?: string;
+  features?: string[];
+  examBreakdown?: PlanExamBreakdown;
+  featured?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+  /** create only */
+  batchMode?: "create" | "link";
+  batchName?: string;
+  batchSlug?: string;
 }
 
 export interface ExamResponsePayload {
@@ -155,7 +199,7 @@ export const paymentService = {
 // ----------------------------------------------------
 
 export interface BlogStyle {
-  fontFamily: "sans" | "serif" | "mono";
+  fontFamily: "sans" | "serif" | "mono" | "inter" | "poppins" | "lora";
   fontSizePx: number;
   lineHeight: number;
   textColor: string;
@@ -235,6 +279,70 @@ export const resourceService = {
   create: async (fd: FormData) => (await api.post("/resources", fd, { headers: { "Content-Type": "multipart/form-data" } })).data,
   update: async (id: string, fd: FormData) => (await api.patch(`/resources/${id}`, fd, { headers: { "Content-Type": "multipart/form-data" } })).data,
   remove: async (id: string) => (await api.delete(`/resources/${id}`)).data,
+};
+
+// ----------------------------------------------------
+// CONTACT — public website contact form + admin support inbox
+// ----------------------------------------------------
+
+export interface ContactMessage {
+  _id: string;
+  name: string;
+  email: string;
+  reason: string;
+  message: string;
+  status: "new" | "read" | "replied" | "archived";
+  ip?: string;
+  userAgent?: string;
+  handledBy?: { email?: string };
+  handledAt?: string | null;
+  createdAt: string;
+}
+
+export const contactService = {
+  /** Public — submit the website contact form. `company` is an anti-spam honeypot. */
+  submit: async (payload: { name: string; email: string; reason: string; message: string; company?: string }) => {
+    const res = await api.post("/contact", payload);
+    return res.data;
+  },
+  /** Admin — the support inbox. */
+  list: async (params?: { page?: number; limit?: number; status?: string; reason?: string; search?: string }) => {
+    const res = await api.get(`/contact${listQuery(params)}`);
+    return res.data;
+  },
+  setStatus: async (id: string, status: ContactMessage["status"]) =>
+    (await api.patch(`/contact/${id}`, { status })).data,
+  remove: async (id: string) => (await api.delete(`/contact/${id}`)).data,
+};
+
+// ----------------------------------------------------
+// NEWSLETTER — "Strategy Briefings" subscribe form + admin subscriber list
+// ----------------------------------------------------
+
+export interface Subscriber {
+  _id: string;
+  email: string;
+  source: "contact_section" | "footer" | "other";
+  status: "active" | "unsubscribed";
+  createdAt: string;
+  unsubscribedAt?: string | null;
+}
+
+export const newsletterService = {
+  /** Public — opt in to the newsletter. `company` is an anti-spam honeypot. */
+  subscribe: async (payload: { email: string; source?: Subscriber["source"]; company?: string }) => {
+    const res = await api.post("/subscribers", payload);
+    return res.data;
+  },
+  /** Public — opt out. */
+  unsubscribe: async (email: string) =>
+    (await api.post("/subscribers/unsubscribe", { email })).data,
+  /** Admin — the subscriber list. */
+  list: async (params?: { page?: number; limit?: number; status?: string; source?: string; search?: string }) => {
+    const res = await api.get(`/subscribers${listQuery(params)}`);
+    return res.data;
+  },
+  remove: async (id: string) => (await api.delete(`/subscribers/${id}`)).data,
 };
 
 export const subscriptionService = {
@@ -500,7 +608,9 @@ export const studentService = {
     });
     const contentDisposition = res.headers["content-disposition"] || "";
     const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
-    const filename = match?.[1] || `report_${reportId}`;
+    const type = (res.data as Blob)?.type || "";
+    const ext = type.includes("pdf") ? "pdf" : type.includes("spreadsheet") ? "xlsx" : "bin";
+    const filename = match?.[1] || `Exam-Neeti_Report_${reportId}.${ext}`;
     const objectUrl = URL.createObjectURL(res.data as Blob);
     return { objectUrl, filename };
   },
@@ -515,9 +625,23 @@ export const studentService = {
 // ADMIN SERVICES
 // ----------------------------------------------------
 export const adminService = {
-  /** Per-plan overview (exam + student counts) for the Plans & Tiers panel. */
+  /** Per-plan overview (exam + student + subscriber counts) for Plans & Tiers. */
   getPlanOverview: async () => {
     const res = await api.get("/plans/admin/overview");
+    return res.data;
+  },
+  /** Create a plan — auto-provisions its linked public batch by default. */
+  createPlan: async (payload: PlanFormPayload) => {
+    const res = await api.post("/plans", payload);
+    return res.data;
+  },
+  updatePlan: async (id: string, payload: Partial<PlanFormPayload>) => {
+    const res = await api.patch(`/plans/${id}`, payload);
+    return res.data;
+  },
+  /** Hard delete — super_admin only, and only when the plan has no history. */
+  deletePlan: async (id: string) => {
+    const res = await api.delete(`/plans/${id}`);
     return res.data;
   },
   // Sprints
@@ -864,6 +988,25 @@ export const adminService = {
     const res = await api.get(`/analytics/attempt/${attemptId}`);
     return res.data;
   },
+  /** Complete cross-sprint performance profile for one student. Omit sprintId
+   *  (or pass "all") for the student's entire history; pass an id to scope it. */
+  getStudentPerformanceProfile: async (studentId: string, sprintId?: string) => {
+    const q = sprintId && sprintId !== "all" ? `?sprintId=${sprintId}` : "";
+    const res = await api.get(`/dashboard/student/${studentId}/profile${q}`);
+    return res.data;
+  },
+  /** Download the student's performance profile as a branded PDF report. */
+  downloadStudentPerformanceReport: async (
+    studentId: string, sprintId?: string
+  ): Promise<{ objectUrl: string; filename: string }> => {
+    const q = sprintId && sprintId !== "all" ? `?sprintId=${sprintId}` : "";
+    const res = await api.get(`/dashboard/student/${studentId}/profile/report${q}`, { responseType: "blob" });
+    const cd = res.headers["content-disposition"] || "";
+    const match = cd.match(/filename="?([^";\n]+)"?/);
+    const filename = match?.[1] || `student_performance_report.pdf`;
+    const objectUrl = URL.createObjectURL(res.data as Blob);
+    return { objectUrl, filename };
+  },
 
   // Formula Config Tuning
   updateFormulaConfig: async (data: Record<string, unknown>) => {
@@ -1023,6 +1166,7 @@ export const adminService = {
   generateReport: async (data: {
     type: string;         // Backend expects "type", not "reportType"
     sprintId?: string;
+    sprintIds?: string[]; // multi-sprint scope; overrides sprintId when non-empty
     batchId?: string;
     studentId?: string;
     format?: "pdf" | "excel";
@@ -1047,6 +1191,7 @@ export const adminService = {
       scope,
       scopeRefId: scopeRefId || null,
       sprintId: data.sprintId || null,
+      sprintIds: data.sprintIds && data.sprintIds.length ? data.sprintIds : undefined,
     };
     const res = await api.post("/reports", payload);
     return res.data;
@@ -1065,7 +1210,9 @@ export const adminService = {
     });
     const contentDisposition = res.headers["content-disposition"] || "";
     const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
-    const filename = match?.[1] || `report_${reportId}`;
+    const type = (res.data as Blob)?.type || "";
+    const ext = type.includes("pdf") ? "pdf" : type.includes("spreadsheet") ? "xlsx" : "bin";
+    const filename = match?.[1] || `Exam-Neeti_Report_${reportId}.${ext}`;
     const objectUrl = URL.createObjectURL(res.data as Blob);
     return { objectUrl, filename };
   },

@@ -497,7 +497,12 @@ exports.updateSprintBlueprint = asyncHandler(async (req, res, next) => {
   const sprint = await Sprint.findById(req.params.id);
   if (!sprint) return next(new AppError("Sprint not found.", 404));
 
-  if (sprint.status !== SPRINT_STATUS.DRAFT) {
+  // Regular admins can only touch a DRAFT sprint's blueprint (workflow
+  // discipline). A super_admin may edit an active sprint's blueprint too —
+  // but the exam-count guard below still applies to everyone, because
+  // rewriting slots that published exams were snapshot from corrupts
+  // analytics/coverage regardless of who does it.
+  if (sprint.status !== SPRINT_STATUS.DRAFT && !isSuperAdmin(req)) {
     return next(
       new AppError(
         `Only a DRAFT sprint's blueprint can be edited (this one is "${sprint.status}").`,
@@ -510,7 +515,8 @@ exports.updateSprintBlueprint = asyncHandler(async (req, res, next) => {
   if (examCount > 0) {
     return next(
       new AppError(
-        `Cannot edit blueprint — ${examCount} exam(s) were already generated from this sprint.`,
+        `Cannot edit blueprint — ${examCount} exam(s) were already generated from this sprint. ` +
+        `Editing the pattern now would desync their analytics.`,
         409
       )
     );
@@ -642,8 +648,12 @@ exports.listSlotQuestions = asyncHandler(async (req, res, next) => {
 // sprint (or one with exams) is referenced by exam/attempt/analytics data.
 // Returns a human-readable reason string, or null if it's safe to delete.
 
-const sprintDeletionBlocker = async (sprint) => {
-  if (sprint.status !== SPRINT_STATUS.DRAFT) {
+const sprintDeletionBlocker = async (sprint, { superAdmin = false } = {}) => {
+  // The DRAFT-only rule is workflow discipline for admins — a super_admin may
+  // delete an active/completed sprint too. The exam-count block stays for
+  // everyone: a sprint referenced by generated exams (and their attempts /
+  // analytics) can't just vanish — delete those exams first.
+  if (sprint.status !== SPRINT_STATUS.DRAFT && !superAdmin) {
     return `Only a DRAFT sprint can be deleted (this one is "${sprint.status}"). Set it back to draft first if it has no exams.`;
   }
   const Exam = require("../models/Exam.model");
@@ -771,8 +781,8 @@ exports.decideSprintDeletion = asyncHandler(async (req, res, next) => {
   }
 
   // approve → re-validate the blockers at decision time (state may have changed
-  // since the request was raised), then delete.
-  const blocker = await sprintDeletionBlocker(sprint);
+  // since the request was raised), then delete. The approver is a super_admin.
+  const blocker = await sprintDeletionBlocker(sprint, { superAdmin: true });
   if (blocker) {
     return next(new AppError(`Cannot approve deletion — ${blocker} The request is still pending; reject it or clear the blocker.`, 409));
   }
@@ -803,7 +813,7 @@ exports.deleteSprint = asyncHandler(async (req, res, next) => {
   const sprint = await Sprint.findById(req.params.id);
   if (!sprint) return next(new AppError("Sprint not found.", 404));
 
-  const blocker = await sprintDeletionBlocker(sprint);
+  const blocker = await sprintDeletionBlocker(sprint, { superAdmin: isSuperAdmin(req) });
   if (blocker) return next(new AppError(`Cannot delete sprint — ${blocker}`, 409));
 
   const snapshot = { sprintId: String(sprint._id), sprintName: sprint.name, direct: true };

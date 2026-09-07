@@ -107,8 +107,24 @@ export function Markdown({ source, className = "" }: { source: string; className
   return <div className={`md-body ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+export type BlogFontKey = "sans" | "serif" | "mono" | "inter" | "poppins" | "lora";
+
+/** The curated blog typefaces. `web:true` means the family is pulled from
+ *  Google Fonts (see the <link> in each app's root layout). */
+export const BLOG_FONTS: { key: BlogFontKey; label: string; stack: string; web?: boolean }[] = [
+  { key: "sans",    label: "System",  stack: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+  { key: "inter",   label: "Inter",   stack: '"Inter", ui-sans-serif, system-ui, sans-serif', web: true },
+  { key: "poppins", label: "Poppins", stack: '"Poppins", ui-sans-serif, system-ui, sans-serif', web: true },
+  { key: "serif",   label: "Georgia", stack: 'Georgia, "Times New Roman", serif' },
+  { key: "lora",    label: "Lora",    stack: '"Lora", Georgia, "Times New Roman", serif', web: true },
+  { key: "mono",    label: "Mono",    stack: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' },
+];
+
+export const blogFontStack = (key?: string) =>
+  BLOG_FONTS.find((f) => f.key === key)?.stack || BLOG_FONTS[0].stack;
+
 export interface BlogStyleLike {
-  fontFamily?: "sans" | "serif" | "mono";
+  fontFamily?: BlogFontKey | string;
   fontSizePx?: number;
   lineHeight?: number;
   textColor?: string;
@@ -121,6 +137,7 @@ export interface BlogStyleLike {
 export function StyledBlogBody({ content, style, className = "" }: { content: string; style?: BlogStyleLike | null; className?: string }) {
   const s = style || {};
   const cssVars = {
+    "--md-font": blogFontStack(s.fontFamily),
     "--md-text": s.textColor || "#1f2937",
     "--md-heading": s.headingColor || "#111827",
     "--md-accent": s.accentColor || "#4338ca",
@@ -130,7 +147,7 @@ export function StyledBlogBody({ content, style, className = "" }: { content: st
   } as React.CSSProperties;
   return (
     <div style={cssVars}>
-      <Markdown source={content} className={`${s.fontFamily === "serif" ? "font-serif" : s.fontFamily === "mono" ? "font-mono" : ""} ${className}`} />
+      <Markdown source={content} className={className} />
     </div>
   );
 }

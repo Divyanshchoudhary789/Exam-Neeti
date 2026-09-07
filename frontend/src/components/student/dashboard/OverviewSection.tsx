@@ -19,6 +19,12 @@ import { SegmentedControl } from "../../common/DashboardUI";
 
 type SectionId = "overview" | "analytics" | "tests" | "history" | "reports" | "profile";
 
+const readinessBand = (v: number) =>
+  v >= 75 ? "On track for a strong score"
+  : v >= 50 ? "Building steadily — keep going"
+  : v >= 25 ? "Early stage — lots of upside"
+  : "Just getting started";
+
 export function OverviewSection({
   data,
   user,
@@ -85,65 +91,98 @@ export function OverviewSection({
 
   const noData = !summary || testCount === 0;
 
-  const strip = [
-    { l: "Readiness", v: readiness > 0 ? `${readiness.toFixed(0)}%` : "—", hint: `${num((probability?.assessedCount as number) || (probability?.chapters as unknown[])?.length)}/86 chapters rated`, onClick: onOpenSurvey },
-    { l: "Syllabus seen", v: sylPct > 0 ? `${sylPct.toFixed(0)}%` : "—", hint: "from tests taken" },
-    { l: "Consistency", v: summary?.consistencyAcrossTests && summary.consistencyAcrossTests.interpretation !== "insufficient_data" ? summary.consistencyAcrossTests.interpretation.replace(/_/g, " ") : "—", hint: summary?.consistencyAcrossTests?.interpretation === "insufficient_data" ? "needs 2+ tests" : `±${num(summary?.consistencyAcrossTests?.accuracyStdDevPercent).toFixed(0)}% swing` },
-  ];
+  const consistency = summary?.consistencyAcrossTests;
+  const consistencyLabel = consistency && consistency.interpretation !== "insufficient_data"
+    ? consistency.interpretation.replace(/_/g, " ")
+    : "—";
+  const chaptersRated = num((probability?.assessedCount as number) || (probability?.chapters as unknown[])?.length);
+
+  // A single data-driven line for the hero — pick the most useful thing to say.
+  const heroMessage: string = (() => {
+    if (noData) return "Take your first test — every metric here will open the exact questions behind it.";
+    const silly = errorAnalysis.silly;
+    const topLoss = lossDrivers[0];
+    const pct = num(summary?.overallPercentage);
+    if (silly >= 3) return `${silly} silly mistakes last time — roughly ${silly * 4} marks you already knew. Recover those first.`;
+    if (topLoss?.chapter) return `${topLoss.chapter} is leaking the most marks right now — fixing it is your fastest gain.`;
+    if (scoreDelta != null && scoreDelta >= 3) return `You're up ${scoreDelta} marks on your last test — carry that into the next one.`;
+    if (scoreDelta != null && scoreDelta <= -3) return `Last test slipped ${Math.abs(scoreDelta)} marks. The drill-downs below show exactly where.`;
+    if (pct > 0 && pct < 40) return `Averaging ${pct.toFixed(0)}% across ${testCount} test${testCount !== 1 ? "s" : ""} — tap any weak number below to see the questions behind it.`;
+    return `${testCount} test${testCount !== 1 ? "s" : ""} analysed. Tap any metric to open the exact questions behind it.`;
+  })();
+
+  const R = 15.5;
+  const CIRC = 2 * Math.PI * R;
 
   return (
     <div className="space-y-4 animate-dash-in">
-      {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl dash-gradient text-white p-4 sm:p-5 shadow-lg shadow-indigo-900/20">
-        <div className="pointer-events-none absolute -top-16 -right-10 h-48 w-48 rounded-full bg-white/[0.07]" />
-        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="min-w-0">
+      {/* Hero — greeting + NEET readiness */}
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl dash-gradient text-white shadow-xl shadow-indigo-900/25">
+        <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-12 h-56 w-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
+
+        <div className="relative p-5 sm:p-6 lg:p-7 flex flex-col lg:flex-row lg:items-stretch gap-5">
+          <div className="min-w-0 flex-1 flex flex-col">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/70">
               {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
             </p>
-            <h1 className="text-xl sm:text-[26px] font-black tracking-tight leading-tight mt-0.5">
-              Hi {firstName} 👋
-            </h1>
-            <p className="text-xs sm:text-sm text-white/85 font-medium max-w-lg mt-1">
-              {scoreDelta != null && scoreDelta !== 0
-                ? `Your last test moved ${scoreDelta > 0 ? "up" : "down"} ${Math.abs(scoreDelta)} marks. `
-                : ""}
-              Every number on this page opens the exact questions behind it.
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight mt-1">Hi {firstName}</h1>
+            <p className="text-xs sm:text-sm text-white/85 font-medium max-w-md mt-1.5 leading-relaxed">{heroMessage}</p>
+            <div className="flex items-center gap-2 mt-auto pt-4">
+              <button
+                onClick={onOpenSurvey}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-indigo-700 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <IconBook className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Chapter </span>Assessment
+              </button>
+              <button
+                onClick={() => refresh()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/[0.12] border border-white/25 hover:bg-white/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                title="Refresh dashboard"
+              >
+                <IconRefresh className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">Refresh</span>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-            <button
-              onClick={onOpenSurvey}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-indigo-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            >
-              <IconBook className="w-3.5 h-3.5" /> <span className="hidden xs:inline">Chapter </span>Assessment
-            </button>
-            <button
-              onClick={() => refresh()}
-              className="p-2 bg-white/15 border border-white/20 hover:bg-white/25 rounded-xl transition-all cursor-pointer"
-              aria-label="Refresh dashboard"
-              title="Refresh"
-            >
-              <IconRefresh className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* readiness / coverage strip — solid cards for contrast + clickability */}
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
-        {strip.map((x) => (
           <button
-            key={x.l}
-            onClick={x.onClick}
-            disabled={!x.onClick}
-            className={`dash-card-flat px-3 py-2.5 text-left disabled:cursor-default ${x.onClick ? "dash-clickable group" : ""}`}
+            onClick={onOpenSurvey}
+            className="group shrink-0 w-full lg:w-64 rounded-2xl bg-white text-slate-900 p-4 shadow-lg shadow-indigo-950/25 hover:shadow-xl transition-shadow text-left cursor-pointer"
           >
-            <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">{x.l}</p>
-            <p className="text-base sm:text-lg font-black capitalize leading-tight mt-0.5 text-slate-900">{x.v}</p>
-            <p className="text-[10px] text-slate-400 font-semibold truncate">{x.hint}</p>
+            <div className="flex items-center gap-3.5">
+              <div className="relative w-16 h-16 shrink-0">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r={R} fill="none" stroke="#eef1f7" strokeWidth="4" />
+                  <circle cx="18" cy="18" r={R} fill="none" stroke="url(#readinessGrad)" strokeWidth="4" strokeLinecap="round"
+                    strokeDasharray={`${(Math.max(0, Math.min(100, readiness)) / 100) * CIRC} ${CIRC}`}
+                    style={{ transition: "stroke-dasharray 900ms cubic-bezier(0.16,1,0.3,1)" }} />
+                  <defs>
+                    <linearGradient id="readinessGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#a855f7" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <span className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+                  <span className="text-lg font-black tabular-nums text-slate-900">{readiness > 0 ? readiness.toFixed(0) : "—"}</span>
+                  {readiness > 0 && <span className="text-[8px] font-bold text-slate-400 mt-0.5">/ 100</span>}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">NEET Readiness</p>
+                <p className="text-xs font-bold text-slate-600 mt-0.5 leading-snug">{readiness > 0 ? readinessBand(readiness) : "Not assessed yet"}</p>
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                <span className="text-slate-400">{chaptersRated} / 86 chapters rated</span>
+                <span className="text-indigo-600 inline-flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">Update <IconChevronRight className="w-3 h-3" /></span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${Math.min(100, (chaptersRated / 86) * 100)}%` }} />
+              </div>
+            </div>
           </button>
-        ))}
+        </div>
       </div>
 
       {noData ? (
@@ -161,22 +200,8 @@ export function OverviewSection({
         </SectionCard>
       ) : (
         <>
-          {/* KPI grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
-            <KpiCard
-              label="Tests Taken" value={testCount} sub={`in ${data.selectedSprint?.name || "this sprint"}`}
-              icon={IconClock}
-              onClick={() => onGoSection("history")}
-            />
-            <KpiCard
-              label="Best Result"
-              value={bestEntry ? `${num(bestEntry.percentage).toFixed(0)}%` : `${num(summary?.overallPercentage).toFixed(0)}%`}
-              sub={bestEntry ? `${bestEntry.score}/${bestEntry.totalMarks || 720} · ${bestEntry.examTitle || "test"}` : "your ceiling so far"}
-              icon={IconCheck} accent="#7c3aed"
-              spark={timeline.map((t) => num(t.percentage))}
-              status={{ label: "Best", tone: "good" }}
-              onClick={bestEntry?.attemptId ? () => onViewAttempt(bestEntry.attemptId as string) : undefined}
-            />
+          {/* Primary performance — the three numbers a student checks first */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
             <KpiCard
               label="Average %" value={`${num(summary?.overallPercentage).toFixed(1)}%`} sub={`${num(summary?.averageScore).toFixed(0)} marks per test`}
               icon={IconChart} delta={dPct} spark={timeline.map((t) => num(t.percentage))}
@@ -185,7 +210,7 @@ export function OverviewSection({
             />
             <KpiCard
               label="Accuracy" value={`${num(summary?.overallAccuracy).toFixed(1)}%`} sub="of the questions you attempt"
-              icon={IconTarget} delta={dAcc} spark={timeline.map((t) => num(t.accuracy))}
+              icon={IconTarget} accent="#7c3aed" delta={dAcc} spark={timeline.map((t) => num(t.accuracy))}
               status={pctStatus(num(summary?.overallAccuracy), dAcc)}
               onClick={() => open({
                 title: "Accuracy — the misses",
@@ -197,7 +222,7 @@ export function OverviewSection({
             />
             <KpiCard
               label="Attempt Rate" value={`${num(summary?.overallAttemptRate).toFixed(1)}%`} sub={`${(100 - num(summary?.overallAttemptRate)).toFixed(0)}% left blank`}
-              icon={IconTrendingUp} delta={dRate} spark={timeline.map((t) => num(t.attemptRate))}
+              icon={IconTrendingUp} accent="#0d9488" delta={dRate} spark={timeline.map((t) => num(t.attemptRate))}
               status={pctStatus(num(summary?.overallAttemptRate), dRate)}
               onClick={() => open({
                 title: "Questions left blank",
@@ -206,6 +231,19 @@ export function OverviewSection({
                 metric: "unattempted",
                 note: "Some of these were likely winnable — check which topics you skip most.",
               })}
+            />
+          </div>
+
+          {/* Secondary KPI grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+            <KpiCard
+              label="Best Result"
+              value={bestEntry ? `${num(bestEntry.percentage).toFixed(0)}%` : `${num(summary?.overallPercentage).toFixed(0)}%`}
+              sub={bestEntry ? `${bestEntry.score}/${bestEntry.totalMarks || 720} · ${bestEntry.examTitle || "test"}` : "your ceiling so far"}
+              icon={IconCheck} accent="#7c3aed"
+              spark={timeline.map((t) => num(t.percentage))}
+              status={{ label: "Best", tone: "good" }}
+              onClick={bestEntry?.attemptId ? () => onViewAttempt(bestEntry.attemptId as string) : undefined}
             />
             <KpiCard
               label="Silly Mistakes" value={errorAnalysis.silly} sub={errorAnalysis.total > 0 ? `${Math.round((errorAnalysis.silly / errorAnalysis.total) * 100)}% of your errors` : "none flagged yet"}
@@ -218,6 +256,22 @@ export function OverviewSection({
                 metric: "silly_mistakes",
                 note: "These are pure recoverable marks — a slower re-read would have fixed them.",
               })}
+            />
+            <KpiCard
+              label="Tests Taken" value={testCount} sub={`in ${data.selectedSprint?.name || "this sprint"}`}
+              icon={IconClock}
+              onClick={() => onGoSection("history")}
+            />
+            <KpiCard
+              label="Syllabus Seen" value={sylPct > 0 ? `${sylPct.toFixed(0)}%` : "—"} sub="covered by your tests so far"
+              icon={IconBook} accent="#0d9488"
+              onClick={() => onGoSection("analytics")}
+            />
+            <KpiCard
+              label="Consistency"
+              value={<span className="capitalize text-[17px] sm:text-[19px]">{consistencyLabel}</span>}
+              sub={consistency?.interpretation === "insufficient_data" ? "needs 2+ tests" : `±${num(consistency?.accuracyStdDevPercent).toFixed(0)}% swing between tests`}
+              icon={IconRefresh} accent="#4f46e5"
             />
           </div>
 

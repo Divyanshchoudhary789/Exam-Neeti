@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CommonModal, Spinner } from "../common/UIComponents";
+import { CommonModal, Spinner, IconInfo } from "../common/UIComponents";
 import { adminService } from "../../services/apiServices";
 
 interface EditBatchModalProps {
@@ -73,6 +73,12 @@ export function EditBatchModal({
       maxWidth="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-slate-800">
+        {String(batchData?.source) === "public" && (
+          <div className="flex items-start gap-2 rounded-xl bg-indigo-50 border border-indigo-200 p-3 text-[11px] font-semibold text-indigo-800">
+            <IconInfo className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>This batch backs a self-serve plan. Renaming it or changing the class level is fine; the plan itself is managed from <b>Plans &amp; Tiers</b>.</span>
+          </div>
+        )}
         <div>
           <label className="text-[11px] font-extrabold uppercase tracking-wide text-slate-600 block mb-1">
             Batch Name *

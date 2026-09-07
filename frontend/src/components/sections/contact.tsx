@@ -1,27 +1,54 @@
 "use client";
 
 import { useState } from "react";
+import { newsletterService } from "../../services/apiServices";
+import { toast } from "../common/feedback";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function Contact() {
   const [emailInput, setEmailInput] = useState("");
+  const [company, setCompany] = useState(""); // honeypot
+  const [submitting, setSubmitting] = useState(false);
   const [newsletterStatus, setNewsletterStatus] = useState<"idle" | "success" | "error">("idle");
   const [newsletterMsg, setNewsletterMsg] = useState("");
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput) {
+    if (submitting) return;
+
+    const email = emailInput.trim();
+    if (!email) {
       setNewsletterStatus("error");
       setNewsletterMsg("Please enter an email address.");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+    if (!EMAIL_RE.test(email)) {
       setNewsletterStatus("error");
       setNewsletterMsg("Please enter a valid email address.");
       return;
     }
-    setNewsletterStatus("success");
-    setNewsletterMsg("Thank you! You have subscribed successfully.");
-    setEmailInput("");
+
+    setSubmitting(true);
+    setNewsletterStatus("idle");
+    setNewsletterMsg("");
+    try {
+      const res = await newsletterService.subscribe({ email, source: "contact_section", company });
+      setNewsletterStatus("success");
+      setNewsletterMsg(res?.message || "You're subscribed. Watch your inbox for the next briefing.");
+      setEmailInput("");
+      toast.success("Subscribed to Strategy Briefings");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0] ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Couldn't subscribe right now. Please try again.";
+      setNewsletterStatus("error");
+      setNewsletterMsg(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -29,7 +56,7 @@ export function Contact() {
       <div className="absolute right-0 bottom-0 w-[350px] h-[350px] bg-indigo-500/[0.01] rounded-full blur-[100px] pointer-events-none translate-x-1/4" />
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-          
+
           <div className="lg:col-span-5 space-y-6">
             <h2 className="font-display text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Get in Touch with Our Strategists
@@ -55,18 +82,31 @@ export function Contact() {
               Join 5,000+ educators and students receiving weekly checklist recommendations.
             </p>
             <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-2 w-full max-w-md">
+              {/* Honeypot — hidden from real users, catches bots. */}
+              <input
+                type="text"
+                name="company"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                className="absolute -left-[9999px] h-0 w-0 opacity-0"
+              />
               <input
                 type="email"
                 placeholder="Enter email address"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
-                className="flex-grow rounded-xl bg-white border border-slate-300 focus:border-[#5a4bfc] focus:outline-none text-slate-900 text-xs px-4 py-3 shadow-sm"
+                disabled={submitting}
+                className="flex-grow rounded-xl bg-white border border-slate-300 focus:border-[#5a4bfc] focus:outline-none text-slate-900 text-xs px-4 py-3 shadow-sm disabled:opacity-60"
               />
               <button
                 type="submit"
-                className="bg-[#5a4bfc] hover:bg-[#6c5eff] text-white text-xs font-extrabold px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 text-center"
+                disabled={submitting}
+                className="bg-[#5a4bfc] hover:bg-[#6c5eff] text-white text-xs font-extrabold px-5 py-3 rounded-xl transition-all cursor-pointer shrink-0 text-center disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Subscribe
+                {submitting ? "Subscribing…" : "Subscribe"}
               </button>
             </form>
             {newsletterStatus !== "idle" && (

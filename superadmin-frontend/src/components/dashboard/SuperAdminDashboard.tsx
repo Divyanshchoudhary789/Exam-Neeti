@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { adminService, UserProfile } from "../../services/apiServices";
+import { adminService, authService, UserProfile } from "../../services/apiServices";
 import { useAuthStore } from "../../store/useAuthStore";
 import { changepassword } from "../../store/commonapi";
 import { MathRenderer } from "../common/MathRenderer";
@@ -10,10 +10,13 @@ import {
   IconChart, IconBook, IconUsers, IconClock, IconFilter, IconPlus,
   IconTrash, IconDownload, IconUpload, IconCheck, IconCross, IconEye, IconEdit,
   IconLayers, IconFileText, IconSearch, IconShield, IconChevronDown, IconRocket,
-  IconAlertTriangle,
+  IconAlertTriangle, IconMail, IconPhone, IconCalendar, IconLock, IconEyeOff, IconUserCheck,
+  IconGraduationCap,
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
+  CustomSelectMenu,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
+import { confirmDialog, promptDialog, toast } from "../common/feedback";
 import { RadialMeter, HBarChart } from "../common/Charts";
 import { SprintOversightPanel } from "../admin/SprintOversightPanel";
 import { PlatformHealthPanel } from "./PlatformHealthPanel";
@@ -25,6 +28,8 @@ import { SprintHistoryModal } from "../admin/SprintHistoryModal";
 import { PlanTiersPanel } from "../admin/PlanTiersPanel";
 import { BulkStudentUploadModal } from "../admin/BulkStudentUploadModal";
 import { ContentHubPanel } from "../admin/ContentHubPanel";
+import { ContactInboxPanel } from "./ContactInboxPanel";
+import { SubscribersPanel } from "./SubscribersPanel";
 import { SprintPaperDownloadButton } from "../admin/SprintPaperDownloadButton";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
@@ -79,6 +84,8 @@ const TABS = [
   { id: "syllabus", label: "Syllabus Taxonomy", icon: IconFileText },
   { id: "students", label: "Students", icon: IconUsers },
   { id: "reports", label: "Reports", icon: IconDownload },
+  { id: "inbox", label: "Support Inbox", icon: IconMail },
+  { id: "subscribers", label: "Subscribers", icon: IconMail },
   { id: "admins", label: "Admin Team", icon: IconUsers },
   { id: "logs", label: "Audit Trail", icon: IconClock },
   { id: "governance", label: "Governance & Purge", icon: IconAlertTriangle },
@@ -130,6 +137,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "students", label: "Students", icon: IconUsers, description: "Directory & Rosters" },
       { id: "reports", label: "Reports", icon: IconDownload, description: "Export Reports" },
+      { id: "inbox", label: "Support Inbox", icon: IconMail, description: "Website contact messages" },
+      { id: "subscribers", label: "Subscribers", icon: IconMail, description: "Newsletter opt-ins" },
     ],
   },
   {
@@ -166,7 +175,6 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
     }
   });
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [toast, setToast] = useState<{ text: string; type: "success"|"error" }|null>(null);
 
   const toggleSidebarCollapse = () => {
     setIsSidebarCollapsed((prev) => {
@@ -323,20 +331,30 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   const [reportType, setReportType] = useState("admin_sprint");
   const [reportFormat, setReportFormat] = useState<"pdf"|"excel">("pdf");
   const [reportBatchId, setReportBatchId] = useState("");
+  const [reportStudentId, setReportStudentId] = useState("");
+  const [reportSprintIds, setReportSprintIds] = useState<string[]>([]);
+  const [reportStudents, setReportStudents] = useState<UserProfile[]>([]);
+  const [reportStudentsLoading, setReportStudentsLoading] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [downloadingReportId, setDownloadingReportId] = useState<string|null>(null);
+
+  const PER_STUDENT_REPORTS = ["student_overall","student_subject","student_chapter","student_time","student_accuracy","student_recoverable","admin_student"] as const;
+  const isPerStudentReport = (PER_STUDENT_REPORTS as readonly string[]).includes(reportType);
 
   // ── Settings state ────────────────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [meProfile, setMeProfile] = useState<Record<string, unknown> | null>(null);
+  const [meLoading, setMeLoading] = useState(false);
 
-  // ── Toast helper ──────────────────────────────────────────────────────
-  const showToast = useCallback((text: string, type: "success"|"error" = "success") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
+  // ── Toast helper — delegates to the app-wide toast system ─────────────
+  const showToast = useCallback((text: string, type: "success" | "error" = "success") => {
+    if (type === "error") toast.error(text);
+    else toast.success(text);
   }, []);
 
   // ── Core data loaders ─────────────────────────────────────────────────
@@ -547,6 +565,30 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   useEffect(() => { if (activeTab === "reports") loadReports(); }, [activeTab, loadReports]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "syllabus") loadSyllabus(); }, [activeTab, loadSyllabus]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "students") loadUsers(); }, [userPage, userRoleFilter, userBatchFilter, userSearch, loadUsers]); // eslint-disable-line
+  useEffect(() => {
+    if (activeTab !== "reports" || !isPerStudentReport) return;
+    let cancelled = false;
+    setReportStudentsLoading(true);
+    adminService.getUsers({ role: "student", limit: 500, batch: reportBatchId || undefined })
+      .then((res) => {
+        if (cancelled) return;
+        const raw = res?.data?.students || res?.data?.users || res?.students || res?.users || [];
+        setReportStudents(Array.isArray(raw) ? (raw as UserProfile[]) : []);
+      })
+      .catch(() => { if (!cancelled) setReportStudents([]); })
+      .finally(() => { if (!cancelled) setReportStudentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, isPerStudentReport, reportBatchId]);
+  useEffect(() => {
+    if (activeTab !== "settings" || meProfile) return;
+    let cancelled = false;
+    setMeLoading(true);
+    authService.getMe()
+      .then((res) => { if (!cancelled) setMeProfile((res?.data?.user || res?.user || null) as Record<string, unknown> | null); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setMeLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, meProfile]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -554,7 +596,12 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   // a super admin must approve. A super admin deletes directly.
   const handleDeleteSprint = async (id: string) => {
     if (user?.role === "super_admin") {
-      if (!window.confirm("Delete this sprint directly? This cannot be undone.")) return;
+      if (!(await confirmDialog({
+        title: "Delete sprint directly?",
+        message: "This permanently deletes the sprint. This cannot be undone.",
+        confirmText: "Delete sprint",
+        tone: "danger",
+      }))) return;
       try { await adminService.deleteSprint(id); showToast("Sprint deleted!"); refreshSprintsAfterMutation(); }
       catch (err: unknown) {
         const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Delete failed";
@@ -562,7 +609,13 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
       }
       return;
     }
-    const reason = window.prompt("Request deletion of this sprint — a super admin must approve.\n\nReason (optional):", "");
+    const reason = await promptDialog({
+      title: "Request sprint deletion",
+      message: "A super admin must approve this before the sprint is deleted.",
+      placeholder: "Reason (optional)",
+      multiline: true,
+      confirmText: "Submit request",
+    });
     if (reason === null) return;
     try {
       const res = await adminService.requestSprintDeletion(id, reason);
@@ -575,7 +628,11 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   };
 
   const handleCancelSprintDeletionRequest = async (id: string) => {
-    if (!window.confirm("Withdraw the pending deletion request for this sprint?")) return;
+    if (!(await confirmDialog({
+      title: "Withdraw deletion request?",
+      message: "The pending deletion request for this sprint will be cancelled.",
+      confirmText: "Withdraw request",
+    }))) return;
     try {
       await adminService.cancelSprintDeletionRequest(id);
       showToast("Deletion request withdrawn.", "success");
@@ -598,12 +655,15 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   };
 
   const handleDeleteBatch = async (id: string, name: string) => {
-    const confirmInput = window.prompt(`To permanently delete batch "${name}", type its exact name below:`);
-    if (!confirmInput) return;
-    if (confirmInput.trim() !== name.trim()) {
-      showToast("Batch name confirmation did not match. Deletion cancelled.", "error");
-      return;
-    }
+    const confirmInput = await promptDialog({
+      title: "Delete batch?",
+      message: `This permanently deletes "${name}" and cannot be undone. Type the batch name to confirm.`,
+      placeholder: name,
+      matchValue: name,
+      confirmText: "Delete batch",
+      tone: "danger",
+    });
+    if (confirmInput === null) return;
     try {
       await adminService.deleteBatch(id, confirmInput.trim());
       showToast("Batch deleted successfully!");
@@ -644,7 +704,12 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   };
 
   const handleDeleteExam = async (id: string) => {
-    if (!window.confirm("Delete this exam?")) return;
+    if (!(await confirmDialog({
+      title: "Delete exam?",
+      message: "This permanently deletes the exam. This cannot be undone.",
+      confirmText: "Delete exam",
+      tone: "danger",
+    }))) return;
     try { await adminService.deleteExam(id); showToast("Exam deleted!"); loadExams(); }
     catch (err: unknown) { showToast((err as {message?:string}).message || "Delete failed", "error"); }
   };
@@ -660,7 +725,12 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   };
 
   const handleDeleteSyllabusTopic = async (topicId: string, topicName: string) => {
-    if (!window.confirm(`Are you sure you want to delete topic "${topicName}" permanently?`)) return;
+    if (!(await confirmDialog({
+      title: "Delete syllabus topic?",
+      message: `"${topicName}" will be permanently deleted from the syllabus. This cannot be undone.`,
+      confirmText: "Delete topic",
+      tone: "danger",
+    }))) return;
     try {
       await adminService.deleteSyllabusTopic(topicId);
       showToast("Syllabus topic deleted successfully!", "success");
@@ -809,24 +879,48 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
 
   const handleGenerateReport = async () => {
-    if (!selectedSprintId) { showToast("Select a sprint first", "error"); return; }
+    if (isPerStudentReport && !reportStudentId) {
+      showToast("Pick a student for this report.", "error");
+      return;
+    }
     if (reportType === "admin_batch" && !reportBatchId) {
-      showToast("Please select a batch for Batch Performance Analysis", "error");
+      showToast("Pick a batch for the Batch Performance report.", "error");
+      return;
+    }
+    if (reportType === "admin_sprint" && reportSprintIds.length !== 1) {
+      showToast("The Sprint Summary report covers exactly one sprint — pick one.", "error");
       return;
     }
     setReportGenerating(true);
     try {
-      const scope = reportType === "admin_batch" ? "batch" : (reportBatchId ? "batch" : "full_sprint");
+      const sprintIds = reportSprintIds;
+      const sprintId = sprintIds.length === 1 ? sprintIds[0] : undefined;
+
+      let scope: string;
+      let scopeRefId: string | undefined;
+      if (isPerStudentReport) {
+        scope = "student";
+        scopeRefId = reportStudentId;
+      } else if (reportType === "admin_batch") {
+        scope = "batch";
+        scopeRefId = reportBatchId;
+      } else if (reportType === "admin_comparative" && reportBatchId) {
+        scope = "batch";
+        scopeRefId = reportBatchId;
+      } else {
+        scope = "full_sprint";
+      }
+
       await adminService.generateReport({
         type: reportType,
-        sprintId: selectedSprintId,
-        batchId: reportBatchId || undefined,
-        scope,
-        scopeRefId: reportBatchId || undefined,
         format: reportFormat,
+        scope,
+        scopeRefId,
+        sprintId,
+        sprintIds: sprintIds.length > 1 ? sprintIds : undefined,
       });
-      showToast("Report requested successfully! Refreshing reports list...");
-      setTimeout(() => loadReports(), 1500);
+      showToast("Report generated. Ready to download.");
+      await loadReports();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Report generation failed";
       showToast(msg, "error");
@@ -904,34 +998,6 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900 flex font-sans antialiased selection:bg-indigo-500 selection:text-white">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 sm:top-6 sm:right-6 z-[99999] flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-2xl text-xs font-bold transition-all animate-in slide-in-from-top-3 max-w-sm sm:max-w-md backdrop-blur-xl ${
-            toast.type === "success"
-              ? "bg-white/95 border-emerald-300 text-emerald-950 shadow-emerald-500/15"
-              : "bg-white/95 border-red-300 text-red-950 shadow-red-500/15"
-          }`}
-        >
-          {toast.type === "success" ? (
-            <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
-              <IconCheck className="w-4 h-4" />
-            </div>
-          ) : (
-            <div className="p-1.5 rounded-xl bg-red-100 text-red-700 shrink-0">
-              <IconCross className="w-4 h-4" />
-            </div>
-          )}
-          <span className="flex-1 font-extrabold text-slate-900 leading-snug">{toast.text}</span>
-          <button
-            onClick={() => setToast(null)}
-            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-          >
-            <IconCross className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Mobile Backdrop */}
       {isMobileDrawerOpen && (
         <div
@@ -1016,6 +1082,8 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       setActiveTab(item.id);
                       setIsMobileDrawerOpen(false);
                     }}
+                    aria-label={item.label}
+                    aria-current={isActive ? "page" : undefined}
                     title={isSidebarVisuallyCollapsed ? `${item.label} (${item.description})` : undefined}
                     className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
                       isActive
@@ -1193,16 +1261,38 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                 </div>
               )}
 
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <MiniStatCard title="Total Students" value={Number(dashboardOverview?.totalStudents ?? 0)} subtitle="Enrolled in selected sprint" icon={IconUsers} />
-                <MiniStatCard title="Active Exams" value={Number(dashboardOverview?.totalExams ?? 0)} subtitle="Scheduled / live" icon={IconBook} />
-                <MiniStatCard title="Avg Sprint Score" value={Number(dashboardOverview?.averageScore ?? 0) > 0 ? `${Number(dashboardOverview?.averageScore).toFixed(0)}` : "N/A"} subtitle="Mean marks" icon={IconChart} />
-                <MiniStatCard title="Active Batches" value={Number(dashboardOverview?.totalBatches ?? 0)} subtitle="Assigned to selected sprint" icon={IconLayers} />
-              </div>
+              {/* Stat cards — only once metrics exist for the selected sprint.
+                  Before that the banners above already tell the admin what to do,
+                  and a grid of zeros just reads as a broken screen. */}
+              {(isDashboardLoading || dashboardOverview) && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <MiniStatCard title="Total Students" value={Number(dashboardOverview?.totalStudents ?? 0)} subtitle="Enrolled in selected sprint" icon={IconUsers} />
+                  <MiniStatCard title="Active Exams" value={Number(dashboardOverview?.totalExams ?? 0)} subtitle="Scheduled / live" icon={IconBook} />
+                  <MiniStatCard title="Avg Sprint Score" value={Number(dashboardOverview?.averageScore ?? 0) > 0 ? `${Number(dashboardOverview?.averageScore).toFixed(0)}` : "N/A"} subtitle="Mean marks" icon={IconChart} />
+                  <MiniStatCard title="Active Batches" value={Number(dashboardOverview?.totalBatches ?? 0)} subtitle="Assigned to selected sprint" icon={IconLayers} />
+                </div>
+              )}
 
               {/* Chapter Weakness & Topic Breakdown Widget */}
-              {chapterBreakdown && (
+              {chapterBreakdown && (() => {
+                // Backend returns one `chapters` array sorted weakest-first. Each
+                // widget must show only chapters that actually clear its own
+                // threshold — otherwise, with a handful of chapters, "weakest"
+                // and "strongest" show the same rows (a 100%-accuracy chapter
+                // under "Weakest", a 0% one under "Strongest").
+                const allChapters = Array.isArray(chapterBreakdown.chapters)
+                  ? (chapterBreakdown.chapters as Array<{ chapter?: string; accuracy?: number }>)
+                  : [];
+                const weakest = allChapters
+                  .filter((c) => Number(c.accuracy || 0) < 50)
+                  .slice(0, 5)
+                  .map((c) => ({ label: String(c.chapter || "Chapter"), value: Number(c.accuracy || 0) }));
+                const strongest = allChapters
+                  .filter((c) => Number(c.accuracy || 0) > 70)
+                  .sort((a, b) => Number(b.accuracy || 0) - Number(a.accuracy || 0))
+                  .slice(0, 5)
+                  .map((c) => ({ label: String(c.chapter || "Chapter"), value: Number(c.accuracy || 0) }));
+                return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -1212,17 +1302,10 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold">Cohort accuracy &lt; 50%</span>
                     </div>
-                    {Array.isArray(chapterBreakdown.chapters) && (chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
-                      /* Backend returns `chapters` pre-sorted weakest-first (no separate weakestChapters key) */
-                      <HBarChart
-                        color="#dc2626"
-                        data={(chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).slice(0,5).map((wc) => ({
-                          label: String(wc.chapter || "Chapter"),
-                          value: Number(wc.accuracy || 0),
-                        }))}
-                      />
+                    {weakest.length > 0 ? (
+                      <HBarChart color="#dc2626" data={weakest} />
                     ) : (
-                      <p className="text-xs text-slate-400 py-3 text-center">No weak chapter anomalies detected.</p>
+                      <p className="text-xs text-slate-400 py-3 text-center">No chapter is below 50% cohort accuracy.</p>
                     )}
                   </div>
 
@@ -1234,21 +1317,15 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold">Cohort accuracy &gt; 70%</span>
                     </div>
-                    {Array.isArray(chapterBreakdown.chapters) && (chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
-                      /* Backend returns a single `chapters` array sorted weakest-first — take the tail and reverse for strongest-first */
-                      <HBarChart
-                        color="#059669"
-                        data={(chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).slice(-5).reverse().map((sc) => ({
-                          label: String(sc.chapter || "Chapter"),
-                          value: Number(sc.accuracy || 0),
-                        }))}
-                      />
+                    {strongest.length > 0 ? (
+                      <HBarChart color="#059669" data={strongest} />
                     ) : (
-                      <p className="text-xs text-slate-400 py-3 text-center">No high accuracy data yet.</p>
+                      <p className="text-xs text-slate-400 py-3 text-center">No chapter is above 70% cohort accuracy yet.</p>
                     )}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Student Attempt Submission Matrix */}
               {studentStatusList.length > 0 ? (
@@ -1327,7 +1404,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-black text-slate-900">Leaderboard Rankings</h3>
                       <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-black uppercase">
-                        {leaderboardScope === "all" ? "🌟 Overall (All Sprints)" : "Selected Sprint"}
+                        {leaderboardScope === "all" ? "Overall (All Sprints)" : "Selected Sprint"}
                       </span>
                       {isLeaderboardLoading && (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 animate-pulse">
@@ -1345,7 +1422,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                     onChange={(e) => setLeaderboardScope(e.target.value)}
                     className="bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none cursor-pointer"
                   >
-                    <option value="all">🌟 All Sprints (Overall)</option>
+                    <option value="all">All Sprints (Overall)</option>
                     {sprintOptions.map((sp) => (
                       <option key={String(sp._id || sp.id)} value={String(sp._id || sp.id)}>
                         Sprint: {String(sp.name || sp.title || "Sprint")}
@@ -1647,8 +1724,8 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                           <button onClick={() => setSprintHistoryId(sId)} className="p-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-200 border border-slate-200 cursor-pointer transition-colors" title="Sprint history">
                             <IconClock className="w-4 h-4" />
                           </button>
-                          {currentStatus === "draft" && (
-                            <button onClick={() => openEditSprintBuilder(sId)} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors" title="Edit blueprint">
+                          {(currentStatus === "draft" || user?.role === "super_admin") && (
+                            <button onClick={() => openEditSprintBuilder(sId)} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors" title={currentStatus === "draft" ? "Edit blueprint" : "Edit blueprint (super admin override)"}>
                               <IconEdit className="w-4 h-4" />
                             </button>
                           )}
@@ -1815,9 +1892,10 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                           </button>
                         </div>
 
-                        {/* Hard delete is super_admin-only on the backend (DELETE /batches/:id) —
-                            hide it for regular admins instead of showing a control that always 403s. */}
-                        {user?.role === "super_admin" && (
+                        {/* Hard delete is super_admin-only on the backend (DELETE /batches/:id).
+                            A "public" batch backs a self-serve plan — delete the plan instead
+                            (Plans & Tiers), so hide the control that would always 409 here. */}
+                        {user?.role === "super_admin" && String(b.source) !== "public" && (
                           <button
                             onClick={() => handleDeleteBatch(bId, bName)}
                             className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 cursor-pointer transition-colors"
@@ -1921,7 +1999,8 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       </div>
                       <div className="flex flex-wrap gap-4 text-[11px] text-slate-500 font-semibold items-center">
                         <span>Duration: <b className="text-slate-700">{String(ex.durationMinutes||180)} min</b></span>
-                        <span>Questions: <b className="text-slate-700">{String(ex.totalQuestions||"—")}</b></span>
+                        <span>Total marks: <b className="text-slate-700">{Number(ex.totalMarks) > 0 ? String(ex.totalMarks) : "—"}</b></span>
+                        {ex.examNumber ? <span>Paper #<b className="text-slate-700">{String(ex.examNumber)}</b></span> : null}
                         {tierLabel ? (
                           <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase ${tierLabel === "Free tier" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>{tierLabel}</span>
                         ) : Boolean(exBatch) && (
@@ -1966,12 +2045,17 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {activeTab === "plans" && (
           <PlanTiersPanel
             showToast={showToast}
+            role={user?.role}
             onViewExams={(batchId) => { setExamBatchFilter(batchId); setActiveTab("exams"); }}
           />
         )}
 
         {/* ══════════════════════════ CONTENT HUB TAB ═════════════════════════ */}
         {activeTab === "content" && <ContentHubPanel showToast={showToast} />}
+
+        {/* ══════════════════════════ SUPPORT INBOX TAB ═══════════════════════ */}
+        {activeTab === "inbox" && <ContactInboxPanel showToast={showToast} />}
+        {activeTab === "subscribers" && <SubscribersPanel showToast={showToast} />}
 
         {/* ══════════════════════════ QUESTIONS TAB ════════════════════════════ */}
         {activeTab === "questions" && <QuestionBankPanel showToast={showToast} />}
@@ -2136,7 +2220,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                                   {subjName.charAt(0).toUpperCase()}
                                 </div>
                                 <div>
-                                  <h3 className="text-base font-black tracking-wide">{subjName} Taxonomy</h3>
+                                  <h3 className="text-base font-black tracking-wide capitalize">{subjName} Taxonomy</h3>
                                   <p className="text-[11px] opacity-80 font-medium">{filteredChapters.length} Chapters Available</p>
                                 </div>
                               </div>
@@ -2357,57 +2441,138 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
           <div className="space-y-5 animate-in fade-in duration-300">
             <h2 className="text-xl font-black text-slate-900">Report Generation</h2>
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
-              <h3 className="text-sm font-black text-slate-900">Generate New Report</h3>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Generate New Report</h3>
+                <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                  Individual reports pull one student&apos;s performance. Cohort reports summarise a sprint or batch.
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Sprint</label>
-                  <CustomSelect
-                    value={selectedSprintId}
-                    onChange={(val) => setSelectedSprintId(val)}
-                    options={[
-                      { value: "", label: "Select sprint" },
-                      ...sprintOptions.map(s => ({ value: String(s._id || s.id), label: String(s.name || "Sprint") }))
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Batch (Optional)</label>
-                  <CustomSelect
+                <CustomSelectMenu
+                  label="Report Type"
+                  value={reportType}
+                  onChange={(val) => { setReportType(val); }}
+                  options={[
+                    { value: "student_overall", label: "Overall Performance", sublabel: "Individual · one student, every metric" },
+                    { value: "student_subject", label: "Subject Performance", sublabel: "Individual · Physics / Chemistry / Biology" },
+                    { value: "student_chapter", label: "Chapter Performance", sublabel: "Individual · chapter & topic accuracy" },
+                    { value: "student_accuracy", label: "Accuracy & Attempt Rate", sublabel: "Individual · per-test accuracy, guesses, negatives" },
+                    { value: "student_time", label: "Time Utilization", sublabel: "Individual · fastest / slowest questions" },
+                    { value: "student_recoverable", label: "Recoverable Marks", sublabel: "Individual · marks left on the table" },
+                    { value: "admin_student", label: "Full Student Dossier", sublabel: "Individual · everything in one document" },
+                    { value: "admin_sprint", label: "Sprint Executive Summary", sublabel: "Cohort · one sprint, exam-wise stats" },
+                    { value: "admin_batch", label: "Batch Performance", sublabel: "Cohort · one batch, subject rollup" },
+                    { value: "admin_comparative", label: "Comparative Ranking", sublabel: "Cohort · students ranked side by side" },
+                  ]}
+                />
+                <CustomSelectMenu
+                  label="Format"
+                  value={reportFormat}
+                  onChange={(val) => setReportFormat(val as "pdf" | "excel")}
+                  options={[
+                    { value: "pdf", label: "PDF Document", sublabel: "Print-ready, branded" },
+                    { value: "excel", label: "Excel Spreadsheet", sublabel: "One sheet per section" },
+                  ]}
+                />
+              </div>
+
+              {isPerStudentReport && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <CustomSelectMenu
+                    label="Batch (filters the student list)"
                     value={reportBatchId}
-                    onChange={(val) => setReportBatchId(val)}
+                    onChange={(val) => { setReportBatchId(val); setReportStudentId(""); }}
+                    icon={IconLayers}
                     options={[
-                      { value: "", label: "All Batches" },
-                      ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") }))
+                      { value: "", label: "All batches" },
+                      ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") })),
                     ]}
+                  />
+                  <CustomSelectMenu
+                    label={reportStudentsLoading ? "Student (loading…)" : `Student (${reportStudents.length})`}
+                    value={reportStudentId}
+                    onChange={(val) => setReportStudentId(val)}
+                    icon={IconGraduationCap}
+                    searchable
+                    placeholder="-- Pick a student --"
+                    options={reportStudents.map(s => ({
+                      value: s._id,
+                      label: s.name,
+                      sublabel: s.email,
+                      badge: typeof s.batch === "object" && s.batch ? (s.batch as { name?: string }).name : undefined,
+                    }))}
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Report Type</label>
-                  <CustomSelect
-                    value={reportType}
-                    onChange={(val) => setReportType(val)}
-                    options={[
-                      { value: "admin_sprint", label: "Sprint Executive Summary" },
-                      { value: "admin_batch", label: "Batch Performance Analysis" },
-                      { value: "admin_comparative", label: "Student Comparative Ranking" },
-                      { value: "admin_student", label: "Student Detailed Report" },
-                      { value: "student_overall", label: "Cohort Overall Performance" },
-                      { value: "student_accuracy", label: "Accuracy & Attempt Breakdown" },
-                    ]}
-                  />
+              )}
+
+              {(reportType === "admin_batch" || reportType === "admin_comparative") && (
+                <CustomSelectMenu
+                  label={reportType === "admin_batch" ? "Batch (required)" : "Batch (optional — leave blank for all)"}
+                  value={reportBatchId}
+                  onChange={(val) => setReportBatchId(val)}
+                  icon={IconLayers}
+                  options={[
+                    { value: "", label: reportType === "admin_batch" ? "-- Select a batch --" : "All batches" },
+                    ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") })),
+                  ]}
+                />
+              )}
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                    Sprint scope
+                    {reportType === "admin_sprint"
+                      ? " · pick exactly one"
+                      : reportSprintIds.length === 0
+                        ? " · all sprints"
+                        : ` · ${reportSprintIds.length} selected`}
+                  </label>
+                  {reportSprintIds.length > 0 && (
+                    <button onClick={() => setReportSprintIds([])} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer">
+                      Clear (use all)
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Format</label>
-                  <CustomSelect
-                    value={reportFormat}
-                    onChange={(val) => setReportFormat(val as "pdf" | "excel")}
-                    options={[
-                      { value: "pdf", label: "PDF Document" },
-                      { value: "excel", label: "Excel Spreadsheet" },
-                    ]}
-                  />
+                <div className="flex flex-wrap gap-2">
+                  {reportType !== "admin_sprint" && (
+                    <button
+                      onClick={() => setReportSprintIds([])}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                        reportSprintIds.length === 0
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      All sprints
+                    </button>
+                  )}
+                  {sprintOptions.map((s) => {
+                    const id = String(s._id || s.id);
+                    const on = reportSprintIds.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          if (reportType === "admin_sprint") { setReportSprintIds([id]); return; }
+                          setReportSprintIds((prev) => on ? prev.filter(x => x !== id) : [...prev, id]);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                          on ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {on && <IconCheck className="w-3 h-3" />}
+                        {String(s.name || "Sprint")}
+                      </button>
+                    );
+                  })}
+                  {sprintOptions.length === 0 && (
+                    <span className="text-xs text-slate-400 font-semibold">No sprints available.</span>
+                  )}
                 </div>
               </div>
+
               <button onClick={handleGenerateReport} disabled={reportGenerating} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition-all">
                 {reportGenerating ? <Spinner className="w-4 h-4 text-white" /> : <IconDownload className="w-4 h-4" />}
                 {reportGenerating ? "Generating..." : "Generate Report"}
@@ -2430,22 +2595,41 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                     const rId = String(r._id||r.id||i);
                     const status = String(r.status||"pending");
                     const rawType = String(r.type||r.reportType||"Report");
+                    const REPORT_LABELS: Record<string,string> = {
+                      student_overall: "Overall Performance", student_subject: "Subject Performance",
+                      student_chapter: "Chapter Performance", student_time: "Time Utilization",
+                      student_accuracy: "Accuracy & Attempt Rate", student_recoverable: "Recoverable Marks",
+                      admin_student: "Full Student Dossier", admin_sprint: "Sprint Executive Summary",
+                      admin_batch: "Batch Performance", admin_comparative: "Comparative Ranking",
+                    };
+                    const label = REPORT_LABELS[rawType] || rawType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                    const isIndividual = rawType.startsWith("student_") || rawType === "admin_student";
                     const isDownloading = downloadingReportId === rId;
+                    const failed = status === "failed";
                     return (
                       <div key={rId} className="px-5 py-4 flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-xs font-black text-slate-900">{rawType.replace(/_/g, " ").toUpperCase()} · {String(r.format||"pdf").toUpperCase()}</p>
-                          <p className="text-[11px] text-slate-400 font-semibold">{r.createdAt ? new Date(String(r.createdAt)).toLocaleString("en-IN") : "Recent"}</p>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900 truncate">
+                            {label}
+                            <span className="text-slate-300 font-bold"> · </span>
+                            <span className="text-slate-500">{String(r.format||"pdf").toUpperCase()}</span>
+                            <span className={`ml-2 text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isIndividual ? "bg-violet-50 text-violet-600" : "bg-sky-50 text-sky-600"}`}>
+                              {isIndividual ? "Individual" : "Cohort"}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-semibold truncate">
+                            {r.fileName ? String(r.fileName) : (r.createdAt ? new Date(String(r.createdAt)).toLocaleString("en-IN") : "Recent")}
+                          </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 shrink-0">
                           <StatusBadge status={status} />
                           <button
                             onClick={() => handleDownloadReport(rId)}
-                            disabled={isDownloading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                            disabled={isDownloading || failed}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             {isDownloading ? <Spinner className="w-3.5 h-3.5 text-indigo-600" /> : <IconDownload className="w-3.5 h-3.5" />}
-                            <span>Download</span>
+                            <span>{failed ? "Unavailable" : "Download"}</span>
                           </button>
                         </div>
                       </div>
@@ -2471,23 +2655,82 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
         {/* ══════════════════════════ SETTINGS TAB ═════════════════════════════ */}
         {activeTab === "settings" && (
-          <div className="max-w-md space-y-5 animate-in fade-in duration-300">
-            <h2 className="text-xl font-black text-slate-900">Account Settings</h2>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900 mb-5">Change Password</h3>
-              <form onSubmit={handleChangePassword} className="space-y-4">
+          <div className="max-w-2xl space-y-5 animate-in fade-in duration-300">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">Account &amp; Security</h2>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5">Your root administrator profile and sign-in security.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+              <div className="flex items-center gap-4 px-5 sm:px-6 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-slate-100">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center font-black text-xl shrink-0 shadow-md">
+                  {(String(meProfile?.name || user?.name || "S")).charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-black text-slate-900 truncate">{String(meProfile?.name || user?.name || "Super Admin")}</p>
+                  <p className="text-xs font-semibold text-slate-500 truncate">{String(meProfile?.email || user?.email || "")}</p>
+                  <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
+                    <IconShield className="w-2.5 h-2.5" />
+                    Root Access
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                 {[
-                  { label:"Current Password", value:currentPassword, set:setCurrentPassword },
-                  { label:"New Password", value:newPassword, set:setNewPassword },
-                  { label:"Confirm New Password", value:confirmPassword, set:setConfirmPassword },
-                ].map(({label,value,set}) => (
-                  <div key={label}>
-                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">{label}</label>
-                    <input type="password" required value={value} onChange={e=>set(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium" />
+                  { icon: IconMail, label: "Email", value: String(meProfile?.email || user?.email || "—") },
+                  { icon: IconPhone, label: "Phone", value: meProfile?.phone ? String(meProfile.phone) : "Not added" },
+                  { icon: IconUserCheck, label: "Role", value: "Super admin" },
+                  {
+                    icon: IconCalendar,
+                    label: "Member since",
+                    value: meProfile?.createdAt
+                      ? new Date(String(meProfile.createdAt)).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
+                      : (meLoading ? "Loading…" : "—"),
+                  },
+                ].map(({ icon: Icon, label, value }) => (
+                  <div key={label} className="flex items-start gap-3 px-5 sm:px-6 py-4">
+                    <span className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{label}</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5 break-words">{value}</p>
+                    </div>
                   </div>
                 ))}
-                <button type="submit" disabled={pwLoading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all mt-2">
+              </div>
+            </div>
+
+            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <IconLock className="w-3.5 h-3.5" />
+                </span>
+                <h3 className="text-sm font-black text-slate-900">Change Password</h3>
+              </div>
+              <p className="text-[11px] text-slate-400 font-semibold mb-4">
+                Use at least 8 characters. Changing it signs you out of other devices and is written to the audit trail.
+              </p>
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                {[
+                  { label: "Current Password", value: currentPassword, set: setCurrentPassword },
+                  { label: "New Password", value: newPassword, set: setNewPassword },
+                  { label: "Confirm New Password", value: confirmPassword, set: setConfirmPassword },
+                ].map(({ label, value, set }) => (
+                  <div key={label}>
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">{label}</label>
+                    <input type={showPasswords ? "text" : "password"} required value={value} onChange={e => set(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all" />
+                  </div>
+                ))}
+                <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+                  <button type="button" onClick={() => setShowPasswords(v => !v)}
+                    className="w-4 h-4 rounded border border-slate-300 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors">
+                    {showPasswords ? <IconEyeOff className="w-3 h-3" /> : <IconEye className="w-3 h-3" />}
+                  </button>
+                  <span className="text-[11px] font-bold text-slate-500">Show passwords</span>
+                </label>
+                <button type="submit" disabled={pwLoading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all mt-1">
                   {pwLoading ? <Spinner className="w-4 h-4 text-white" /> : "Update Password"}
                 </button>
               </form>

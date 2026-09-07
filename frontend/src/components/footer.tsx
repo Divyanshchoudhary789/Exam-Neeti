@@ -1,27 +1,54 @@
 "use client";
 
 import { useState } from "react";
+import { newsletterService } from "../services/apiServices";
+import { toast } from "./common/feedback";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function Footer() {
   const [emailInput, setEmailInput] = useState("");
+  const [company, setCompany] = useState(""); // honeypot
+  const [submitting, setSubmitting] = useState(false);
   const [newsletterStatus, setNewsletterStatus] = useState<"idle" | "success" | "error">("idle");
   const [newsletterMsg, setNewsletterMsg] = useState("");
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput) {
+    if (submitting) return;
+
+    const email = emailInput.trim();
+    if (!email) {
       setNewsletterStatus("error");
       setNewsletterMsg("Please enter an email address.");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+    if (!EMAIL_RE.test(email)) {
       setNewsletterStatus("error");
       setNewsletterMsg("Please enter a valid email address.");
       return;
     }
-    setNewsletterStatus("success");
-    setNewsletterMsg("Thank you! You have subscribed successfully.");
-    setEmailInput("");
+
+    setSubmitting(true);
+    setNewsletterStatus("idle");
+    setNewsletterMsg("");
+    try {
+      const res = await newsletterService.subscribe({ email, source: "footer", company });
+      setNewsletterStatus("success");
+      setNewsletterMsg(res?.message || "You're subscribed. Watch your inbox for the next briefing.");
+      setEmailInput("");
+      toast.success("Subscribed to Strategy Briefings");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0] ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Couldn't subscribe right now. Please try again.";
+      setNewsletterStatus("error");
+      setNewsletterMsg(msg);
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -66,18 +93,31 @@ export function Footer() {
         <div className="lg:col-span-4 space-y-4 text-left">
           <h4 className="text-xs font-black uppercase tracking-wider text-white">Stay Updated</h4>
           <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-2 w-full max-w-sm">
+            {/* Honeypot — hidden from real users, catches bots. */}
+            <input
+              type="text"
+              name="company"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              className="absolute -left-[9999px] h-0 w-0 opacity-0"
+            />
             <input
               type="email"
               placeholder="Enter email address"
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
-              className="flex-grow rounded-xl bg-slate-900 border border-slate-800 focus:border-[#5a4bfc] focus:outline-none text-white text-xs px-4 py-3"
+              disabled={submitting}
+              className="flex-grow rounded-xl bg-slate-900 border border-slate-800 focus:border-[#5a4bfc] focus:outline-none text-white text-xs px-4 py-3 disabled:opacity-60"
             />
             <button
               type="submit"
-              className="bg-[#5a4bfc] hover:bg-[#6c5eff] text-white text-xs font-extrabold px-5 py-3 rounded-xl transition-all cursor-pointer text-center shrink-0"
+              disabled={submitting}
+              className="bg-[#5a4bfc] hover:bg-[#6c5eff] text-white text-xs font-extrabold px-5 py-3 rounded-xl transition-all cursor-pointer text-center shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Subscribe
+              {submitting ? "Subscribing…" : "Subscribe"}
             </button>
           </form>
           {newsletterStatus !== "idle" && (

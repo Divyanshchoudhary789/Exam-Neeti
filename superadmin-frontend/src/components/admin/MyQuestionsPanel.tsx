@@ -7,6 +7,7 @@ import {
   IconEdit, IconTrash, IconUpload, IconDownload, IconSearch, IconClock,
   Spinner, PaginationControls,
 } from "../common/UIComponents";
+import { confirmDialog } from "../common/feedback";
 import { EditQuestionModal } from "./EditQuestionModal";
 import { QuestionHistoryModal } from "./QuestionHistoryModal";
 import { BulkUploadQuestionsModal } from "./BulkUploadQuestionsModal";
@@ -87,7 +88,12 @@ export function MyQuestionsPanel({ showToast }: MyQuestionsPanelProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this question permanently?")) return;
+    if (!(await confirmDialog({
+      title: "Delete question?",
+      message: "This permanently removes the question from the bank. This cannot be undone.",
+      confirmText: "Delete question",
+      tone: "danger",
+    }))) return;
     try {
       await adminService.deleteQuestion(id);
       showToast("Question deleted!");

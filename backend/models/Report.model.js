@@ -36,11 +36,33 @@ const reportSchema = new mongoose.Schema(
       ref: "Sprint",
       default: null,
     },
+    /** Multi-sprint scoping. When non-empty this wins over `sprint`; empty
+     *  means "every sprint". */
+    sprints: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "Sprint",
+      default: [],
+    },
     /**
      * For future cloud storage: store a key/URL here.
-     * Currently reports are generated on-demand as buffers (no disk storage).
      */
     fileStorageKey: {
+      type: String,
+      default: null,
+    },
+    /**
+     * The generated report bytes. Reports are small (< ~1 MB) and Render's
+     * filesystem is ephemeral, so the buffer lives on the document itself and
+     * the download endpoint just streams it. `select: false` keeps it out of
+     * list queries. Regenerated on demand if ever missing.
+     */
+    fileBuffer: {
+      type: Buffer,
+      select: false,
+      default: null,
+    },
+    /** Human-friendly download filename, e.g. Exam-Neeti_Overall-Performance_2026-09-07.pdf */
+    fileName: {
       type: String,
       default: null,
     },
@@ -70,5 +92,9 @@ const reportSchema = new mongoose.Schema(
 reportSchema.index({ owner: 1, createdAt: -1 });
 reportSchema.index({ sprint: 1 });
 reportSchema.index({ status: 1 });
+// Generated reports are disposable — the download endpoint rebuilds any report
+// on demand from live analytics. Expire the stored copy (and its ~50 KB buffer)
+// after 180 days so the collection doesn't grow without bound.
+reportSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 
 module.exports = mongoose.model("Report", reportSchema);

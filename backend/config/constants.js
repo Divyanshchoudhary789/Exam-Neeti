@@ -100,6 +100,9 @@ const REPORT_SCOPE = Object.freeze({
   SINGLE_TEST:  "single_test",
   FULL_SPRINT:  "full_sprint",
   BATCH:        "batch",
+  // A single student, addressed by scopeRefId. Lets an admin / super admin
+  // pull any student's individual (student_*) reports.
+  STUDENT:      "student",
 });
 
 // Used in report.service.js status updates — centralised to avoid magic strings
@@ -167,6 +170,11 @@ const ADMIN_ACTIONS = Object.freeze({
   SPRINT_DELETE_APPROVED:  "sprint_delete_approved",
   SPRINT_DELETE_REJECTED:  "sprint_delete_rejected",
   SPRINT_DELETED:          "sprint_deleted",
+  // Self-serve plan catalog — the plan's linked public batch is created /
+  // removed alongside it, so these capture the whole lifecycle.
+  PLAN_CREATED:            "plan_created",
+  PLAN_UPDATED:            "plan_updated",
+  PLAN_DELETED:            "plan_deleted",
 });
 
 // Test types: minor (chapter test), semi-major (half-sprint), major (full syllabus)

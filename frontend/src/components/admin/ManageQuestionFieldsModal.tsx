@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { adminService } from "../../services/apiServices";
 import { CommonModal, Spinner, IconPlus, IconEdit, IconTrash, IconCross } from "../common/UIComponents";
+import { confirmDialog } from "../common/feedback";
 import type { QuestionFieldDefinition, QuestionFieldType } from "../../types/questionFields";
 
 interface ManageQuestionFieldsModalProps {
@@ -214,7 +215,12 @@ export function ManageQuestionFieldsModal({ isOpen, onClose, showToast, onFields
   };
 
   const handleDelete = async (def: QuestionFieldDefinition) => {
-    if (!window.confirm(`Delete "${def.label}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog({
+      title: "Delete field?",
+      message: `"${def.label}" will be removed from the question schema. This cannot be undone.`,
+      confirmText: "Delete field",
+      tone: "danger",
+    }))) return;
     try {
       await adminService.deleteQuestionFieldDefinition(def._id);
       showToast("Field deleted!");

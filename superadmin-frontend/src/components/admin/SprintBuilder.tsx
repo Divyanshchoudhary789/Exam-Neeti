@@ -10,6 +10,7 @@ import React, {
 import { adminService } from "../../services/apiServices";
 import { MathRenderer } from "../common/MathRenderer";
 import { CustomSelect } from "../common/CustomSelect";
+import { confirmDialog } from "../common/feedback";
 import {
   CommonModal,
   Spinner,
@@ -327,7 +328,7 @@ export function SprintBuilder({
     }
   };
 
-  const goToBlueprint = () => {
+  const goToBlueprint = async () => {
     if (!name.trim()) {
       showToast("Give the sprint a name first", "error");
       setStep(1);
@@ -349,9 +350,12 @@ export function SprintBuilder({
       const hasConfig = slots.some((s) => s.chapter || s.pinnedQuestionIds.length > 0);
       if (
         hasConfig &&
-        !window.confirm(
-          "The subject distribution changed. Slots whose subject stays the same keep their chapter/topic/pins; the rest reset. Continue?"
-        )
+        !(await confirmDialog({
+          title: "Subject distribution changed",
+          message:
+            "Slots whose subject stays the same keep their chapter/topic/pins; the rest reset.",
+          confirmText: "Continue",
+        }))
       ) {
         return;
       }
@@ -669,7 +673,7 @@ export function SprintBuilder({
                 type="button"
                 onClick={() => {
                   if (s.n === 1) setStep(1);
-                  else if (s.n === 2) goToBlueprint();
+                  else if (s.n === 2) void goToBlueprint();
                   else if (slotsGenerated) setStep(3);
                 }}
                 className={classNames(

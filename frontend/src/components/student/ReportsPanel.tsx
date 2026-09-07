@@ -15,6 +15,7 @@ import {
   Spinner,
   CommonModal,
 } from "../common/UIComponents";
+import { toast } from "../common/feedback";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -135,6 +136,7 @@ export function ReportsPanel({
       });
       setShowGenerateModal(false);
       await loadReports();
+      toast.success("Report generated. Ready to download.");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
       setGenError(e?.response?.data?.message || e?.message || "Failed to generate report.");
@@ -155,9 +157,10 @@ export function ReportsPanel({
       document.body.removeChild(link);
       // Revoke the object URL after a short delay so the download can start
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+      loadReports(); // pick up any status change (e.g. an older report that just regenerated)
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
-      console.error("Download failed:", e?.message);
+      toast.error(e?.response?.data?.message || e?.message || "Could not download that report. Try regenerating it.");
     } finally {
       setDownloadingId(null);
     }

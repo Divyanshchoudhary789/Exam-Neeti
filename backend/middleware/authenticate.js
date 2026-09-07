@@ -1,6 +1,6 @@
 const User = require("../models/User.model");
 const { verifyAccessToken } = require("../utils/token");
-const { clearAuthCookies } = require("../utils/cookies");
+const { clearAuthCookies, readAccessCookie } = require("../utils/cookies");
 const AppError = require("../utils/AppError");
 const asyncHandler = require("../utils/asyncHandler");
 
@@ -8,8 +8,11 @@ const asyncHandler = require("../utils/asyncHandler");
  * Authentication middleware.
  *
  * Token extraction priority:
- *  1. Signed httpOnly cookie  → web app (most secure, automatic)
- *  2. Authorization: Bearer   → Postman / API clients / mobile (fallback)
+ *  1. Authorization: Bearer   → an explicit credential the client chose to send
+ *     (each app holds its own token in memory) — always wins.
+ *  2. Signed httpOnly cookie  → web app fallback (e.g. right after a hard
+ *     refresh, before the in-memory token is re-obtained). Namespaced per
+ *     client so the Super Admin console never reads the main site's cookie.
  *
  * Security checks:
  *  1. Token present and valid signature
@@ -21,17 +24,20 @@ const asyncHandler = require("../utils/asyncHandler");
  */
 const authenticate = asyncHandler(async (req, res, next) => {
   let token;
+  let fromCookie = false;
 
-  // ── 1. Cookie (web app — preferred) ─────────────────────────────────────────
-  if (req.signedCookies?.access_token) {
-    token = req.signedCookies.access_token;
+  // ── 1. Authorization header — an explicit, client-chosen credential ─────────
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
   }
 
-  // ── 2. Authorization header (Postman / API clients — fallback) ───────────────
+  // ── 2. Namespaced signed cookie (web-app fallback) ─────────────────────────
   if (!token) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
+    const cookieToken = readAccessCookie(req, res);
+    if (cookieToken) {
+      token = cookieToken;
+      fromCookie = true;
     }
   }
 
@@ -46,7 +52,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
   } catch (err) {
     // Clear stale/tampered/expired cookies — use the central utility so
     // sameSite + secure flags always match what was set at login time.
-    if (req.signedCookies?.access_token) {
+    if (fromCookie) {
       clearAuthCookies(res);
     }
     if (err.name === "TokenExpiredError") {

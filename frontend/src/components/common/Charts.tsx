@@ -538,11 +538,16 @@ export function RadarChart({
   series,
   size = 300,
   max = 100,
+  showScale = false,
+  valueSuffix = "",
 }: {
   axes: string[];
   series: RadarSeries[];
   size?: number;
   max?: number;
+  /** draw the 25/50/75/100 ring values along the top axis */
+  showScale?: boolean;
+  valueSuffix?: string;
 }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const cx = size / 2;
@@ -567,6 +572,14 @@ export function RadarChart({
             fill="none" stroke="#e7e8f2" strokeWidth={1}
           />
         ))}
+        {showScale && rings.map((rr, i) => {
+          const [lx, ly] = point(0, rr);
+          return (
+            <text key={`sc${i}`} x={lx + 4} y={ly} fontSize={8} fontWeight={700} fill="#cbd5e1" dominantBaseline="middle">
+              {Math.round(rr * max)}{valueSuffix}
+            </text>
+          );
+        })}
         {axes.map((ax, ai) => {
           const [x, y] = point(ai, 1);
           const [lx, ly] = point(ai, 1.16);
