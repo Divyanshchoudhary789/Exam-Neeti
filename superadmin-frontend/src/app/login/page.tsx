@@ -119,17 +119,17 @@ export default function SuperAdminLoginPage() {
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              { icon: IconBuilding, label: "Institutes Live", value: "24" },
-              { icon: IconUsers, label: "Admin Accounts", value: "86" },
-              { icon: IconChart, label: "System Uptime", value: "99.9%" },
-              { icon: IconClock, label: "Audit Events / day", value: "1.2K" },
+              { icon: IconBuilding, label: "Institutes & batches", desc: "Provision and govern every cohort" },
+              { icon: IconUsers, label: "Admin accounts", desc: "Create, suspend and audit access" },
+              { icon: IconChart, label: "Platform analytics", desc: "Scoring formulas and cohort health" },
+              { icon: IconClock, label: "Full audit trail", desc: "Every action logged and exportable" },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl bg-white/[0.04] backdrop-blur border border-white/10 p-4">
                 <div className="h-8 w-8 rounded-lg bg-indigo-500/15 text-indigo-300 flex items-center justify-center mb-2.5">
                   <item.icon className="w-4 h-4" />
                 </div>
-                <p className="text-lg font-black tracking-tight">{item.value}</p>
-                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{item.label}</p>
+                <p className="text-xs font-black tracking-tight leading-tight">{item.label}</p>
+                <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-snug">{item.desc}</p>
               </div>
             ))}
           </div>

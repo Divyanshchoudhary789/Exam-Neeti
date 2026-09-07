@@ -199,10 +199,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="w-full max-w-md mx-auto my-auto py-6">
-          <div className="mb-5">
-            <BrandLogo href="/" size="sm" />
-          </div>
-
+          
           <div className="space-y-1 mb-6">
             <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-slate-900">Create your student account</h2>
             <p className="text-xs sm:text-sm text-slate-500 font-medium">Your free diagnostic test is unlocked immediately after signup.</p>

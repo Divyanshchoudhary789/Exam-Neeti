@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
 import { SuperAdminDashboard } from "../../components/dashboard/SuperAdminDashboard";
-import { Spinner } from "../../components/common/UIComponents";
+import { Spinner, IconShield } from "../../components/common/UIComponents";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -42,8 +42,8 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col items-center justify-center py-24 px-4 text-center font-sans">
         <div className="max-w-md p-8 rounded-3xl bg-white border border-slate-200 space-y-6 shadow-xl">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto">
-            <span className="text-amber-600 font-black text-xl">!</span>
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+            <IconShield className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-black text-slate-900">Super Admin Access Required</h2>
           <p className="text-xs text-slate-500 leading-relaxed font-semibold">
