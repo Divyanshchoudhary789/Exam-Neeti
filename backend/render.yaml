@@ -82,3 +82,35 @@ services:
       # chunking/SIGKILL fixes above. Raise once on a plan with more RAM.
       - key: MAX_BULK_EQUATIONS
         value: 250
+      # ── Cloudinary — REQUIRED (image storage for questions, blogs, avatars).
+      #    index.js exits on startup if any of these are missing.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # ── Google Sign-In (Google Identity Services) — set for the "Continue
+      #    with Google" button to work; sign-in via email still works without it.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # ── Razorpay — self-serve plan checkout + webhook signature verification.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      # ── Support inbox destination for the website contact form.
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: AUTH_RATE_LIMIT_WINDOW_MS
+        value: 900000
+      # ── First-run super admin seed (npm run seed:admin). Rotate the password
+      #    immediately after the first login.
+      - key: SEED_ADMIN_NAME
+        value: Super Admin
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
