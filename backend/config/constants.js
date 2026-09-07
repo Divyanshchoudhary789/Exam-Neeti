@@ -100,6 +100,9 @@ const REPORT_SCOPE = Object.freeze({
   SINGLE_TEST:  "single_test",
   FULL_SPRINT:  "full_sprint",
   BATCH:        "batch",
+  // A single student, addressed by scopeRefId. Lets an admin / super admin
+  // pull any student's individual (student_*) reports.
+  STUDENT:      "student",
 });
 
 // Used in report.service.js status updates — centralised to avoid magic strings

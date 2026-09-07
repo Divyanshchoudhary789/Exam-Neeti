@@ -11,6 +11,7 @@ const { sendSuccess } = require("../utils/response");
 const { generateReport, buildReportFilename } = require("../services/report.service");
 const {
   REPORT_TYPE,
+  REPORT_SCOPE,
   ROLES,
   ATTEMPT_STATUS,
   REPORT_STATUS,
@@ -56,21 +57,45 @@ const round2 = (n) => parseFloat(Number(n || 0).toFixed(2));
 const avg = (arr, pick) => (arr.length ? round2(arr.reduce((s, a) => s + (pick(a) || 0), 0) / arr.length) : 0);
 
 // ─── Build report data by type ────────────────────────────────────────────────
+//
+// opts: { scope, scopeRefId, sprintId, sprintIds, requestingUserId }
+//  - student_* reports are scoped to `targetStudentId`: scopeRefId when the
+//    caller passed scope:"student" (admin pulling a student's report), else the
+//    requester themselves.
+//  - `sprintFilter` merges into every analytics query: one sprint, a set of
+//    sprints (sprintIds), or all sprints (nothing).
+//  - `attemptRef` is only honoured for single-test scope so it never collides
+//    with a student/sprint scopeRefId.
+const buildReportData = async (type, opts) => {
+  const { scope, scopeRefId, sprintId, sprintIds = [], requestingUserId } = opts;
 
-const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUserId) => {
+  const targetStudentId =
+    scope === REPORT_SCOPE.STUDENT && scopeRefId ? scopeRefId : requestingUserId;
+  const attemptRef = scope === REPORT_SCOPE.SINGLE_TEST ? scopeRefId : null;
+  const sprintFilter = Array.isArray(sprintIds) && sprintIds.length
+    ? { sprint: { $in: sprintIds } }
+    : sprintId
+      ? { sprint: sprintId }
+      : {};
+  const scopeLabel = Array.isArray(sprintIds) && sprintIds.length
+    ? `${sprintIds.length} selected sprint${sprintIds.length > 1 ? "s" : ""}`
+    : sprintId
+      ? "Selected sprint"
+      : "All sprints";
+
   switch (type) {
 
     // ── Student: Overall performance across all tests in a sprint ─────────────
     case REPORT_TYPE.STUDENT_OVERALL: {
       const analytics = await AnalyticsResult.find({
-        student: requestingUserId,
-        ...(sprintId ? { sprint: sprintId } : {}),
+        student: targetStudentId,
+        ...sprintFilter,
       })
         .populate("exam", "title examNumber")
         .sort({ createdAt: 1 })
         .lean();
 
-      const user = await User.findById(requestingUserId).populate("batch", "name").lean();
+      const user = await User.findById(targetStudentId).populate("batch", "name").lean();
       const scores = analytics.map((a) => a.score);
       const avgScore = avg(analytics, (a) => a.score);
 
@@ -81,7 +106,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
           "Student Email": user?.email,
           "Batch":         user?.batch?.name || "—",
           "Tests Analysed": analytics.length,
-          "Report Scope":  sprintId ? "Selected sprint" : "All sprints",
+          "Report Scope":  scopeLabel,
         },
         summary: {
           "Total Tests":          analytics.length,
@@ -112,10 +137,10 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
     // ── Student: Subject-wise breakdown ──────────────────────────────────────
     case REPORT_TYPE.STUDENT_SUBJECT: {
       const [user, all] = await Promise.all([
-        User.findById(requestingUserId).populate("batch", "name").lean(),
+        User.findById(targetStudentId).populate("batch", "name").lean(),
         AnalyticsResult.find({
-          ...(scopeRefId ? { attempt: scopeRefId } : { student: requestingUserId }),
-          ...(sprintId ? { sprint: sprintId } : {}),
+          ...(attemptRef ? { attempt: attemptRef } : { student: targetStudentId }),
+          ...sprintFilter,
         }).sort({ createdAt: 1 }).lean(),
       ]);
       const subjects = aggregateBreakdown(all, "subjectAccuracy");
@@ -126,7 +151,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
           "Student Name": user?.name,
           "Batch":        user?.batch?.name || "—",
           "Tests Analysed": all.length,
-          "Report Scope": scopeRefId ? "Single test" : sprintId ? "Selected sprint" : "All sprints",
+          "Report Scope": attemptRef ? "Single test" : scopeLabel,
         },
         summary: {
           "Subjects Covered":   subjects.length,
@@ -141,10 +166,10 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
     // ── Student: Chapter breakdown ────────────────────────────────────────────
     case REPORT_TYPE.STUDENT_CHAPTER: {
       const [user, all] = await Promise.all([
-        User.findById(requestingUserId).populate("batch", "name").lean(),
+        User.findById(targetStudentId).populate("batch", "name").lean(),
         AnalyticsResult.find({
-          student: requestingUserId,
-          ...(sprintId ? { sprint: sprintId } : {}),
+          student: targetStudentId,
+          ...sprintFilter,
         }).sort({ createdAt: 1 }).lean(),
       ]);
       const chapters = aggregateBreakdown(all, "chapterAccuracy");
@@ -156,7 +181,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
           "Student Name": user?.name,
           "Batch":        user?.batch?.name || "—",
           "Tests Analysed": all.length,
-          "Report Scope": sprintId ? "Selected sprint" : "All sprints",
+          "Report Scope": scopeLabel,
         },
         summary: {
           "Chapters Attempted":       chapters.length,
@@ -172,10 +197,10 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
     // ── Student: Time utilization ─────────────────────────────────────────────
     case REPORT_TYPE.STUDENT_TIME: {
       const [user, analytics] = await Promise.all([
-        User.findById(requestingUserId).lean(),
+        User.findById(targetStudentId).lean(),
         AnalyticsResult.findOne({
-          ...(scopeRefId ? { attempt: scopeRefId } : { student: requestingUserId }),
-          ...(sprintId ? { sprint: sprintId } : {}),
+          ...(attemptRef ? { attempt: attemptRef } : { student: targetStudentId }),
+          ...sprintFilter,
         }).sort({ createdAt: -1 }).lean(),
       ]);
 
@@ -183,7 +208,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
         reportTitle: "Time Utilization Report",
         meta: {
           "Student Name": user?.name,
-          "Based On":     scopeRefId ? "The selected test" : "Your most recent test in scope",
+          "Based On":     attemptRef ? "The selected test" : "Most recent test in scope",
         },
         summary: {
           "Total Time (s)":            analytics?.totalTimeSeconds   || 0,
@@ -216,10 +241,10 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
     // ── Student: Accuracy breakdown ───────────────────────────────────────────
     case REPORT_TYPE.STUDENT_ACCURACY: {
       const [user, analytics] = await Promise.all([
-        User.findById(requestingUserId).lean(),
+        User.findById(targetStudentId).lean(),
         AnalyticsResult.find({
-          student: requestingUserId,
-          ...(sprintId ? { sprint: sprintId } : {}),
+          student: targetStudentId,
+          ...sprintFilter,
         })
           .populate("exam", "title examNumber")
           .sort({ createdAt: 1 })
@@ -231,7 +256,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
         meta: {
           "Student Name": user?.name,
           "Tests Analysed": analytics.length,
-          "Report Scope": sprintId ? "Selected sprint" : "All sprints",
+          "Report Scope": scopeLabel,
         },
         summary: {
           "Total Tests":           analytics.length,
@@ -258,11 +283,11 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
     // ── Student: Recoverable marks ────────────────────────────────────────────
     case REPORT_TYPE.STUDENT_RECOVERABLE: {
       const [user, analytics] = await Promise.all([
-        User.findById(requestingUserId).lean(),
+        User.findById(targetStudentId).lean(),
         AnalyticsResult.findOne({
-          student: requestingUserId,
-          ...(scopeRefId ? { attempt: scopeRefId } : {}),
-          ...(sprintId ? { sprint: sprintId } : {}),
+          student: targetStudentId,
+          ...(attemptRef ? { attempt: attemptRef } : {}),
+          ...sprintFilter,
         }).sort({ createdAt: -1 }).lean(),
       ]);
       const rm = analytics?.recoverableMarks || null;
@@ -271,7 +296,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
         reportTitle: "Recoverable Marks Report",
         meta: {
           "Student Name": user?.name,
-          "Based On":     scopeRefId ? "The selected test" : "Your most recent test in scope",
+          "Based On":     attemptRef ? "The selected test" : "Most recent test in scope",
         },
         summary: rm
           ? { "Total Recoverable Marks": rm.totalRecoverable ?? 0 }
@@ -344,7 +369,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
       const batch    = await Batch.findById(scopeRefId).lean();
       const analytics = await AnalyticsResult.find({
         batch: scopeRefId,
-        ...(sprintId ? { sprint: sprintId } : {}),
+        ...sprintFilter,
       }).lean();
 
       // Build subject aggregation across all students in batch
@@ -392,7 +417,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
       const targetId = scopeRefId || requestingUserId;
       const [student, allAnalytics] = await Promise.all([
         User.findById(targetId).populate("batch", "name").lean(),
-        AnalyticsResult.find({ student: targetId, ...(sprintId ? { sprint: sprintId } : {}) })
+        AnalyticsResult.find({ student: targetId, ...sprintFilter })
           .populate("exam", "title examNumber totalMarks")
           .sort({ createdAt: 1 })
           .lean(),
@@ -434,6 +459,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
           "Total Tests":   allAnalytics.length,
           "Average Score": avgScore,
           "Highest Score": scores.length ? Math.max(...scores) : 0,
+          "Report Scope":  scopeLabel,
         },
         summary: {
           "Total Tests":      allAnalytics.length,
@@ -464,8 +490,8 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
     // ── Admin: Comparative — all students side by side ────────────────────────
     case REPORT_TYPE.ADMIN_COMPARATIVE: {
       const matchFilter = {
-        ...(sprintId  ? { sprint: sprintId  } : {}),
-        ...(scopeRefId ? { batch:  scopeRefId } : {}),
+        ...sprintFilter,
+        ...(scopeRefId ? { batch: scopeRefId } : {}),
       };
       const allAnalytics = await AnalyticsResult.find(matchFilter)
         .populate("student", "name email")
@@ -496,7 +522,7 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
         reportTitle: "Comparative Student Report",
         summary: {
           "Total Students": rows.length,
-          "Sprint / Batch": scopeRefId || sprintId || "All",
+          "Report Scope":   scopeLabel + (scopeRefId ? " · one batch" : ""),
         },
         sections: [
           {
@@ -517,13 +543,13 @@ const buildReportData = async (type, scope, scopeRefId, sprintId, requestingUser
 // Uses the report's OWNER for analytics scoping — an admin generating/downloading
 // a student-owned report must see that student's data, not their own.
 const buildAndPersistReport = async (report) => {
-  const data = await buildReportData(
-    report.type,
-    report.scope,
-    report.scopeRefId?.toString(),
-    report.sprint?.toString(),
-    report.owner.toString(),
-  );
+  const data = await buildReportData(report.type, {
+    scope: report.scope,
+    scopeRefId: report.scopeRefId?.toString(),
+    sprintId: report.sprint?.toString(),
+    sprintIds: (report.sprints || []).map((s) => s.toString()),
+    requestingUserId: report.owner.toString(),
+  });
 
   const { buffer } = await generateReport(report, data); // sets status/fileSize/generatedAt on the doc
   report.fileBuffer = buffer;
@@ -543,7 +569,11 @@ const CONTENT_TYPE = {
 // moment this returns (READY or FAILED) — no more permanent "pending".
 
 exports.generateReport = asyncHandler(async (req, res, next) => {
-  const { type, format, scope, scopeRefId, sprintId } = req.body;
+  const { type, format, scope, sprintId, sprintIds = [] } = req.body;
+  let { scopeRefId } = req.body;
+
+  const isPrivileged =
+    req.user.role === ROLES.ADMIN || req.user.role === ROLES.SUPER_ADMIN;
 
   const adminReportTypes = [
     REPORT_TYPE.ADMIN_SPRINT,
@@ -551,12 +581,51 @@ exports.generateReport = asyncHandler(async (req, res, next) => {
     REPORT_TYPE.ADMIN_STUDENT,
     REPORT_TYPE.ADMIN_COMPARATIVE,
   ];
-  if (
-    adminReportTypes.includes(type) &&
-    req.user.role !== ROLES.ADMIN &&
-    req.user.role !== ROLES.SUPER_ADMIN
-  ) {
+  const studentReportTypes = [
+    REPORT_TYPE.STUDENT_OVERALL,
+    REPORT_TYPE.STUDENT_SUBJECT,
+    REPORT_TYPE.STUDENT_CHAPTER,
+    REPORT_TYPE.STUDENT_TIME,
+    REPORT_TYPE.STUDENT_ACCURACY,
+    REPORT_TYPE.STUDENT_RECOVERABLE,
+  ];
+
+  if (adminReportTypes.includes(type) && !isPrivileged) {
     return next(new AppError("You do not have permission to generate this report type.", 403));
+  }
+
+  // Individual (student_*) reports:
+  //  - a student always reports on themselves — any scopeRefId they send is ignored;
+  //  - an admin / super admin may target any student via scope:"student" + scopeRefId.
+  if (studentReportTypes.includes(type) || type === REPORT_TYPE.ADMIN_STUDENT) {
+    if (!isPrivileged) {
+      scopeRefId = null;
+    } else if (scope === REPORT_SCOPE.STUDENT || type === REPORT_TYPE.ADMIN_STUDENT) {
+      if (!scopeRefId) {
+        return next(new AppError("Select a student for this report.", 400));
+      }
+      const target = await User.findOne({ _id: scopeRefId, role: ROLES.STUDENT }).select("_id").lean();
+      if (!target) {
+        return next(new AppError("That student could not be found.", 404));
+      }
+    }
+  }
+
+  // For an individual student report, fail fast with a clear message when the
+  // target has no scored tests in scope — rather than handing back a blank PDF.
+  if (studentReportTypes.includes(type) || type === REPORT_TYPE.ADMIN_STUDENT) {
+    const targetStudentId =
+      (scope === REPORT_SCOPE.STUDENT || type === REPORT_TYPE.ADMIN_STUDENT) && scopeRefId
+        ? scopeRefId
+        : req.user.id;
+    const sprintFilter = Array.isArray(sprintIds) && sprintIds.length
+      ? { sprint: { $in: sprintIds } }
+      : sprintId ? { sprint: sprintId } : {};
+    const count = await AnalyticsResult.countDocuments({ student: targetStudentId, ...sprintFilter });
+    if (count === 0) {
+      const who = scopeRefId && isPrivileged ? "This student has" : "You have";
+      return next(new AppError(`${who} no scored tests in the selected scope yet — nothing to build a report from.`, 422));
+    }
   }
 
   const report = await Report.create({
@@ -566,6 +635,7 @@ exports.generateReport = asyncHandler(async (req, res, next) => {
     scope,
     scopeRefId: scopeRefId || null,
     sprint:     sprintId   || null,
+    sprints:    Array.isArray(sprintIds) ? sprintIds : [],
     status:     REPORT_STATUS.PENDING,
   });
 
@@ -574,7 +644,8 @@ exports.generateReport = asyncHandler(async (req, res, next) => {
   } catch (err) {
     await Report.findByIdAndUpdate(report._id, { status: REPORT_STATUS.FAILED }).catch(() => {});
     console.error("[Report] Generation failed:", err.message);
-    return next(new AppError("Could not build this report from your data yet. Take a scored test and try again.", 422));
+    const who = scopeRefId && isPrivileged ? "This student has" : "You have";
+    return next(new AppError(`${who} no scored tests in the selected scope yet — nothing to build a report from.`, 422));
   }
 
   return sendSuccess(res, 201, "Report generated.", {
@@ -671,3 +742,6 @@ exports.getReportStatus = asyncHandler(async (req, res, next) => {
     fileSize:    report.fileSize,
   });
 });
+
+// Exported for standalone report tests / scripts.
+exports.buildReportData = buildReportData;

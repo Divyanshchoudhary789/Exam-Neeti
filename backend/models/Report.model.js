@@ -36,6 +36,13 @@ const reportSchema = new mongoose.Schema(
       ref: "Sprint",
       default: null,
     },
+    /** Multi-sprint scoping. When non-empty this wins over `sprint`; empty
+     *  means "every sprint". */
+    sprints: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "Sprint",
+      default: [],
+    },
     /**
      * For future cloud storage: store a key/URL here.
      */

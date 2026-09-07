@@ -1059,6 +1059,7 @@ export const adminService = {
   generateReport: async (data: {
     type: string;         // Backend expects "type", not "reportType"
     sprintId?: string;
+    sprintIds?: string[]; // multi-sprint scope; overrides sprintId when non-empty
     batchId?: string;
     studentId?: string;
     format?: "pdf" | "excel";
@@ -1083,6 +1084,7 @@ export const adminService = {
       scope,
       scopeRefId: scopeRefId || null,
       sprintId: data.sprintId || null,
+      sprintIds: data.sprintIds && data.sprintIds.length ? data.sprintIds : undefined,
     };
     const res = await api.post("/reports", payload);
     return res.data;

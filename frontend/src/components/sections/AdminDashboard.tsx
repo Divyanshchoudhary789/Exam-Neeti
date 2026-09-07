@@ -12,7 +12,9 @@ import {
   IconTrash, IconDownload, IconUpload, IconCheck, IconCross, IconEye, IconEdit,
   IconLayers, IconFileText, IconSearch, IconShield, IconChevronDown, IconRocket,
   IconMail, IconPhone, IconCalendar, IconLock, IconEyeOff, IconUserCheck,
+  IconGraduationCap, IconTarget,
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
+  CustomSelectMenu,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
 import { confirmDialog, promptDialog, toast } from "../common/feedback";
@@ -306,9 +308,17 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [reportType, setReportType] = useState("admin_sprint");
   const [reportFormat, setReportFormat] = useState<"pdf"|"excel">("pdf");
   const [reportBatchId, setReportBatchId] = useState("");
+  const [reportStudentId, setReportStudentId] = useState("");
+  const [reportSprintIds, setReportSprintIds] = useState<string[]>([]);
+  const [reportStudents, setReportStudents] = useState<UserProfile[]>([]);
+  const [reportStudentsLoading, setReportStudentsLoading] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [downloadingReportId, setDownloadingReportId] = useState<string|null>(null);
+
+  // Report types that describe ONE student (need a student picked).
+  const PER_STUDENT_REPORTS = ["student_overall","student_subject","student_chapter","student_time","student_accuracy","student_recoverable","admin_student"] as const;
+  const isPerStudentReport = (PER_STUDENT_REPORTS as readonly string[]).includes(reportType);
 
   // ── Settings state ────────────────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
@@ -533,6 +543,23 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   useEffect(() => { if (activeTab === "reports") loadReports(); }, [activeTab, loadReports]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "syllabus") loadSyllabus(); }, [activeTab, loadSyllabus]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "students") loadUsers(); }, [userPage, userRoleFilter, userBatchFilter, userSearch, loadUsers]); // eslint-disable-line
+  // Student roster for the report student-picker — refetches when the batch
+  // filter changes so the list stays scoped.
+  useEffect(() => {
+    if (activeTab !== "reports" || !isPerStudentReport) return;
+    let cancelled = false;
+    setReportStudentsLoading(true);
+    adminService.getUsers({ role: "student", limit: 500, batch: reportBatchId || undefined })
+      .then((res) => {
+        if (cancelled) return;
+        const raw = res?.data?.students || res?.data?.users || res?.students || res?.users || [];
+        setReportStudents(Array.isArray(raw) ? (raw as UserProfile[]) : []);
+      })
+      .catch(() => { if (!cancelled) setReportStudents([]); })
+      .finally(() => { if (!cancelled) setReportStudentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, isPerStudentReport, reportBatchId]);
+
   useEffect(() => {
     if (activeTab !== "settings" || meProfile) return;
     let cancelled = false;
@@ -833,21 +860,48 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
 
   const handleGenerateReport = async () => {
-    if (!selectedSprintId) { showToast("Select a sprint first", "error"); return; }
-    if (reportType === "admin_batch" && !reportBatchId) {
-      showToast("Please select a batch for Batch Performance Analysis", "error");
+    // Per-student reports need a student; a specific sprint (single or set) is
+    // optional — no selection means "across every sprint".
+    if (isPerStudentReport && !reportStudentId) {
+      showToast("Pick a student for this report.", "error");
       return;
     }
+    if (reportType === "admin_batch" && !reportBatchId) {
+      showToast("Pick a batch for the Batch Performance report.", "error");
+      return;
+    }
+    if (reportType === "admin_sprint" && reportSprintIds.length !== 1) {
+      showToast("The Sprint Summary report covers exactly one sprint — pick one.", "error");
+      return;
+    }
+
     setReportGenerating(true);
     try {
-      const scope = reportType === "admin_batch" ? "batch" : (reportBatchId ? "batch" : "full_sprint");
+      const sprintIds = reportSprintIds;
+      const sprintId = sprintIds.length === 1 ? sprintIds[0] : undefined;
+
+      let scope: string;
+      let scopeRefId: string | undefined;
+      if (isPerStudentReport) {
+        scope = "student";
+        scopeRefId = reportStudentId;
+      } else if (reportType === "admin_batch") {
+        scope = "batch";
+        scopeRefId = reportBatchId;
+      } else if (reportType === "admin_comparative" && reportBatchId) {
+        scope = "batch";
+        scopeRefId = reportBatchId;
+      } else {
+        scope = "full_sprint";
+      }
+
       await adminService.generateReport({
         type: reportType,
-        sprintId: selectedSprintId,
-        batchId: reportBatchId || undefined,
-        scope,
-        scopeRefId: reportBatchId || undefined,
         format: reportFormat,
+        scope,
+        scopeRefId,
+        sprintId,
+        sprintIds: sprintIds.length > 1 ? sprintIds : undefined,
       });
       showToast("Report generated. Ready to download.");
       await loadReports();
@@ -2362,57 +2416,141 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
           <div className="space-y-5 animate-in fade-in duration-300">
             <h2 className="text-xl font-black text-slate-900">Report Generation</h2>
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
-              <h3 className="text-sm font-black text-slate-900">Generate New Report</h3>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Generate New Report</h3>
+                <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                  Individual reports pull one student&apos;s performance. Cohort reports summarise a sprint or batch.
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Sprint</label>
-                  <CustomSelect
-                    value={selectedSprintId}
-                    onChange={(val) => setSelectedSprintId(val)}
-                    options={[
-                      { value: "", label: "Select sprint" },
-                      ...sprintOptions.map(s => ({ value: String(s._id || s.id), label: String(s.name || "Sprint") }))
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Batch (Optional)</label>
-                  <CustomSelect
+                <CustomSelectMenu
+                  label="Report Type"
+                  value={reportType}
+                  onChange={(val) => { setReportType(val); }}
+                  options={[
+                    { value: "student_overall", label: "Overall Performance", sublabel: "Individual · one student, every metric" },
+                    { value: "student_subject", label: "Subject Performance", sublabel: "Individual · Physics / Chemistry / Biology" },
+                    { value: "student_chapter", label: "Chapter Performance", sublabel: "Individual · chapter & topic accuracy" },
+                    { value: "student_accuracy", label: "Accuracy & Attempt Rate", sublabel: "Individual · per-test accuracy, guesses, negatives" },
+                    { value: "student_time", label: "Time Utilization", sublabel: "Individual · fastest / slowest questions" },
+                    { value: "student_recoverable", label: "Recoverable Marks", sublabel: "Individual · marks left on the table" },
+                    { value: "admin_student", label: "Full Student Dossier", sublabel: "Individual · everything in one document" },
+                    { value: "admin_sprint", label: "Sprint Executive Summary", sublabel: "Cohort · one sprint, exam-wise stats" },
+                    { value: "admin_batch", label: "Batch Performance", sublabel: "Cohort · one batch, subject rollup" },
+                    { value: "admin_comparative", label: "Comparative Ranking", sublabel: "Cohort · students ranked side by side" },
+                  ]}
+                />
+                <CustomSelectMenu
+                  label="Format"
+                  value={reportFormat}
+                  onChange={(val) => setReportFormat(val as "pdf" | "excel")}
+                  options={[
+                    { value: "pdf", label: "PDF Document", sublabel: "Print-ready, branded" },
+                    { value: "excel", label: "Excel Spreadsheet", sublabel: "One sheet per section" },
+                  ]}
+                />
+              </div>
+
+              {/* Student picker — individual reports */}
+              {isPerStudentReport && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <CustomSelectMenu
+                    label="Batch (filters the student list)"
                     value={reportBatchId}
-                    onChange={(val) => setReportBatchId(val)}
+                    onChange={(val) => { setReportBatchId(val); setReportStudentId(""); }}
+                    icon={IconLayers}
                     options={[
-                      { value: "", label: "All Batches" },
-                      ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") }))
+                      { value: "", label: "All batches" },
+                      ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") })),
                     ]}
+                  />
+                  <CustomSelectMenu
+                    label={reportStudentsLoading ? "Student (loading…)" : `Student (${reportStudents.length})`}
+                    value={reportStudentId}
+                    onChange={(val) => setReportStudentId(val)}
+                    icon={IconGraduationCap}
+                    searchable
+                    placeholder="-- Pick a student --"
+                    options={reportStudents.map(s => ({
+                      value: s._id,
+                      label: s.name,
+                      sublabel: s.email,
+                      badge: typeof s.batch === "object" && s.batch ? (s.batch as { name?: string }).name : undefined,
+                    }))}
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Report Type</label>
-                  <CustomSelect
-                    value={reportType}
-                    onChange={(val) => setReportType(val)}
-                    options={[
-                      { value: "admin_sprint", label: "Sprint Executive Summary" },
-                      { value: "admin_batch", label: "Batch Performance Analysis" },
-                      { value: "admin_comparative", label: "Student Comparative Ranking" },
-                      { value: "admin_student", label: "Student Detailed Report" },
-                      { value: "student_overall", label: "Cohort Overall Performance" },
-                      { value: "student_accuracy", label: "Accuracy & Attempt Breakdown" },
-                    ]}
-                  />
+              )}
+
+              {/* Batch picker — cohort reports that need one */}
+              {(reportType === "admin_batch" || reportType === "admin_comparative") && (
+                <CustomSelectMenu
+                  label={reportType === "admin_batch" ? "Batch (required)" : "Batch (optional — leave blank for all)"}
+                  value={reportBatchId}
+                  onChange={(val) => setReportBatchId(val)}
+                  icon={IconLayers}
+                  options={[
+                    { value: "", label: reportType === "admin_batch" ? "-- Select a batch --" : "All batches" },
+                    ...batchOptions.map(b => ({ value: String(b._id || b.id), label: String(b.name || "Batch") })),
+                  ]}
+                />
+              )}
+
+              {/* Sprint scope — multi-select + all */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                    Sprint scope
+                    {reportType === "admin_sprint"
+                      ? " · pick exactly one"
+                      : reportSprintIds.length === 0
+                        ? " · all sprints"
+                        : ` · ${reportSprintIds.length} selected`}
+                  </label>
+                  {reportSprintIds.length > 0 && (
+                    <button onClick={() => setReportSprintIds([])} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer">
+                      Clear (use all)
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">Format</label>
-                  <CustomSelect
-                    value={reportFormat}
-                    onChange={(val) => setReportFormat(val as "pdf" | "excel")}
-                    options={[
-                      { value: "pdf", label: "PDF Document" },
-                      { value: "excel", label: "Excel Spreadsheet" },
-                    ]}
-                  />
+                <div className="flex flex-wrap gap-2">
+                  {reportType !== "admin_sprint" && (
+                    <button
+                      onClick={() => setReportSprintIds([])}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                        reportSprintIds.length === 0
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      All sprints
+                    </button>
+                  )}
+                  {sprintOptions.map((s) => {
+                    const id = String(s._id || s.id);
+                    const on = reportSprintIds.includes(id);
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          if (reportType === "admin_sprint") { setReportSprintIds([id]); return; }
+                          setReportSprintIds((prev) => on ? prev.filter(x => x !== id) : [...prev, id]);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                          on ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {on && <IconCheck className="w-3 h-3" />}
+                        {String(s.name || "Sprint")}
+                      </button>
+                    );
+                  })}
+                  {sprintOptions.length === 0 && (
+                    <span className="text-xs text-slate-400 font-semibold">No sprints available.</span>
+                  )}
                 </div>
               </div>
+
               <button onClick={handleGenerateReport} disabled={reportGenerating} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition-all">
                 {reportGenerating ? <Spinner className="w-4 h-4 text-white" /> : <IconDownload className="w-4 h-4" />}
                 {reportGenerating ? "Generating..." : "Generate Report"}
@@ -2435,22 +2573,41 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     const rId = String(r._id||r.id||i);
                     const status = String(r.status||"pending");
                     const rawType = String(r.type||r.reportType||"Report");
+                    const REPORT_LABELS: Record<string,string> = {
+                      student_overall: "Overall Performance", student_subject: "Subject Performance",
+                      student_chapter: "Chapter Performance", student_time: "Time Utilization",
+                      student_accuracy: "Accuracy & Attempt Rate", student_recoverable: "Recoverable Marks",
+                      admin_student: "Full Student Dossier", admin_sprint: "Sprint Executive Summary",
+                      admin_batch: "Batch Performance", admin_comparative: "Comparative Ranking",
+                    };
+                    const label = REPORT_LABELS[rawType] || rawType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                    const isIndividual = rawType.startsWith("student_") || rawType === "admin_student";
                     const isDownloading = downloadingReportId === rId;
+                    const failed = status === "failed";
                     return (
                       <div key={rId} className="px-5 py-4 flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-xs font-black text-slate-900">{rawType.replace(/_/g, " ").toUpperCase()} · {String(r.format||"pdf").toUpperCase()}</p>
-                          <p className="text-[11px] text-slate-400 font-semibold">{r.createdAt ? new Date(String(r.createdAt)).toLocaleString("en-IN") : "Recent"}</p>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900 truncate">
+                            {label}
+                            <span className="text-slate-300 font-bold"> · </span>
+                            <span className="text-slate-500">{String(r.format||"pdf").toUpperCase()}</span>
+                            <span className={`ml-2 text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isIndividual ? "bg-violet-50 text-violet-600" : "bg-sky-50 text-sky-600"}`}>
+                              {isIndividual ? "Individual" : "Cohort"}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-semibold truncate">
+                            {r.fileName ? String(r.fileName) : (r.createdAt ? new Date(String(r.createdAt)).toLocaleString("en-IN") : "Recent")}
+                          </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 shrink-0">
                           <StatusBadge status={status} />
                           <button
                             onClick={() => handleDownloadReport(rId)}
-                            disabled={isDownloading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                            disabled={isDownloading || failed}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             {isDownloading ? <Spinner className="w-3.5 h-3.5 text-indigo-600" /> : <IconDownload className="w-3.5 h-3.5" />}
-                            <span>Download</span>
+                            <span>{failed ? "Unavailable" : "Download"}</span>
                           </button>
                         </div>
                       </div>
