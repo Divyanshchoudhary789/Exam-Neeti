@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "../../../store/useAuthStore";
 import {
   IconChart, IconClock, IconFileText, IconChevronRight,
-  ToastContainer, type Toast, CustomSelectMenu, IconTarget, IconRocket, IconShield,
+  CustomSelectMenu, IconTarget, IconRocket, IconShield,
   IconLayers, IconTrendingUp, IconClipboard, IconUserCheck,
 } from "../../common/UIComponents";
+import { toast } from "../../common/feedback";
 import { ProbabilitySurveyModal } from "../ProbabilitySurveyModal";
 import { UpgradeModal } from "../UpgradeModal";
 import { AttemptAnalyticsView } from "../AttemptAnalyticsView";
@@ -50,7 +51,6 @@ const SECTION_TITLE: Record<SectionId, string> = {
 export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props) {
   const { user } = useAuthStore();
   const searchParams = useSearchParams();
-  const uid = useId();
   const data = useDashboardData();
   const { selectedSprintId, sprints, setSelectedSprintId, pendingCount, analytics, probability, subscription, access } = data;
 
@@ -61,7 +61,6 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
   const [showSurvey, setShowSurvey] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradePlanKey, setUpgradePlanKey] = useState<string | undefined>();
-  const [toasts, setToasts] = useState<Toast[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Desktop sidebar collapse — remembered per browser.
@@ -91,12 +90,6 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
   }, []);
   const SIDEBAR_W = collapsed ? 76 : 256;
   const sbTransition = "width 260ms cubic-bezier(0.4, 0, 0.2, 1)";
-
-  const addToast = useCallback((type: Toast["type"], message: string) => {
-    const id = `${uid}-${Date.now()}`;
-    setToasts((t) => [...t, { id, type, message }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
-  }, [uid]);
 
   useEffect(() => {
     const plan = searchParams.get("plan");
@@ -357,11 +350,10 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
             onClose={() => setShowSurvey(false)}
             sprintId={sprintId}
             initialData={probability}
-            onSuccess={() => { setShowSurvey(false); data.refresh(); addToast("success", "Chapter assessment submitted."); }}
+            onSuccess={() => { setShowSurvey(false); data.refresh(); toast.success("Chapter assessment submitted."); }}
           />
         )}
-        <UpgradeModal open={showUpgrade} initialPlanKey={upgradePlanKey} onClose={() => setShowUpgrade(false)} onActivated={() => { data.refresh(); addToast("success", "Your plan is active."); }} />
-        <ToastContainer toasts={toasts} onClose={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
+        <UpgradeModal open={showUpgrade} initialPlanKey={upgradePlanKey} onClose={() => setShowUpgrade(false)} onActivated={() => { data.refresh(); toast.success("Your plan is active."); }} />
       </div>
     </DrilldownProvider>
   );

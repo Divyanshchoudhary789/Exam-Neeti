@@ -63,7 +63,7 @@ const updateResourceSchema = createResourceSchema.fork(
 
 const listContentQuerySchema = Joi.object({
   page:       Joi.number().integer().min(1).default(1),
-  limit:      Joi.number().integer().min(1).max(50).default(12),
+  limit:      Joi.number().integer().min(1).max(100).default(12),
   status:     Joi.string().valid("draft", "published", "all"),
   kind:       Joi.string().valid(...RESOURCE_KINDS),
   category:   Joi.string().trim().max(60),
