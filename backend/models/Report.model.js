@@ -38,9 +38,24 @@ const reportSchema = new mongoose.Schema(
     },
     /**
      * For future cloud storage: store a key/URL here.
-     * Currently reports are generated on-demand as buffers (no disk storage).
      */
     fileStorageKey: {
+      type: String,
+      default: null,
+    },
+    /**
+     * The generated report bytes. Reports are small (< ~1 MB) and Render's
+     * filesystem is ephemeral, so the buffer lives on the document itself and
+     * the download endpoint just streams it. `select: false` keeps it out of
+     * list queries. Regenerated on demand if ever missing.
+     */
+    fileBuffer: {
+      type: Buffer,
+      select: false,
+      default: null,
+    },
+    /** Human-friendly download filename, e.g. Exam-Neeti_Overall-Performance_2026-09-07.pdf */
+    fileName: {
       type: String,
       default: null,
     },

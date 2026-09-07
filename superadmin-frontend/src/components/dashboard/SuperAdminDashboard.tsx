@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { adminService, UserProfile } from "../../services/apiServices";
+import { adminService, authService, UserProfile } from "../../services/apiServices";
 import { useAuthStore } from "../../store/useAuthStore";
 import { changepassword } from "../../store/commonapi";
 import { MathRenderer } from "../common/MathRenderer";
@@ -10,7 +10,7 @@ import {
   IconChart, IconBook, IconUsers, IconClock, IconFilter, IconPlus,
   IconTrash, IconDownload, IconUpload, IconCheck, IconCross, IconEye, IconEdit,
   IconLayers, IconFileText, IconSearch, IconShield, IconChevronDown, IconRocket,
-  IconAlertTriangle, IconMail,
+  IconAlertTriangle, IconMail, IconPhone, IconCalendar, IconLock, IconEyeOff, IconUserCheck,
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
@@ -27,6 +27,7 @@ import { PlanTiersPanel } from "../admin/PlanTiersPanel";
 import { BulkStudentUploadModal } from "../admin/BulkStudentUploadModal";
 import { ContentHubPanel } from "../admin/ContentHubPanel";
 import { ContactInboxPanel } from "./ContactInboxPanel";
+import { SubscribersPanel } from "./SubscribersPanel";
 import { SprintPaperDownloadButton } from "../admin/SprintPaperDownloadButton";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
@@ -82,6 +83,7 @@ const TABS = [
   { id: "students", label: "Students", icon: IconUsers },
   { id: "reports", label: "Reports", icon: IconDownload },
   { id: "inbox", label: "Support Inbox", icon: IconMail },
+  { id: "subscribers", label: "Subscribers", icon: IconMail },
   { id: "admins", label: "Admin Team", icon: IconUsers },
   { id: "logs", label: "Audit Trail", icon: IconClock },
   { id: "governance", label: "Governance & Purge", icon: IconAlertTriangle },
@@ -134,6 +136,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "students", label: "Students", icon: IconUsers, description: "Directory & Rosters" },
       { id: "reports", label: "Reports", icon: IconDownload, description: "Export Reports" },
       { id: "inbox", label: "Support Inbox", icon: IconMail, description: "Website contact messages" },
+      { id: "subscribers", label: "Subscribers", icon: IconMail, description: "Newsletter opt-ins" },
     ],
   },
   {
@@ -335,6 +338,9 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [meProfile, setMeProfile] = useState<Record<string, unknown> | null>(null);
+  const [meLoading, setMeLoading] = useState(false);
 
   // ── Toast helper — delegates to the app-wide toast system ─────────────
   const showToast = useCallback((text: string, type: "success" | "error" = "success") => {
@@ -550,6 +556,16 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   useEffect(() => { if (activeTab === "reports") loadReports(); }, [activeTab, loadReports]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "syllabus") loadSyllabus(); }, [activeTab, loadSyllabus]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => { if (activeTab === "students") loadUsers(); }, [userPage, userRoleFilter, userBatchFilter, userSearch, loadUsers]); // eslint-disable-line
+  useEffect(() => {
+    if (activeTab !== "settings" || meProfile) return;
+    let cancelled = false;
+    setMeLoading(true);
+    authService.getMe()
+      .then((res) => { if (!cancelled) setMeProfile((res?.data?.user || res?.user || null) as Record<string, unknown> | null); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setMeLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, meProfile]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -1990,6 +2006,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
         {/* ══════════════════════════ SUPPORT INBOX TAB ═══════════════════════ */}
         {activeTab === "inbox" && <ContactInboxPanel showToast={showToast} />}
+        {activeTab === "subscribers" && <SubscribersPanel showToast={showToast} />}
 
         {/* ══════════════════════════ QUESTIONS TAB ════════════════════════════ */}
         {activeTab === "questions" && <QuestionBankPanel showToast={showToast} />}
@@ -2489,23 +2506,82 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
         {/* ══════════════════════════ SETTINGS TAB ═════════════════════════════ */}
         {activeTab === "settings" && (
-          <div className="max-w-md space-y-5 animate-in fade-in duration-300">
-            <h2 className="text-xl font-black text-slate-900">Account Settings</h2>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900 mb-5">Change Password</h3>
-              <form onSubmit={handleChangePassword} className="space-y-4">
+          <div className="max-w-2xl space-y-5 animate-in fade-in duration-300">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">Account &amp; Security</h2>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5">Your root administrator profile and sign-in security.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+              <div className="flex items-center gap-4 px-5 sm:px-6 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-slate-100">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center font-black text-xl shrink-0 shadow-md">
+                  {(String(meProfile?.name || user?.name || "S")).charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-black text-slate-900 truncate">{String(meProfile?.name || user?.name || "Super Admin")}</p>
+                  <p className="text-xs font-semibold text-slate-500 truncate">{String(meProfile?.email || user?.email || "")}</p>
+                  <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
+                    <IconShield className="w-2.5 h-2.5" />
+                    Root Access
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                 {[
-                  { label:"Current Password", value:currentPassword, set:setCurrentPassword },
-                  { label:"New Password", value:newPassword, set:setNewPassword },
-                  { label:"Confirm New Password", value:confirmPassword, set:setConfirmPassword },
-                ].map(({label,value,set}) => (
-                  <div key={label}>
-                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">{label}</label>
-                    <input type="password" required value={value} onChange={e=>set(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium" />
+                  { icon: IconMail, label: "Email", value: String(meProfile?.email || user?.email || "—") },
+                  { icon: IconPhone, label: "Phone", value: meProfile?.phone ? String(meProfile.phone) : "Not added" },
+                  { icon: IconUserCheck, label: "Role", value: "Super admin" },
+                  {
+                    icon: IconCalendar,
+                    label: "Member since",
+                    value: meProfile?.createdAt
+                      ? new Date(String(meProfile.createdAt)).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
+                      : (meLoading ? "Loading…" : "—"),
+                  },
+                ].map(({ icon: Icon, label, value }) => (
+                  <div key={label} className="flex items-start gap-3 px-5 sm:px-6 py-4">
+                    <span className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{label}</p>
+                      <p className="text-xs font-bold text-slate-800 mt-0.5 break-words">{value}</p>
+                    </div>
                   </div>
                 ))}
-                <button type="submit" disabled={pwLoading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all mt-2">
+              </div>
+            </div>
+
+            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <IconLock className="w-3.5 h-3.5" />
+                </span>
+                <h3 className="text-sm font-black text-slate-900">Change Password</h3>
+              </div>
+              <p className="text-[11px] text-slate-400 font-semibold mb-4">
+                Use at least 8 characters. Changing it signs you out of other devices and is written to the audit trail.
+              </p>
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                {[
+                  { label: "Current Password", value: currentPassword, set: setCurrentPassword },
+                  { label: "New Password", value: newPassword, set: setNewPassword },
+                  { label: "Confirm New Password", value: confirmPassword, set: setConfirmPassword },
+                ].map(({ label, value, set }) => (
+                  <div key={label}>
+                    <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1.5">{label}</label>
+                    <input type={showPasswords ? "text" : "password"} required value={value} onChange={e => set(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all" />
+                  </div>
+                ))}
+                <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+                  <button type="button" onClick={() => setShowPasswords(v => !v)}
+                    className="w-4 h-4 rounded border border-slate-300 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors">
+                    {showPasswords ? <IconEyeOff className="w-3 h-3" /> : <IconEye className="w-3 h-3" />}
+                  </button>
+                  <span className="text-[11px] font-bold text-slate-500">Show passwords</span>
+                </label>
+                <button type="submit" disabled={pwLoading} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all mt-1">
                   {pwLoading ? <Spinner className="w-4 h-4 text-white" /> : "Update Password"}
                 </button>
               </form>
