@@ -350,9 +350,17 @@ const createExcelReport = async (reportDoc, data) => {
     },
   };
 
+  const usedSheetNames = new Set();
   const addSheet = (rawName, headers, rows, { meta } = {}) => {
-    // Excel sheet names: max 31 chars, no []:*?/\
-    const sheetName = String(rawName).replace(/[[\]:*?/\\]/g, " ").slice(0, 31) || "Sheet";
+    // Excel sheet names: max 31 chars, no []:*?/\, and must be unique — ExcelJS
+    // throws on a duplicate, which would 500 the whole download.
+    let base = String(rawName).replace(/[[\]:*?/\\]/g, " ").trim().slice(0, 31) || "Sheet";
+    let sheetName = base;
+    let n = 2;
+    while (usedSheetNames.has(sheetName.toLowerCase())) {
+      sheetName = `${base.slice(0, 27)} (${n++})`;
+    }
+    usedSheetNames.add(sheetName.toLowerCase());
     const sheet = workbook.addWorksheet(sheetName, {
       views: [{ state: "frozen", ySplit: meta ? 4 : 1 }],
     });

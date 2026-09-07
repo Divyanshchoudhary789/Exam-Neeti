@@ -92,5 +92,9 @@ const reportSchema = new mongoose.Schema(
 reportSchema.index({ owner: 1, createdAt: -1 });
 reportSchema.index({ sprint: 1 });
 reportSchema.index({ status: 1 });
+// Generated reports are disposable — the download endpoint rebuilds any report
+// on demand from live analytics. Expire the stored copy (and its ~50 KB buffer)
+// after 180 days so the collection doesn't grow without bound.
+reportSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 
 module.exports = mongoose.model("Report", reportSchema);

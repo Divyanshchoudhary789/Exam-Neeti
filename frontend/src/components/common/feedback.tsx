@@ -97,9 +97,20 @@ function closeDialog(result: { confirmed: boolean; value: string }) {
   current?.resolve(result);
 }
 
+/** If a dialog is already open when a new one is requested, resolve the old
+    one as cancelled so its awaiter never hangs. */
+function supersedeDialog() {
+  const current = dialog;
+  if (current) {
+    dialog = null;
+    current.resolve({ confirmed: false, value: "" });
+  }
+}
+
 /** On-brand replacement for window.confirm. Resolves true when confirmed. */
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
+    supersedeDialog();
     dialog = {
       id: genId(),
       kind: "confirm",
@@ -114,6 +125,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
     null if the user cancelled. */
 export function promptDialog(opts: PromptOptions): Promise<string | null> {
   return new Promise((resolve) => {
+    supersedeDialog();
     dialog = {
       id: genId(),
       kind: "prompt",

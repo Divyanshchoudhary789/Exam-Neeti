@@ -643,9 +643,8 @@ exports.generateReport = asyncHandler(async (req, res, next) => {
     await buildAndPersistReport(report);
   } catch (err) {
     await Report.findByIdAndUpdate(report._id, { status: REPORT_STATUS.FAILED }).catch(() => {});
-    console.error("[Report] Generation failed:", err.message);
-    const who = scopeRefId && isPrivileged ? "This student has" : "You have";
-    return next(new AppError(`${who} no scored tests in the selected scope yet — nothing to build a report from.`, 422));
+    console.error("[Report] Generation failed:", err.stack || err.message);
+    return next(new AppError("Could not generate that report. Please try again.", 500));
   }
 
   return sendSuccess(res, 201, "Report generated.", {
