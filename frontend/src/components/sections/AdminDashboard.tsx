@@ -997,6 +997,8 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       setActiveTab(item.id);
                       setIsMobileDrawerOpen(false);
                     }}
+                    aria-label={item.label}
+                    aria-current={isActive ? "page" : undefined}
                     title={isSidebarVisuallyCollapsed ? `${item.label} (${item.description})` : undefined}
                     className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
                       isActive
@@ -2124,7 +2126,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                   {subjName.charAt(0).toUpperCase()}
                                 </div>
                                 <div>
-                                  <h3 className="text-base font-black tracking-wide">{subjName} Taxonomy</h3>
+                                  <h3 className="text-base font-black tracking-wide capitalize">{subjName} Taxonomy</h3>
                                   <p className="text-[11px] opacity-80 font-medium">{filteredChapters.length} Chapters Available</p>
                                 </div>
                               </div>

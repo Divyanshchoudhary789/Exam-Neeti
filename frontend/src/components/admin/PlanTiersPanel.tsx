@@ -44,7 +44,7 @@ export function PlanTiersPanel({ showToast, onViewExams }: Props) {
         <h2 className="text-xl font-black text-slate-900">Plans &amp; Tiers</h2>
         <p className="text-xs text-slate-500 font-semibold">
           Self-serve pricing catalog. Create a test for a tier by picking it as the <b>Audience</b> in Create Exam.
-          Prices &amp; test counts are managed via <code className="text-[11px]">npm run seed:plans</code>.
+          Prices &amp; included test counts are set centrally by the platform team.
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export function PlanTiersPanel({ showToast, onViewExams }: Props) {
         <div className="p-12 text-center bg-white rounded-2xl border border-slate-200"><Spinner className="w-6 h-6 text-indigo-600 mx-auto" /></div>
       ) : rows.length === 0 ? (
         <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">
-          No plans seeded yet. Run <code>npm run seed:plans</code>.
+          No plans are configured yet. The platform team sets these up centrally.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
