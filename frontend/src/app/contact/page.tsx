@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "../../components/navbar";
 import { Footer } from "../../components/footer";
+import { contactService } from "../../services/apiServices";
+import { toast } from "../../components/common/feedback";
 import {
   IconMail,
   IconPhone,
@@ -30,26 +32,61 @@ export default function ContactPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [company, setCompany] = useState(""); // honeypot — hidden from real users
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleOpenAuth = (type: "login" | "join") => {
     router.push(type === "login" ? "/login" : "/register");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !message) {
+    if (submitting) return;
+    setStatus("idle");
+    setErrorMsg("");
+
+    if (!name.trim() || !email.trim() || !message.trim()) {
       setStatus("error");
+      setErrorMsg("Please fill in your name, a valid email, and a message.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setStatus("error");
+      setErrorMsg("That email address doesn't look right — please check it.");
       return;
     }
-    setStatus("success");
-    setName("");
-    setEmail("");
-    setMessage("");
+    if (message.trim().length < 10) {
+      setStatus("error");
+      setErrorMsg("Please add a little more detail to your message (at least 10 characters).");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await contactService.submit({ name: name.trim(), email: email.trim(), reason, message: message.trim(), company });
+      setStatus("success");
+      setName("");
+      setEmail("");
+      setMessage("");
+      setReason(REASONS[0]);
+      toast.success("Message sent — we'll reply within a working day.");
+    } catch (err: unknown) {
+      const apiMsg =
+        (err as { response?: { data?: { message?: string; errors?: string[] } } })?.response?.data?.errors?.[0] ||
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { message?: string })?.message;
+      setStatus("error");
+      setErrorMsg(
+        apiMsg && !/network|failed to fetch/i.test(apiMsg)
+          ? apiMsg
+          : "Couldn't send your message right now. Please try again, or email us at hello@examneeti.in.",
+      );
+      toast.error("Message not sent — please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -147,18 +184,39 @@ export default function ContactPage() {
                 />
               </div>
 
+              {/* Honeypot — visually hidden, ignored by humans, filled by bots. */}
+              <input
+                type="text"
+                name="company"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                className="absolute -left-[9999px] h-0 w-0 opacity-0"
+              />
+
               <button
                 type="submit"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold px-6 py-3 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md cursor-pointer"
+                disabled={submitting}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold px-6 py-3 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Send Message
+                {submitting && (
+                  <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                )}
+                {submitting ? "Sending…" : "Send Message"}
               </button>
 
               {status === "success" && (
-                <p className="text-xs font-bold text-emerald-600">Thanks — your message has been sent. We&apos;ll reply within a working day.</p>
+                <div className="flex items-start gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+                  <span className="text-emerald-600 font-black">✓</span>
+                  <p className="text-xs font-bold text-emerald-700">
+                    Thanks — your message has been sent. We&apos;ve emailed you a confirmation and will reply within one working day.
+                  </p>
+                </div>
               )}
               {status === "error" && (
-                <p className="text-xs font-bold text-rose-500">Please fill in your name, a valid email, and a message.</p>
+                <p className="text-xs font-bold text-rose-500">{errorMsg || "Please fill in your name, a valid email, and a message."}</p>
               )}
             </form>
           </div>

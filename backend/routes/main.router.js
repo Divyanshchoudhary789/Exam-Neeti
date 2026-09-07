@@ -19,6 +19,7 @@ const paymentRoutes      = require("./payment.routes");
 const subscriptionRoutes = require("./subscription.routes");
 const blogRoutes         = require("./blog.routes");
 const resourceRoutes     = require("./resource.routes");
+const contactRoutes      = require("./contact.routes");
 
 mainRouter.use("/auth",        authRoutes);
 mainRouter.use("/users",       userRoutes);
@@ -38,5 +39,6 @@ mainRouter.use("/payments",     paymentRoutes);
 mainRouter.use("/subscriptions", subscriptionRoutes);
 mainRouter.use("/blogs",        blogRoutes);
 mainRouter.use("/resources",    resourceRoutes);
+mainRouter.use("/contact",      contactRoutes);
 
 module.exports = mainRouter;

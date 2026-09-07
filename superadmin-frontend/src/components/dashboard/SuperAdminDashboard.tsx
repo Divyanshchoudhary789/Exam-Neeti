@@ -10,7 +10,7 @@ import {
   IconChart, IconBook, IconUsers, IconClock, IconFilter, IconPlus,
   IconTrash, IconDownload, IconUpload, IconCheck, IconCross, IconEye, IconEdit,
   IconLayers, IconFileText, IconSearch, IconShield, IconChevronDown, IconRocket,
-  IconAlertTriangle,
+  IconAlertTriangle, IconMail,
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
@@ -26,6 +26,7 @@ import { SprintHistoryModal } from "../admin/SprintHistoryModal";
 import { PlanTiersPanel } from "../admin/PlanTiersPanel";
 import { BulkStudentUploadModal } from "../admin/BulkStudentUploadModal";
 import { ContentHubPanel } from "../admin/ContentHubPanel";
+import { ContactInboxPanel } from "./ContactInboxPanel";
 import { SprintPaperDownloadButton } from "../admin/SprintPaperDownloadButton";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
@@ -80,6 +81,7 @@ const TABS = [
   { id: "syllabus", label: "Syllabus Taxonomy", icon: IconFileText },
   { id: "students", label: "Students", icon: IconUsers },
   { id: "reports", label: "Reports", icon: IconDownload },
+  { id: "inbox", label: "Support Inbox", icon: IconMail },
   { id: "admins", label: "Admin Team", icon: IconUsers },
   { id: "logs", label: "Audit Trail", icon: IconClock },
   { id: "governance", label: "Governance & Purge", icon: IconAlertTriangle },
@@ -131,6 +133,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "students", label: "Students", icon: IconUsers, description: "Directory & Rosters" },
       { id: "reports", label: "Reports", icon: IconDownload, description: "Export Reports" },
+      { id: "inbox", label: "Support Inbox", icon: IconMail, description: "Website contact messages" },
     ],
   },
   {
@@ -1206,7 +1209,25 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
               )}
 
               {/* Chapter Weakness & Topic Breakdown Widget */}
-              {chapterBreakdown && (
+              {chapterBreakdown && (() => {
+                // Backend returns one `chapters` array sorted weakest-first. Each
+                // widget must show only chapters that actually clear its own
+                // threshold — otherwise, with a handful of chapters, "weakest"
+                // and "strongest" show the same rows (a 100%-accuracy chapter
+                // under "Weakest", a 0% one under "Strongest").
+                const allChapters = Array.isArray(chapterBreakdown.chapters)
+                  ? (chapterBreakdown.chapters as Array<{ chapter?: string; accuracy?: number }>)
+                  : [];
+                const weakest = allChapters
+                  .filter((c) => Number(c.accuracy || 0) < 50)
+                  .slice(0, 5)
+                  .map((c) => ({ label: String(c.chapter || "Chapter"), value: Number(c.accuracy || 0) }));
+                const strongest = allChapters
+                  .filter((c) => Number(c.accuracy || 0) > 70)
+                  .sort((a, b) => Number(b.accuracy || 0) - Number(a.accuracy || 0))
+                  .slice(0, 5)
+                  .map((c) => ({ label: String(c.chapter || "Chapter"), value: Number(c.accuracy || 0) }));
+                return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -1216,17 +1237,10 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold">Cohort accuracy &lt; 50%</span>
                     </div>
-                    {Array.isArray(chapterBreakdown.chapters) && (chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
-                      /* Backend returns `chapters` pre-sorted weakest-first (no separate weakestChapters key) */
-                      <HBarChart
-                        color="#dc2626"
-                        data={(chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).slice(0,5).map((wc) => ({
-                          label: String(wc.chapter || "Chapter"),
-                          value: Number(wc.accuracy || 0),
-                        }))}
-                      />
+                    {weakest.length > 0 ? (
+                      <HBarChart color="#dc2626" data={weakest} />
                     ) : (
-                      <p className="text-xs text-slate-400 py-3 text-center">No weak chapter anomalies detected.</p>
+                      <p className="text-xs text-slate-400 py-3 text-center">No chapter is below 50% cohort accuracy.</p>
                     )}
                   </div>
 
@@ -1238,21 +1252,15 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       </h4>
                       <span className="text-[10px] text-slate-400 font-semibold">Cohort accuracy &gt; 70%</span>
                     </div>
-                    {Array.isArray(chapterBreakdown.chapters) && (chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).length > 0 ? (
-                      /* Backend returns a single `chapters` array sorted weakest-first — take the tail and reverse for strongest-first */
-                      <HBarChart
-                        color="#059669"
-                        data={(chapterBreakdown.chapters as Array<{chapter?:string;accuracy?:number}>).slice(-5).reverse().map((sc) => ({
-                          label: String(sc.chapter || "Chapter"),
-                          value: Number(sc.accuracy || 0),
-                        }))}
-                      />
+                    {strongest.length > 0 ? (
+                      <HBarChart color="#059669" data={strongest} />
                     ) : (
-                      <p className="text-xs text-slate-400 py-3 text-center">No high accuracy data yet.</p>
+                      <p className="text-xs text-slate-400 py-3 text-center">No chapter is above 70% cohort accuracy yet.</p>
                     )}
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Student Attempt Submission Matrix */}
               {studentStatusList.length > 0 ? (
@@ -1925,7 +1933,8 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                       </div>
                       <div className="flex flex-wrap gap-4 text-[11px] text-slate-500 font-semibold items-center">
                         <span>Duration: <b className="text-slate-700">{String(ex.durationMinutes||180)} min</b></span>
-                        <span>Questions: <b className="text-slate-700">{String(ex.totalQuestions||"—")}</b></span>
+                        <span>Total marks: <b className="text-slate-700">{Number(ex.totalMarks) > 0 ? String(ex.totalMarks) : "—"}</b></span>
+                        {ex.examNumber ? <span>Paper #<b className="text-slate-700">{String(ex.examNumber)}</b></span> : null}
                         {tierLabel ? (
                           <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase ${tierLabel === "Free tier" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>{tierLabel}</span>
                         ) : Boolean(exBatch) && (
@@ -1976,6 +1985,9 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
         {/* ══════════════════════════ CONTENT HUB TAB ═════════════════════════ */}
         {activeTab === "content" && <ContentHubPanel showToast={showToast} />}
+
+        {/* ══════════════════════════ SUPPORT INBOX TAB ═══════════════════════ */}
+        {activeTab === "inbox" && <ContactInboxPanel showToast={showToast} />}
 
         {/* ══════════════════════════ QUESTIONS TAB ════════════════════════════ */}
         {activeTab === "questions" && <QuestionBankPanel showToast={showToast} />}

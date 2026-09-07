@@ -213,6 +213,56 @@ const templates = {
       <p>You will no longer be able to log in to the admin panel.</p>
       <p>If you believe this was done in error, please contact the platform owner.</p>
     `),
+
+  // ── Contact form ──────────────────────────────────────────────────────────
+  contactFormReceived: ({ name, email, reason, message }) =>
+    baseTemplate(`
+      <p>New message from the website contact form.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:6px 0;color:#888;width:110px;">Name</td><td style="padding:6px 0;font-weight:bold;">${escHtml(name)}</td></tr>
+        <tr><td style="padding:6px 0;color:#888;">Email</td><td style="padding:6px 0;font-weight:bold;">${escHtml(email)}</td></tr>
+        <tr><td style="padding:6px 0;color:#888;">Topic</td><td style="padding:6px 0;font-weight:bold;">${escHtml(reason)}</td></tr>
+      </table>
+      <p style="color:#888;margin-bottom:4px;">Message</p>
+      <div style="background:#f4f4f4;border-radius:6px;padding:14px;white-space:pre-wrap;">${escHtml(message)}</div>
+      <p style="margin-top:16px;">Reply directly to this email to respond to ${escHtml(name)}.</p>
+    `),
+
+  contactAck: ({ name }) =>
+    baseTemplate(`
+      <p>Hi <strong>${escHtml(name)}</strong>,</p>
+      <p>Thanks for reaching out to <strong>Exam Neeti</strong>. We've received your message and a member of the product team will get back to you within one working day.</p>
+      <p>If your question is urgent, you can also call us at <strong>+91 98765 40000</strong> (Mon–Sat, 9 AM – 7 PM IST).</p>
+      <p>— Team Exam Neeti</p>
+    `),
 };
 
-module.exports = { sendEmail, templates };
+/**
+ * Fire-and-forget email with no NotificationLog row — used for messages that
+ * aren't tied to a User account (e.g. the public contact form). Failures are
+ * logged, never thrown, so they can't break the request flow.
+ *
+ * @param {Object}  opts
+ * @param {string}  opts.to       Recipient
+ * @param {string}  opts.subject
+ * @param {string}  opts.html
+ * @param {string} [opts.replyTo] Sets the Reply-To header (e.g. the sender's address)
+ */
+const sendRawEmail = async ({ to, subject, html, replyTo }) => {
+  try {
+    const transport = getTransporter();
+    await transport.sendMail({
+      from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM_ADDRESS}>`,
+      to,
+      subject,
+      html,
+      ...(replyTo ? { replyTo } : {}),
+    });
+    return true;
+  } catch (err) {
+    console.error(`[Email] Raw send failed to ${to}:`, err.message);
+    return false;
+  }
+};
+
+module.exports = { sendEmail, sendRawEmail, templates };

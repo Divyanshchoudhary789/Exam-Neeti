@@ -129,6 +129,30 @@ export const resourceService = {
   remove: async (id: string) => (await api.delete(`/resources/${id}`)).data,
 };
 
+export interface ContactMessage {
+  _id: string;
+  name: string;
+  email: string;
+  reason: string;
+  message: string;
+  status: "new" | "read" | "replied" | "archived";
+  ip?: string;
+  userAgent?: string;
+  handledBy?: { email?: string };
+  handledAt?: string | null;
+  createdAt: string;
+}
+
+export const contactService = {
+  list: async (params?: { page?: number; limit?: number; status?: string; reason?: string; search?: string }) => {
+    const res = await api.get(`/contact${listQuery(params)}`);
+    return res.data;
+  },
+  setStatus: async (id: string, status: ContactMessage["status"]) =>
+    (await api.patch(`/contact/${id}`, { status })).data,
+  remove: async (id: string) => (await api.delete(`/contact/${id}`)).data,
+};
+
 // ----------------------------------------------------
 // AUTH SERVICES
 // ----------------------------------------------------
