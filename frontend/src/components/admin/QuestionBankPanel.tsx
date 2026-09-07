@@ -9,6 +9,7 @@ import {
   Spinner, MiniStatCard, CommonModal, PaginationControls,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
+import { confirmDialog } from "../common/feedback";
 import { EditQuestionModal } from "./EditQuestionModal";
 import { QuestionHistoryModal } from "./QuestionHistoryModal";
 import { ManageQuestionFieldsModal } from "./ManageQuestionFieldsModal";
@@ -184,7 +185,12 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   };
 
   const handleDeleteQuestion = async (id: string) => {
-    if (!window.confirm("Delete this question permanently?")) return;
+    if (!(await confirmDialog({
+      title: "Delete question?",
+      message: "This permanently removes the question from the bank. This cannot be undone.",
+      confirmText: "Delete question",
+      tone: "danger",
+    }))) return;
     try { await adminService.deleteQuestion(id); showToast("Question deleted!"); loadQuestions(); }
     catch (err: unknown) { showToast((err as { message?: string }).message || "Delete failed", "error"); }
   };

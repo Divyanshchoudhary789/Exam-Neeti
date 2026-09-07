@@ -47,7 +47,7 @@ export interface PlanOverviewRow {
 // ----------------------------------------------------
 
 export interface BlogStyle {
-  fontFamily: "sans" | "serif" | "mono";
+  fontFamily: "sans" | "serif" | "mono" | "inter" | "poppins" | "lora";
   fontSizePx: number;
   lineHeight: number;
   textColor: string;

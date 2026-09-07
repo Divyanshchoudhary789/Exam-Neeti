@@ -13,6 +13,7 @@ import {
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
+import { confirmDialog, promptDialog } from "../common/feedback";
 import { RadialMeter, HBarChart } from "../common/Charts";
 import { SprintBuilder } from "../admin/SprintBuilder";
 import { SprintHistoryModal } from "../admin/SprintHistoryModal";
@@ -535,7 +536,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // a super admin must approve. A super admin deletes directly.
   const handleDeleteSprint = async (id: string) => {
     if (user?.role === "super_admin") {
-      if (!window.confirm("Delete this sprint directly? This cannot be undone.")) return;
+      if (!(await confirmDialog({
+        title: "Delete sprint directly?",
+        message: "This permanently deletes the sprint. This cannot be undone.",
+        confirmText: "Delete sprint",
+        tone: "danger",
+      }))) return;
       try { await adminService.deleteSprint(id); showToast("Sprint deleted!"); refreshSprintsAfterMutation(); }
       catch (err: unknown) {
         const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || (err as { message?: string }).message || "Delete failed";
@@ -543,7 +549,13 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
       }
       return;
     }
-    const reason = window.prompt("Request deletion of this sprint — a super admin must approve.\n\nReason (optional):", "");
+    const reason = await promptDialog({
+      title: "Request sprint deletion",
+      message: "A super admin must approve this before the sprint is deleted.",
+      placeholder: "Reason (optional)",
+      multiline: true,
+      confirmText: "Submit request",
+    });
     if (reason === null) return;
     try {
       const res = await adminService.requestSprintDeletion(id, reason);
@@ -556,7 +568,11 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   const handleCancelSprintDeletionRequest = async (id: string) => {
-    if (!window.confirm("Withdraw the pending deletion request for this sprint?")) return;
+    if (!(await confirmDialog({
+      title: "Withdraw deletion request?",
+      message: "The pending deletion request for this sprint will be cancelled.",
+      confirmText: "Withdraw request",
+    }))) return;
     try {
       await adminService.cancelSprintDeletionRequest(id);
       showToast("Deletion request withdrawn.", "success");
@@ -579,12 +595,15 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   const handleDeleteBatch = async (id: string, name: string) => {
-    const confirmInput = window.prompt(`To permanently delete batch "${name}", type its exact name below:`);
-    if (!confirmInput) return;
-    if (confirmInput.trim() !== name.trim()) {
-      showToast("Batch name confirmation did not match. Deletion cancelled.", "error");
-      return;
-    }
+    const confirmInput = await promptDialog({
+      title: "Delete batch?",
+      message: `This permanently deletes "${name}" and cannot be undone. Type the batch name to confirm.`,
+      placeholder: name,
+      matchValue: name,
+      confirmText: "Delete batch",
+      tone: "danger",
+    });
+    if (confirmInput === null) return;
     try {
       await adminService.deleteBatch(id, confirmInput.trim());
       showToast("Batch deleted successfully!");
@@ -625,7 +644,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   const handleDeleteExam = async (id: string) => {
-    if (!window.confirm("Delete this exam?")) return;
+    if (!(await confirmDialog({
+      title: "Delete exam?",
+      message: "This permanently deletes the exam. This cannot be undone.",
+      confirmText: "Delete exam",
+      tone: "danger",
+    }))) return;
     try { await adminService.deleteExam(id); showToast("Exam deleted!"); loadExams(); }
     catch (err: unknown) { showToast((err as {message?:string}).message || "Delete failed", "error"); }
   };
@@ -641,7 +665,12 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
   };
 
   const handleDeleteSyllabusTopic = async (topicId: string, topicName: string) => {
-    if (!window.confirm(`Are you sure you want to delete topic "${topicName}" permanently?`)) return;
+    if (!(await confirmDialog({
+      title: "Delete syllabus topic?",
+      message: `"${topicName}" will be permanently deleted from the syllabus. This cannot be undone.`,
+      confirmText: "Delete topic",
+      tone: "danger",
+    }))) return;
     try {
       await adminService.deleteSyllabusTopic(topicId);
       showToast("Syllabus topic deleted successfully!", "success");
@@ -1305,7 +1334,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-black text-slate-900">Leaderboard Rankings</h3>
                       <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-black uppercase">
-                        {leaderboardScope === "all" ? "🌟 Overall (All Sprints)" : "Selected Sprint"}
+                        {leaderboardScope === "all" ? "Overall (All Sprints)" : "Selected Sprint"}
                       </span>
                       {isLeaderboardLoading && (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 animate-pulse">
@@ -1323,7 +1352,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     onChange={(e) => setLeaderboardScope(e.target.value)}
                     className="bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-xl focus:outline-none cursor-pointer"
                   >
-                    <option value="all">🌟 All Sprints (Overall)</option>
+                    <option value="all">All Sprints (Overall)</option>
                     {sprintOptions.map((sp) => (
                       <option key={String(sp._id || sp.id)} value={String(sp._id || sp.id)}>
                         Sprint: {String(sp.name || sp.title || "Sprint")}

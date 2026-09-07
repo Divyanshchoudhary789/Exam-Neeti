@@ -7,6 +7,7 @@ import {
   IconClock, IconTrash, IconCheck, IconCross, IconSearch, IconAlertTriangle,
   Spinner, PaginationControls,
 } from "../common/UIComponents";
+import { confirmDialog, promptDialog } from "../common/feedback";
 import { SprintHistoryModal } from "./SprintHistoryModal";
 import { SprintPaperDownloadButton } from "./SprintPaperDownloadButton";
 
@@ -92,9 +93,18 @@ export function SprintOversightPanel({ showToast }: Props) {
   useEffect(() => { setPage(1); }, [statusFilter, classFilter, search]);
 
   const decide = async (id: string, decision: "approve" | "reject") => {
-    const verb = decision === "approve" ? "Approve deletion (the sprint will be permanently deleted)" : "Reject this deletion request (the sprint is kept)";
-    if (!window.confirm(`${verb}?`)) return;
-    const note = window.prompt(`Note for the requesting admin (optional):`, "") || "";
+    const approving = decision === "approve";
+    const note = await promptDialog({
+      title: approving ? "Approve deletion request?" : "Reject deletion request?",
+      message: approving
+        ? "The sprint will be permanently deleted once approved."
+        : "The deletion request is dismissed and the sprint is kept.",
+      placeholder: "Note for the requesting admin (optional)",
+      multiline: true,
+      confirmText: approving ? "Approve & delete" : "Reject request",
+      tone: approving ? "danger" : "default",
+    });
+    if (note === null) return;
     setDeciding(id);
     try {
       const res = await adminService.decideSprintDeletion(id, decision, note);
@@ -110,7 +120,12 @@ export function SprintOversightPanel({ showToast }: Props) {
   };
 
   const directDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete draft sprint "${name}" directly? This cannot be undone.`)) return;
+    if (!(await confirmDialog({
+      title: "Delete draft sprint?",
+      message: `"${name}" will be deleted directly. This cannot be undone.`,
+      confirmText: "Delete sprint",
+      tone: "danger",
+    }))) return;
     try {
       await adminService.deleteSprint(id);
       showToast("Sprint deleted.", "success");

@@ -73,6 +73,7 @@ export const useAuthStore = create<AuthState>()(
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
+            "X-Auth-Client": "superadmin",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         }).catch(() => {
@@ -82,7 +83,7 @@ export const useAuthStore = create<AuthState>()(
         // Clear the Edge-middleware role cookie
         if (typeof document !== "undefined") {
           document.cookie =
-            "auth-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+            "sa-auth-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
         }
 
         set({ user: null, token: null });

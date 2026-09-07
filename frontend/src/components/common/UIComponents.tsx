@@ -455,12 +455,15 @@ export function CommonModal({
   onClose,
   title,
   children,
+  footer,
   maxWidth = "max-w-xl",
 }: {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Optional action bar pinned below the scrollable body (never scrolls). */
+  footer?: React.ReactNode;
   maxWidth?: string;
 }) {
   useEffect(() => {
@@ -504,6 +507,9 @@ export function CommonModal({
             sideways scroll instead of a visible layout bug — every modal
             body needs this, not just the one that surfaced it. */}
         <div className="px-4 sm:px-8 py-4 sm:py-6 overflow-y-auto overflow-x-hidden flex-grow">{children}</div>
+        {footer && (
+          <div className="px-4 sm:px-8 py-3 border-t border-slate-100 bg-white shrink-0">{footer}</div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AppFeedback } from "@/components/common/feedback";
 
 export const metadata: Metadata = {
   title: {
@@ -41,8 +42,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased overflow-x-hidden" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Primary console typeface (Plus Jakarta Sans + Inter); Lora/Poppins back
+            the Content Hub editor's live preview. */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Lora:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="min-h-full flex flex-col overflow-x-hidden w-full max-w-full" suppressHydrationWarning>
         {children}
+        <AppFeedback />
       </body>
     </html>
   );

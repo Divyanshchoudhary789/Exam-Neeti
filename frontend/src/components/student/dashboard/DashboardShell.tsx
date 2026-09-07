@@ -4,8 +4,9 @@ import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "../../../store/useAuthStore";
 import {
-  IconChart, IconBook, IconClock, IconFileText, IconCheck, IconChevronRight,
-  ToastContainer, type Toast, CustomSelectMenu, IconTarget,
+  IconChart, IconClock, IconFileText, IconChevronRight,
+  ToastContainer, type Toast, CustomSelectMenu, IconTarget, IconRocket, IconShield,
+  IconLayers, IconTrendingUp, IconClipboard, IconUserCheck,
 } from "../../common/UIComponents";
 import { ProbabilitySurveyModal } from "../ProbabilitySurveyModal";
 import { UpgradeModal } from "../UpgradeModal";
@@ -29,12 +30,12 @@ interface Props {
 }
 
 const NAV: { id: SectionId; label: string; short: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "overview", label: "Overview", short: "Home", Icon: IconChart },
-  { id: "analytics", label: "Analytics", short: "Analytics", Icon: IconChart },
-  { id: "tests", label: "My Tests", short: "Tests", Icon: IconBook },
+  { id: "overview", label: "Overview", short: "Home", Icon: IconLayers },
+  { id: "analytics", label: "Analytics", short: "Analytics", Icon: IconTrendingUp },
+  { id: "tests", label: "My Tests", short: "Tests", Icon: IconClipboard },
   { id: "history", label: "History", short: "History", Icon: IconClock },
   { id: "reports", label: "Reports", short: "Reports", Icon: IconFileText },
-  { id: "profile", label: "Profile", short: "Profile", Icon: IconCheck },
+  { id: "profile", label: "Profile", short: "Profile", Icon: IconUserCheck },
 ];
 
 const SECTION_TITLE: Record<SectionId, string> = {
@@ -51,7 +52,7 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
   const searchParams = useSearchParams();
   const uid = useId();
   const data = useDashboardData();
-  const { selectedSprintId, selectedSprint, sprints, setSelectedSprintId, pendingCount, analytics, probability, subscription, access } = data;
+  const { selectedSprintId, sprints, setSelectedSprintId, pendingCount, analytics, probability, subscription, access } = data;
 
   const [section, setSection] = useState<SectionId>("overview");
   const [viewingAttemptId, setViewingAttemptId] = useState<string | null>(null);
@@ -62,6 +63,34 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
   const [upgradePlanKey, setUpgradePlanKey] = useState<string | undefined>();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Desktop sidebar collapse — remembered per browser.
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem("student-sidebar-collapsed") === "1"; } catch { return false; }
+  });
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("student-sidebar-collapsed", next ? "1" : "0"); } catch { /* private mode */ }
+      return next;
+    });
+  }, []);
+
+  // Track the lg breakpoint so the content margin can animate in lock-step with
+  // the fixed sidebar (a `position: fixed` element isn't a flex item, so the
+  // layout can't do this on its own). Width/margin are driven by inline px so
+  // the CSS transition interpolates cleanly (Tailwind's `w-*` calc() values and
+  // `transition-[width]` don't animate reliably).
+  const [isLgUp, setIsLgUp] = useState<boolean>(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = (e: MediaQueryListEvent) => setIsLgUp(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const SIDEBAR_W = collapsed ? 76 : 256;
+  const sbTransition = "width 260ms cubic-bezier(0.4, 0, 0.2, 1)";
 
   const addToast = useCallback((type: Toast["type"], message: string) => {
     const id = `${uid}-${Date.now()}`;
@@ -102,49 +131,96 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
 
   const readiness = num(probability?.readinessIndex);
   const sprintId = selectedSprintId;
-  const sprintName = String(selectedSprint?.name || "Active Sprint");
 
-  const sidebarContent = (
+  const openUpgrade = () => { setUpgradePlanKey(undefined); setShowUpgrade(true); };
+
+  const brandMark = (
+    <span className="w-9 h-9 rounded-xl bg-white ring-1 ring-slate-200 shadow-sm p-1 flex items-center justify-center shrink-0 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.png" alt="Exam Neeti" className="w-full h-full object-contain" />
+    </span>
+  );
+  const collapseToggle = (mini: boolean) => (
+    <button
+      onClick={toggleCollapsed}
+      title={mini ? "Expand sidebar" : "Collapse sidebar"}
+      aria-label={mini ? "Expand sidebar" : "Collapse sidebar"}
+      className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+    >
+      <svg className={`w-4 h-4 ${mini ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 5l-7 7 7 7M18 5l-7 7 7 7" /></svg>
+    </button>
+  );
+
+  const renderSidebar = (mini: boolean) => (
     <div className="flex flex-col h-full">
-      <div className="px-5 py-[17px] border-b border-slate-100 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white font-black text-xs flex items-center justify-center shadow-md shadow-indigo-500/30 shrink-0">EN</div>
-          <div className="min-w-0">
-            <p className="text-sm font-black text-slate-900 leading-tight">Exam Neeti</p>
-            <p className="text-[10px] font-semibold text-slate-400 leading-tight">NEET Student Portal</p>
-          </div>
-        </div>
+      <div className={`border-b border-slate-100 shrink-0 ${mini ? "px-2 py-3 flex flex-col items-center gap-2" : "px-4 py-3 flex items-center gap-2.5"}`}>
+        {mini ? (
+          <>
+            {brandMark}
+            {collapseToggle(true)}
+          </>
+        ) : (
+          <>
+            {brandMark}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black text-slate-900 leading-tight truncate">Exam Neeti</p>
+              <p className="text-[10px] font-semibold text-slate-400 leading-tight truncate">NEET Student Portal</p>
+            </div>
+            {collapseToggle(false)}
+          </>
+        )}
       </div>
-      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+
+      <nav className={`flex-1 py-3 space-y-0.5 overflow-y-auto ${mini ? "px-2" : "px-3"}`}>
         {NAV.map(({ id, label, Icon }) => {
           const active = section === id && !viewingAttemptId;
           const badge = id === "tests" ? pendingCount : id === "history" ? analytics.summary?.totalTests : undefined;
           return (
-            <button key={id} onClick={() => go(id)}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer group ${active ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}>
-              <span className="flex items-center gap-2.5 min-w-0">
+            <button key={id} onClick={() => go(id)} title={mini ? label : undefined}
+              className={`w-full flex items-center rounded-xl text-xs font-bold transition-all cursor-pointer group relative ${mini ? "justify-center h-10" : "justify-between gap-2 px-3 py-2.5"} ${active ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`}>
+              <span className={`flex items-center min-w-0 ${mini ? "" : "gap-2.5"}`}>
                 <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{label}</span>
+                {!mini && <span className="truncate">{label}</span>}
               </span>
               {!!badge && (
-                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums ${active ? "bg-white/25 text-white" : "bg-indigo-100 text-indigo-700"}`}>{badge > 99 ? "99+" : badge}</span>
+                mini
+                  ? <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${active ? "bg-white" : "bg-indigo-500"}`} />
+                  : <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[20px] text-center tabular-nums ${active ? "bg-white/25 text-white" : "bg-indigo-100 text-indigo-700"}`}>{badge > 99 ? "99+" : badge}</span>
               )}
             </button>
           );
         })}
       </nav>
-      <div className="px-3 py-3 border-t border-slate-100 space-y-2 shrink-0">
-        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-black text-xs flex items-center justify-center shrink-0">{(user?.name || "S").slice(0, 1).toUpperCase()}</div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-extrabold text-slate-900 truncate">{user?.name || "Student"}</p>
-            <p className="text-[10px] text-slate-400 font-medium truncate">{user?.email || ""}</p>
-          </div>
-        </div>
-        <button onClick={onLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all cursor-pointer">
-          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-          Sign Out
-        </button>
+
+      <div className={`border-t border-slate-100 shrink-0 space-y-2 py-3 ${mini ? "px-2" : "px-3"}`}>
+        <PlanCard subscription={subscription} access={access} mini={mini} onUpgrade={openUpgrade} />
+
+        {mini ? (
+          <>
+            <button onClick={() => go("profile")} title={user?.name || "Profile"}
+              className="mx-auto w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center cursor-pointer">
+              <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-black text-[11px] flex items-center justify-center">{(user?.name || "S").slice(0, 1).toUpperCase()}</span>
+            </button>
+            <button onClick={onLogout} title="Sign out"
+              className="mx-auto w-10 h-10 rounded-xl text-red-600 hover:bg-red-50 flex items-center justify-center cursor-pointer">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => go("profile")} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer text-left">
+              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-black text-xs flex items-center justify-center shrink-0">{(user?.name || "S").slice(0, 1).toUpperCase()}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-extrabold text-slate-900 truncate">{user?.name || "Student"}</span>
+                <span className="block text-[10px] text-slate-400 font-medium truncate">{user?.email || ""}</span>
+              </span>
+            </button>
+            <button onClick={onLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all cursor-pointer">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              Sign Out
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -153,8 +229,11 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
     <DrilldownProvider sprintId={sprintId} onViewAttempt={handleViewAttempt}>
       <div className="flex min-h-screen antialiased text-slate-900" style={{ background: "var(--dash-bg)" }}>
         {/* Desktop sidebar */}
-        <aside className="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col bg-white border-r border-slate-200/80 fixed inset-y-0 left-0 z-30 shadow-sm">
-          {sidebarContent}
+        <aside
+          style={{ width: SIDEBAR_W, transition: sbTransition }}
+          className="hidden lg:flex shrink-0 flex-col bg-white border-r border-slate-200/80 fixed inset-y-0 left-0 z-30 shadow-sm overflow-hidden"
+        >
+          {renderSidebar(collapsed)}
         </aside>
 
         {/* Mobile drawer */}
@@ -162,12 +241,15 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
           <div className="fixed inset-0 z-40 lg:hidden">
             <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
             <aside className="absolute inset-y-0 left-0 w-72 max-w-[82vw] bg-white shadow-2xl flex flex-col">
-              {sidebarContent}
+              {renderSidebar(false)}
             </aside>
           </div>
         )}
 
-        <div className="flex-1 flex flex-col min-h-screen lg:ml-60 xl:ml-64 min-w-0">
+        <div
+          style={{ marginLeft: isLgUp ? SIDEBAR_W : 0, transition: "margin-left 260ms cubic-bezier(0.4, 0, 0.2, 1)" }}
+          className="flex-1 flex flex-col min-h-screen min-w-0"
+        >
           {/* Header */}
           <header className="sticky top-0 z-20 bg-white/85 backdrop-blur-md border-b border-slate-200/80">
             <div className="flex items-center gap-2 px-3 sm:px-5 py-2.5">
@@ -224,22 +306,20 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
           </header>
 
           <main className="flex-1 w-full pb-24 lg:pb-8 min-w-0 overflow-x-hidden">
-            <div className="max-w-5xl xl:max-w-6xl mx-auto px-3 sm:px-5 lg:px-7 py-4 sm:py-6 space-y-4 min-w-0">
-              {!viewingAttemptId && subscription && <SubscriptionBanner subscription={subscription} access={access} onUpgrade={() => { setUpgradePlanKey(undefined); setShowUpgrade(true); }} />}
-
+            <div className={`${collapsed ? "max-w-6xl xl:max-w-7xl" : "max-w-5xl xl:max-w-6xl"} mx-auto px-3 sm:px-5 lg:px-7 py-4 sm:py-6 space-y-4 min-w-0`}>
               {viewingAttemptId ? (
                 <AttemptAnalyticsView attemptId={viewingAttemptId} onBack={() => setViewingAttemptId(null)} />
               ) : data.error ? (
                 <SectionCard><EmptyState icon={IconChart} title="Something went wrong" desc={data.error} action={<button onClick={() => data.refresh()} className="mt-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer">Retry</button>} /></SectionCard>
-              ) : !sprintId && !data.loading ? (
-                <SectionCard><EmptyState icon={IconChart} title="No active sprint" desc="Your dashboard unlocks once an admin activates a sprint for your batch and you take a test." /></SectionCard>
+              ) : !sprintId && !data.loading && section !== "tests" && section !== "history" ? (
+                <SectionCard><EmptyState icon={IconChart} title="No active sprint" desc="Your dashboard unlocks once an admin activates a sprint for your batch and you take a test. Your assigned tests are always available under My Tests." /></SectionCard>
               ) : (
                 <>
                   {section === "overview" && (
                     <OverviewSection data={data} user={user} onGoSection={go} onViewAttempt={handleViewAttempt} onOpenSurvey={() => setShowSurvey(true)} />
                   )}
                   {section === "analytics" && <AnalyticsHub data={data} onViewAttempt={handleViewAttempt} />}
-                  {section === "tests" && <TestsSection sprintId={sprintId} sprintName={sprintName} onStartExam={onStartExam} onViewAttempt={handleViewAttempt} onUpgrade={() => { setUpgradePlanKey(undefined); setShowUpgrade(true); }} />}
+                  {section === "tests" && <TestsSection onStartExam={onStartExam} onViewAttempt={handleViewAttempt} onUpgrade={openUpgrade} />}
                   {section === "history" && <HistorySection onViewAttempt={handleViewAttempt} />}
                   {section === "reports" && (sprintId ? <div className="animate-dash-in"><ReportsPanel sprintId={sprintId} onBack={() => go("overview")} /></div> : <SectionCard><EmptyState icon={IconFileText} title="Reports unavailable" desc="Reports need an active sprint." /></SectionCard>)}
                   {section === "profile" && <div className="animate-dash-in"><ProfileSettingsPanel onBack={() => go("overview")} /></div>}
@@ -287,29 +367,82 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
   );
 }
 
-function SubscriptionBanner({ subscription, access, onUpgrade }: { subscription: NonNullable<ReturnType<typeof useDashboardData>["subscription"]>; access: ReturnType<typeof useDashboardData>["access"]; onUpgrade: () => void }) {
-  if (!subscription) return null;
-  const status = subscription.status;
-  const planName = subscription.plan?.name || access?.plan?.name || (status === "trial" ? "Free Trial" : "Plan");
-  const expires = (access?.expiresAt || subscription.expiresAt) ? new Date(access?.expiresAt || subscription.expiresAt!).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null;
-  const trialCopy = access?.capped
-    ? `${access.remaining ?? 0} of ${access.testsIncluded} free test${access.testsIncluded === 1 ? "" : "s"} remaining. Upgrade anytime for the full test series.`
-    : "1 free diagnostic test is available. Upgrade anytime for full access.";
-  const copy = status === "active" ? `${planName} active${expires ? ` until ${expires}` : ""}.`
-    : status === "expired" ? "Your plan has expired. Renew to continue full access."
-    : trialCopy;
-  const cls = status === "active" ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-    : status === "expired" ? "bg-red-50 border-red-200 text-red-900"
-    : "bg-indigo-50 border-indigo-200 text-indigo-900";
+/**
+ * Plan / access summary — lives in the student sidebar just above the user card.
+ * `mini` renders a single icon button for the collapsed rail.
+ */
+function PlanCard({ subscription, access, mini, onUpgrade }: {
+  subscription: ReturnType<typeof useDashboardData>["subscription"];
+  access: ReturnType<typeof useDashboardData>["access"];
+  mini: boolean;
+  onUpgrade: () => void;
+}) {
+  const coaching = !subscription && access?.tier === "coaching";
+  if (!subscription && !coaching) return null;
+
+  const status = coaching ? "active" : subscription!.status;
+  const isActive = status === "active";
+  const planName = coaching
+    ? "Coaching Access"
+    : subscription!.plan?.name || access?.plan?.name || (status === "trial" ? "Free Trial" : "Your Plan");
+  const statusLabel = coaching ? "Included" : isActive ? "Active" : status === "expired" ? "Expired" : status === "cancelled" ? "Cancelled" : "Free trial";
+
+  const expiryRaw = access?.expiresAt || subscription?.expiresAt;
+  const expires = expiryRaw ? new Date(expiryRaw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null;
+  const capped = !!access?.capped;
+  const total = capped ? (access!.testsIncluded ?? 0) : 0;
+  const remaining = capped ? (access!.remaining ?? 0) : 0;
+  const used = Math.max(0, total - remaining);
+
+  const theme = isActive
+    ? { ring: "border-emerald-200 bg-emerald-50/60", tile: "bg-emerald-100 text-emerald-700", ink: "text-emerald-700", pill: "bg-emerald-600 text-white", bar: "bg-emerald-500", dot: "bg-emerald-500" }
+    : status === "expired"
+      ? { ring: "border-rose-200 bg-rose-50/60", tile: "bg-rose-100 text-rose-700", ink: "text-rose-700", pill: "bg-rose-600 text-white", bar: "bg-rose-500", dot: "bg-rose-500" }
+      : { ring: "border-indigo-200 bg-indigo-50/60", tile: "bg-indigo-100 text-indigo-700", ink: "text-indigo-700", pill: "bg-indigo-600 text-white", bar: "bg-indigo-500", dot: "bg-indigo-500" };
+
+  const line = coaching
+    ? "Full test series & analytics included with your batch."
+    : isActive
+      ? (expires ? `Full access · valid until ${expires}` : "Full access to the complete test series.")
+      : status === "expired"
+        ? "Renew to unlock the full test series again."
+        : capped
+          ? `${remaining} of ${total} free test${total === 1 ? "" : "s"} left`
+          : "1 free diagnostic test available.";
+
+  if (mini) {
+    return (
+      <button
+        onClick={onUpgrade}
+        title={`${planName} — ${statusLabel}`}
+        className={`relative mx-auto w-10 h-10 rounded-xl border flex items-center justify-center cursor-pointer ${theme.ring} ${theme.ink}`}
+      >
+        {isActive ? <IconShield className="w-4 h-4" /> : <IconRocket className="w-4 h-4" />}
+        <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${theme.dot}`} />
+      </button>
+    );
+  }
+
   return (
-    <div className={`rounded-2xl border px-4 sm:px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cls}`}>
-      <div className="min-w-0">
-        <p className="text-sm font-black leading-tight">{copy}</p>
-        <p className="text-[11px] font-semibold opacity-75 mt-1">Access continues through your current batch-based test schedule.</p>
+    <div className={`rounded-xl border p-3 ${theme.ring}`}>
+      <div className="flex items-center gap-2">
+        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${theme.tile}`}>
+          {isActive ? <IconShield className="w-4 h-4" /> : <IconRocket className="w-4 h-4" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black text-slate-900 leading-tight truncate">{planName}</p>
+          <span className={`inline-block mt-0.5 text-[8.5px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full ${theme.pill}`}>{statusLabel}</span>
+        </div>
       </div>
-      {status !== "active" && (
-        <button onClick={onUpgrade} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white text-slate-900 px-4 py-2.5 text-xs font-bold border border-white/80 shadow-sm hover:bg-slate-50 cursor-pointer shrink-0">
-          Upgrade <IconChevronRight className="w-3.5 h-3.5" />
+      <p className="text-[10px] font-semibold text-slate-500 leading-snug mt-2">{line}</p>
+      {capped && total > 0 && (
+        <div className="mt-1.5 h-1.5 rounded-full bg-white/70 border border-slate-200/60 overflow-hidden">
+          <div className={`h-full rounded-full ${theme.bar}`} style={{ width: `${Math.min(100, (used / total) * 100)}%` }} />
+        </div>
+      )}
+      {!isActive && !coaching && (
+        <button onClick={onUpgrade} className="mt-2 w-full inline-flex items-center justify-center gap-1 rounded-lg bg-slate-900 text-white px-3 py-1.5 text-[11px] font-bold hover:bg-slate-800 cursor-pointer">
+          {status === "expired" ? "Renew plan" : "See plans"} <IconChevronRight className="w-3 h-3" />
         </button>
       )}
     </div>

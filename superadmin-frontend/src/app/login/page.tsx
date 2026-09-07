@@ -61,9 +61,9 @@ export default function SuperAdminLoginPage() {
       if (rememberMe) {
         const expires = new Date();
         expires.setDate(expires.getDate() + 7);
-        document.cookie = `auth-role=super_admin; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
+        document.cookie = `sa-auth-role=super_admin; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
       } else {
-        document.cookie = `auth-role=super_admin; path=/; SameSite=Lax`;
+        document.cookie = `sa-auth-role=super_admin; path=/; SameSite=Lax`;
       }
 
       router.push("/dashboard");

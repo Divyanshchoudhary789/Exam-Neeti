@@ -1,5 +1,6 @@
 const User = require("../models/User.model");
 const { verifyAccessToken } = require("../utils/token");
+const { readAccessCookie } = require("../utils/cookies");
 const asyncHandler = require("../utils/asyncHandler");
 
 /**
@@ -9,11 +10,11 @@ const asyncHandler = require("../utils/asyncHandler");
  * with `req.user` unset. Never returns 401.
  */
 const optionalAuthenticate = asyncHandler(async (req, res, next) => {
-  let token = req.signedCookies?.access_token;
-  if (!token) {
-    const h = req.headers.authorization;
-    if (h && h.startsWith("Bearer ")) token = h.split(" ")[1];
-  }
+  // Bearer first (explicit), namespaced cookie as fallback — mirrors authenticate.js.
+  let token;
+  const h = req.headers.authorization;
+  if (h && h.startsWith("Bearer ")) token = h.split(" ")[1];
+  if (!token) token = readAccessCookie(req, res);
   if (!token) return next();
 
   try {

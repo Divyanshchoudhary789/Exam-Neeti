@@ -9,6 +9,10 @@ export const api = axios.create({
   baseURL: `${baseURL.replace(/\/$/, "")}/api/v1`,
   headers: {
     "Content-Type": "application/json",
+    // Namespaces this app's auth cookies (`sa_access_token` / `sa_refresh_token`)
+    // on the backend so the Super Admin session is never clobbered by — or
+    // clobbers — a session on the main student/admin site that shares the API.
+    "X-Auth-Client": "superadmin",
   },
   withCredentials: true,
 });

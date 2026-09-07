@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Navbar } from "../../../components/navbar";
 import { Footer } from "../../../components/footer";
 import { blogService, type Blog } from "../../../services/apiServices";
-import { StyledBlogBody } from "../../../components/common/Markdown";
+import { StyledBlogBody, blogFontStack } from "../../../components/common/Markdown";
 import { IconArrowLeft, IconClock, Spinner } from "../../../components/common/UIComponents";
 
 export default function BlogDetailPage() {
@@ -45,7 +45,7 @@ export default function BlogDetailPage() {
               <p className="text-sm text-slate-500 font-medium mt-2">It may have been unpublished or the link is wrong.</p>
             </div>
           ) : (
-            <article>
+            <article style={{ fontFamily: blogFontStack(blog.style?.fontFamily) }}>
               <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: blog.style?.accentColor || "#4338ca" }}>{blog.category}</span>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight mt-2 leading-tight" style={{ color: blog.style?.headingColor || "#111827" }}>{blog.title}</h1>
               <div className="flex items-center gap-3 text-xs font-semibold text-slate-400 mt-3">

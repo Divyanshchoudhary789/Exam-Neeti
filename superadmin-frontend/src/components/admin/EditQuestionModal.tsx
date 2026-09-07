@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { CommonModal, Spinner, IconEye, IconCheck, IconCross, IconAlertTriangle } from "../common/UIComponents";
+import { confirmDialog } from "../common/feedback";
 import { adminService } from "../../services/apiServices";
 import { MathRenderer } from "../common/MathRenderer";
 import { DynamicCustomFieldsSection } from "./CustomFieldInputs";
@@ -232,10 +233,14 @@ export function EditQuestionModal({
     }
 
     if (status === "active" && unverifiedCount > 0) {
-      const proceed = window.confirm(
-        `${unverifiedCount} auto-converted formula(s) haven't been checked against their original yet. ` +
-        `Activate anyway? (This question will become usable in exams immediately.)`
-      );
+      const proceed = await confirmDialog({
+        title: "Activate without verifying formulas?",
+        message:
+          `${unverifiedCount} auto-converted formula(s) haven't been checked against their original yet. ` +
+          "Once active, this question becomes usable in exams immediately.",
+        confirmText: "Activate anyway",
+        tone: "danger",
+      });
       if (!proceed) return;
     }
 

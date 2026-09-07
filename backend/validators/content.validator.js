@@ -6,7 +6,7 @@ const { RESOURCE_KINDS } = require("../models/Resource.model");
 const hexColor = Joi.string().pattern(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
 
 const blogStyleSchema = Joi.object({
-  fontFamily:   Joi.string().valid("sans", "serif", "mono"),
+  fontFamily:   Joi.string().valid("sans", "serif", "mono", "inter", "poppins", "lora"),
   fontSizePx:   Joi.number().integer().min(12).max(24),
   lineHeight:   Joi.number().min(1.2).max(2.4),
   textColor:    hexColor,

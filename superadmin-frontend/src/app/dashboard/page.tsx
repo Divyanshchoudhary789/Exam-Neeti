@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     logout();
-    document.cookie = "auth-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+    document.cookie = "sa-auth-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
     router.push("/login");
   };
 

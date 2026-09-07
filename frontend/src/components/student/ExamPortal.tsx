@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { studentService } from "../../services/apiServices";
 import { Spinner, CommonModal } from "../common/UIComponents";
 import { MathRenderer } from "../common/MathRenderer";
+import { toast, confirmDialog } from "../common/feedback";
 
 // ─── SVG Icons (Strictly No Emojis) ─────────────────────────────────────────
 
@@ -417,7 +418,7 @@ export function ExamPortal({
         (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
         (err as { message?: string })?.message ||
         "Failed to submit exam attempt. Please try again.";
-      alert(msg);
+      toast.error(msg);
       setSubmitting(false);
     }
   }, [
@@ -547,10 +548,16 @@ export function ExamPortal({
     const handlePopState = () => {
       if (submitCalledRef.current) return;
       window.history.pushState({ examGuard: true }, "");
-      const confirmExit = window.confirm(
-        "Your progress is autosaved, but the test timer keeps running in the background. Exit the test screen?"
-      );
-      if (confirmExit) onExitRef.current();
+      void confirmDialog({
+        title: "Exit the test screen?",
+        message:
+          "Your progress is autosaved, but the test timer keeps running in the background.",
+        confirmText: "Exit test",
+        cancelText: "Stay",
+        tone: "danger",
+      }).then((confirmExit) => {
+        if (confirmExit) onExitRef.current();
+      });
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -603,9 +610,15 @@ export function ExamPortal({
       totalMarks ? `${totalMarks} Marks` : null,
     ].filter(Boolean);
 
+    const metaStats = [
+      { Icon: IconClock, label: "Duration", value: `${Math.max(1, Number(durationMinutes) || 180)} min` },
+      totalQuestions ? { Icon: IconClipboardCheck, label: "Questions", value: String(totalQuestions) } : null,
+      totalMarks ? { Icon: IconScale, label: "Total marks", value: String(totalMarks) } : null,
+    ].filter(Boolean) as { Icon: typeof IconClock; label: string; value: string }[];
+
     return (
       <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans select-none antialiased">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
           {/* Breadcrumb / header */}
           <div className="flex items-start justify-between gap-3">
@@ -621,167 +634,185 @@ export function ExamPortal({
             </div>
           </div>
 
-          {/* Hero */}
-          <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-5 sm:p-7 flex items-center gap-5 shadow-sm">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <IconClipboardCheck className="w-7 h-7 sm:w-8 sm:h-8" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-black text-slate-900">Read the instructions carefully</h2>
-              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-                Following the rules helps you stay focused and brings out your best performance.
-              </p>
-            </div>
-          </div>
+          <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
 
-          {/* 3 info cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { Icon: IconShieldCheck, title: "Focus on what matters", desc: "Avoid unnecessary guesses and silly mistakes.", cls: "bg-emerald-50 text-emerald-600" },
-              { Icon: IconAim, title: "Manage time smartly", desc: "Prioritise high value questions and move with confidence.", cls: "bg-indigo-50 text-indigo-600" },
-              { Icon: IconBrain, title: "Learn from every attempt", desc: "Analyse, improve and keep raising your bar.", cls: "bg-amber-50 text-amber-600" },
-            ].map(({ Icon, title, desc, cls }) => (
-              <div key={title} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-2.5 shadow-sm">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${cls}`}><Icon className="w-4.5 h-4.5" /></div>
-                <p className="text-xs sm:text-sm font-black text-slate-900">{title}</p>
-                <p className="text-[11px] text-slate-500 font-medium leading-snug">{desc}</p>
-              </div>
-            ))}
-          </div>
+            {/* ── Left: informational content ─────────────────────────────── */}
+            <div className="space-y-5 min-w-0">
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Key guidelines */}
-            <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 space-y-4 shadow-sm">
-              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <IconClipboardCheck className="w-4 h-4 text-indigo-600" />Key Guidelines
-              </h3>
-              <div className="divide-y divide-slate-100">
-                {[
-                  { Icon: IconShieldCheck, text: <>This test is designed to simulate the <b className="text-indigo-700">real exam experience</b>.</> },
-                  { Icon: IconSend,        text: <>Use the <b className="text-indigo-700">Next / Previous</b> buttons or the question palette to navigate.</> },
-                  { Icon: IconFlag,        text: <>You can <b className="text-indigo-700">mark a question for review</b> and revisit it anytime.</> },
-                  { Icon: IconLock,        text: <>Once a question is submitted, it <b className="text-red-600">cannot be changed</b>.</> },
-                  { Icon: IconClock,       text: <>The test will be <b className="text-indigo-700">auto-submitted</b> when the timer runs out.</> },
-                  { Icon: IconScale,       text: <>Any unfair means or malpractice will lead to <b className="text-red-600">disqualification</b>.</> },
-                  { Icon: IconWifi,        text: <>Ensure a quiet place with a <b className="text-indigo-700">stable internet connection</b>.</> },
-                ].map(({ Icon, text }, i) => (
-                  <div key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                    <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <p className="text-xs sm:text-sm text-slate-700 font-medium leading-snug pt-1">{text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Smart reminders / time awareness / pro tip */}
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-3 shadow-sm">
-                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <IconLightbulb className="w-4 h-4 text-amber-500" />Smart Reminders
-                </h3>
-                {[
-                  { Icon: IconMoon, title: "Stay calm", desc: "Panic leads to poor decisions." },
-                  { Icon: IconAim, title: "Read carefully", desc: "Don't skip any information." },
-                  { Icon: IconArrowTrendUp, title: "Review wisely", desc: "Spend time where it counts." },
-                ].map(({ Icon, title, desc }) => (
-                  <div key={title} className="flex items-start gap-2.5">
-                    <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                      <Icon className="w-3.5 h-3.5" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800">{title}</p>
-                      <p className="text-[10px] text-slate-500 font-medium leading-snug">{desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5 space-y-1.5 shadow-sm">
-                <h3 className="text-xs font-black text-amber-900 flex items-center gap-2">
-                  <IconClock className="w-4 h-4" />Time Awareness
-                </h3>
-                <p className="text-[11px] text-amber-800 font-medium leading-snug">
-                  The timer will start as soon as you begin and cannot be paused.
-                </p>
-                <p className="text-[11px] font-black text-amber-900">Be prepared. Be mindful.</p>
-              </div>
-
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:p-5 space-y-1.5 shadow-sm">
-                <h3 className="text-xs font-black text-rose-900 flex items-center gap-2">
-                  <IconSend className="w-4 h-4" />Pro Tip
-                </h3>
-                <p className="text-[11px] text-rose-800 font-medium leading-snug">
-                  Start with your strengths, build momentum and finish strong.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Before you begin */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
-            <h3 className="text-sm font-black text-slate-900 mb-4">Before You Begin</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                { Icon: IconLaptop, label: "Close other tabs and applications" },
-                { Icon: IconBattery, label: "Ensure sufficient battery" },
-                { Icon: IconPen, label: "Keep pen and rough paper ready" },
-                { Icon: IconSun, label: "Find a quiet, distraction-free place" },
-              ].map(({ Icon, label }) => (
-                <div key={label} className="flex flex-col items-center text-center gap-2">
-                  <span className="w-11 h-11 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
-                    <Icon className="w-5 h-5" />
-                  </span>
-                  <p className="text-[11px] text-slate-600 font-semibold leading-snug">{label}</p>
+              {/* Hero */}
+              <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-5 sm:p-7 flex items-center gap-5 shadow-sm">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <IconClipboardCheck className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
-              ))}
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-black text-slate-900">Read the instructions carefully</h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+                    Following the rules helps you stay focused and brings out your best performance.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 info cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { Icon: IconShieldCheck, title: "Focus on what matters", desc: "Avoid unnecessary guesses and silly mistakes.", cls: "bg-emerald-50 text-emerald-600" },
+                  { Icon: IconAim, title: "Manage time smartly", desc: "Prioritise high value questions and move with confidence.", cls: "bg-indigo-50 text-indigo-600" },
+                  { Icon: IconBrain, title: "Learn from every attempt", desc: "Analyse, improve and keep raising your bar.", cls: "bg-amber-50 text-amber-600" },
+                ].map(({ Icon, title, desc, cls }) => (
+                  <div key={title} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-2.5 shadow-sm">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${cls}`}><Icon className="w-4.5 h-4.5" /></div>
+                    <p className="text-xs sm:text-sm font-black text-slate-900">{title}</p>
+                    <p className="text-[11px] text-slate-500 font-medium leading-snug">{desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Key guidelines */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 space-y-4 shadow-sm">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <IconClipboardCheck className="w-4 h-4 text-indigo-600" />Key Guidelines
+                </h3>
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
+                  {[
+                    { Icon: IconShieldCheck, text: <>This test is designed to simulate the <b className="text-indigo-700">real exam experience</b>.</> },
+                    { Icon: IconSend,        text: <>Use the <b className="text-indigo-700">Next / Previous</b> buttons or the question palette to navigate.</> },
+                    { Icon: IconFlag,        text: <>You can <b className="text-indigo-700">mark a question for review</b> and revisit it anytime.</> },
+                    { Icon: IconLock,        text: <>Once a question is submitted, it <b className="text-red-600">cannot be changed</b>.</> },
+                    { Icon: IconClock,       text: <>The test will be <b className="text-indigo-700">auto-submitted</b> when the timer runs out.</> },
+                    { Icon: IconScale,       text: <>Any unfair means or malpractice will lead to <b className="text-red-600">disqualification</b>.</> },
+                    { Icon: IconWifi,        text: <>Ensure a quiet place with a <b className="text-indigo-700">stable internet connection</b>.</> },
+                  ].map(({ Icon, text }, i) => (
+                    <div key={i} className="flex items-start gap-3 py-2">
+                      <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4" />
+                      </span>
+                      <p className="text-xs sm:text-sm text-slate-700 font-medium leading-snug pt-1.5">{text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Smart reminders / time awareness / pro tip */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-3 shadow-sm">
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                    <IconLightbulb className="w-4 h-4 text-amber-500" />Smart Reminders
+                  </h3>
+                  {[
+                    { Icon: IconMoon, title: "Stay calm", desc: "Panic leads to poor decisions." },
+                    { Icon: IconAim, title: "Read carefully", desc: "Don't skip any information." },
+                    { Icon: IconArrowTrendUp, title: "Review wisely", desc: "Spend time where it counts." },
+                  ].map(({ Icon, title, desc }) => (
+                    <div key={title} className="flex items-start gap-2.5">
+                      <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <Icon className="w-3.5 h-3.5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800">{title}</p>
+                        <p className="text-[10px] text-slate-500 font-medium leading-snug">{desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5 space-y-1.5 shadow-sm">
+                  <h3 className="text-xs font-black text-amber-900 flex items-center gap-2">
+                    <IconClock className="w-4 h-4" />Time Awareness
+                  </h3>
+                  <p className="text-[11px] text-amber-800 font-medium leading-snug">
+                    The timer will start as soon as you begin and cannot be paused.
+                  </p>
+                  <p className="text-[11px] font-black text-amber-900">Be prepared. Be mindful.</p>
+                </div>
+
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:p-5 space-y-1.5 shadow-sm">
+                  <h3 className="text-xs font-black text-rose-900 flex items-center gap-2">
+                    <IconSend className="w-4 h-4" />Pro Tip
+                  </h3>
+                  <p className="text-[11px] text-rose-800 font-medium leading-snug">
+                    Start with your strengths, build momentum and finish strong.
+                  </p>
+                </div>
+              </div>
+
+              {/* Before you begin */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+                <h3 className="text-sm font-black text-slate-900 mb-4">Before You Begin</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { Icon: IconLaptop, label: "Close other tabs and applications" },
+                    { Icon: IconBattery, label: "Ensure sufficient battery" },
+                    { Icon: IconPen, label: "Keep pen and rough paper ready" },
+                    { Icon: IconSun, label: "Find a quiet, distraction-free place" },
+                  ].map(({ Icon, label }) => (
+                    <div key={label} className="flex flex-col items-center text-center gap-2">
+                      <span className="w-11 h-11 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                        <Icon className="w-5 h-5" />
+                      </span>
+                      <p className="text-[11px] text-slate-600 font-semibold leading-snug">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Declaration */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm space-y-4">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <span className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <IconShieldCheck className="w-4.5 h-4.5" />
-              </span>
-              <span className="flex items-start gap-2.5 pt-1.5">
-                <input
-                  type="checkbox"
-                  checked={declared}
-                  onChange={(e) => setDeclared(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
-                />
-                <span className="text-xs sm:text-sm text-slate-700 font-semibold leading-snug">
-                  I have read and understood all the instructions. I agree to abide by the rules of the test.
-                  <span className="block text-[11px] text-slate-400 font-medium mt-0.5">
-                    I understand that any malpractice or violation of rules may lead to disqualification.
-                  </span>
-                </span>
-              </span>
-            </label>
+            {/* ── Right: sticky launch panel ──────────────────────────────── */}
+            <aside className="lg:sticky lg:top-8 space-y-4">
+              <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-4 text-white">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-indigo-100">You&apos;re about to start</p>
+                  <p className="text-base font-black leading-tight mt-1 line-clamp-2">{examTitle}</p>
+                </div>
 
-            {examInstructions && (
-              <p className="text-[11px] text-slate-500 font-medium leading-relaxed border-t border-slate-100 pt-3 whitespace-pre-line">
-                {examInstructions}
-              </p>
-            )}
+                <div className="p-5 space-y-4">
+                  <div className={`grid gap-2 ${metaStats.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                    {metaStats.map(({ Icon, label, value }) => (
+                      <div key={label} className="rounded-xl bg-slate-50 border border-slate-100 p-2.5 text-center">
+                        <Icon className="w-4 h-4 text-indigo-600 mx-auto" />
+                        <p className="text-sm font-black text-slate-900 tabular-nums mt-1">{value}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 leading-tight">{label}</p>
+                      </div>
+                    ))}
+                  </div>
 
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <button
-                onClick={onExit}
-                className="flex items-center gap-1.5 px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer"
-              >
-                <IconChevronLeft className="w-4 h-4" />Back
-              </button>
-              <button
-                onClick={() => setPhase("attempt")}
-                disabled={!declared}
-                className="flex items-center gap-1.5 px-5 sm:px-7 py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition-all cursor-pointer active:scale-[0.98]"
-              >
-                <IconSend className="w-4 h-4" />I&apos;m Ready, Start Test
-              </button>
-            </div>
+                  {examInstructions && (
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 max-h-40 overflow-y-auto">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-slate-400 mb-1">Exam-specific notes</p>
+                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed whitespace-pre-line">{examInstructions}</p>
+                    </div>
+                  )}
+
+                  <label className="flex items-start gap-2.5 cursor-pointer rounded-xl bg-indigo-50/60 border border-indigo-100 p-3">
+                    <input
+                      type="checkbox"
+                      checked={declared}
+                      onChange={(e) => setDeclared(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                    />
+                    <span className="text-[11px] text-slate-700 font-semibold leading-snug">
+                      I have read and understood all the instructions and agree to abide by the rules.
+                      <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                        Any malpractice or violation may lead to disqualification.
+                      </span>
+                    </span>
+                  </label>
+
+                  <button
+                    onClick={() => setPhase("attempt")}
+                    disabled={!declared}
+                    className="w-full flex items-center justify-center gap-1.5 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                  >
+                    <IconSend className="w-4 h-4" />I&apos;m Ready, Start Test
+                  </button>
+                  <button
+                    onClick={onExit}
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    <IconChevronLeft className="w-4 h-4" />Back to Tests
+                  </button>
+                </div>
+              </div>
+            </aside>
           </div>
         </div>
       </div>

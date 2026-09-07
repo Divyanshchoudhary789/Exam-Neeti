@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { IconBook, IconChart } from "../../../common/UIComponents";
+import { IconBook, IconChart, IconInfo } from "../../../common/UIComponents";
 import { RadarChart, type RadarSeries } from "../../../common/Charts";
 import { SectionCard, EmptyState, subjectColor } from "../../../common/DashboardUI";
 import { useDrilldown } from "../drilldown/DrilldownProvider";
@@ -9,6 +9,7 @@ import type { DashboardData } from "../useDashboardData";
 import { num, orderSubjects } from "../lib";
 
 const DIFFS = ["easy", "medium", "hard"] as const;
+const RADAR_AXES = ["Accuracy", "Attempt rate", "Easy Qs", "Medium Qs", "Hard Qs"] as const;
 
 export function SubjectsTab({ data }: { data: DashboardData }) {
   const { open } = useDrilldown();
@@ -38,6 +39,23 @@ export function SubjectsTab({ data }: { data: DashboardData }) {
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [subjectPerformance, subjectDifficultyPerformance],
+  );
+
+  // Plain-language takeaway per subject — strongest vs weakest spoke on the radar.
+  const radarInsights = useMemo(
+    () => radarSeries.map((s) => {
+      let hi = 0, lo = 0;
+      s.values.forEach((v, i) => { if (v > s.values[hi]) hi = i; if (v < s.values[lo]) lo = i; });
+      const spread = s.values[hi] - s.values[lo];
+      return {
+        subject: s.label,
+        color: s.color,
+        text: spread < 12
+          ? `Balanced across the board — no single spoke stands out, so keep building overall accuracy.`
+          : `Strongest at ${RADAR_AXES[hi]} (${s.values[hi].toFixed(0)}%), weakest at ${RADAR_AXES[lo]} (${s.values[lo].toFixed(0)}%) — that gap is where the marks are.`,
+      };
+    }),
+    [radarSeries],
   );
 
   if (subjects.length === 0) {
@@ -131,12 +149,29 @@ export function SubjectsTab({ data }: { data: DashboardData }) {
         })}
       </div>
 
-      <SectionCard title="Subject Comparison" subtitle="Accuracy · attempt rate · accuracy at each difficulty · toggle a subject in the legend" icon={IconChart}>
+      <SectionCard title="Subject Comparison" subtitle="One shape per subject — how you perform on five fronts. Tap a subject in the legend to show/hide it." icon={IconChart}>
         <RadarChart
-          axes={["Accuracy", "Attempt", "Easy Acc", "Medium Acc", "Hard Acc"]}
+          axes={[...RADAR_AXES]}
           series={radarSeries}
           size={320}
+          showScale
+          valueSuffix="%"
         />
+
+        <div className="mt-3 rounded-xl bg-slate-50 border border-slate-100 p-3 space-y-2.5">
+          <p className="text-[11px] font-semibold text-slate-500 leading-snug flex items-start gap-1.5">
+            <IconInfo className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-px" />
+            Every spoke is a score from 0 to 100. <b className="font-bold text-slate-700">Bigger and more even</b> = strong and consistent. A spoke pulled toward the centre is a weak spot. <span className="text-slate-400">Easy / Medium / Hard Qs = your accuracy on questions of that difficulty.</span>
+          </p>
+          <div className="space-y-1.5 pt-0.5">
+            {radarInsights.map((r) => (
+              <p key={r.subject} className="text-[11px] font-semibold text-slate-600 leading-snug flex items-start gap-1.5">
+                <span className="w-2 h-2 rounded-full shrink-0 mt-1" style={{ backgroundColor: r.color }} />
+                <span><span className="font-black capitalize text-slate-800">{r.subject}:</span> {r.text}</span>
+              </p>
+            ))}
+          </div>
+        </div>
       </SectionCard>
     </div>
   );

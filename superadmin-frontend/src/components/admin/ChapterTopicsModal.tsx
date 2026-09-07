@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { CommonModal, IconEdit, IconSearch, IconFileText, IconCheck, IconCross, IconPlus, IconTrash, IconLayers } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
+import { toast } from "../common/feedback";
 
 export interface SubtopicItem {
   _id: string;
@@ -164,7 +165,7 @@ export function ChapterTopicsModal({
       }
       setEditingTopicId(null);
     } else {
-      alert("Weight must be a number between 0.1 and 10.0");
+      toast.error("Weight must be a number between 0.1 and 10.0");
     }
   };
 
