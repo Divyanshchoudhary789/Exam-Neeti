@@ -14,7 +14,7 @@ import {
   Spinner, StatusBadge, StatusDropdownBadge, MiniStatCard, CommonModal, PaginationControls, CardSkeleton,
 } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
-import { confirmDialog, promptDialog } from "../common/feedback";
+import { confirmDialog, promptDialog, toast } from "../common/feedback";
 import { RadialMeter, HBarChart } from "../common/Charts";
 import { SprintOversightPanel } from "../admin/SprintOversightPanel";
 import { PlatformHealthPanel } from "./PlatformHealthPanel";
@@ -167,7 +167,6 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
     }
   });
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [toast, setToast] = useState<{ text: string; type: "success"|"error" }|null>(null);
 
   const toggleSidebarCollapse = () => {
     setIsSidebarCollapsed((prev) => {
@@ -334,10 +333,10 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
 
-  // ── Toast helper ──────────────────────────────────────────────────────
-  const showToast = useCallback((text: string, type: "success"|"error" = "success") => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
+  // ── Toast helper — delegates to the app-wide toast system ─────────────
+  const showToast = useCallback((text: string, type: "success" | "error" = "success") => {
+    if (type === "error") toast.error(text);
+    else toast.success(text);
   }, []);
 
   // ── Core data loaders ─────────────────────────────────────────────────
@@ -933,34 +932,6 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] text-slate-900 flex font-sans antialiased selection:bg-indigo-500 selection:text-white">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 sm:top-6 sm:right-6 z-[99999] flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-2xl text-xs font-bold transition-all animate-in slide-in-from-top-3 max-w-sm sm:max-w-md backdrop-blur-xl ${
-            toast.type === "success"
-              ? "bg-white/95 border-emerald-300 text-emerald-950 shadow-emerald-500/15"
-              : "bg-white/95 border-red-300 text-red-950 shadow-red-500/15"
-          }`}
-        >
-          {toast.type === "success" ? (
-            <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
-              <IconCheck className="w-4 h-4" />
-            </div>
-          ) : (
-            <div className="p-1.5 rounded-xl bg-red-100 text-red-700 shrink-0">
-              <IconCross className="w-4 h-4" />
-            </div>
-          )}
-          <span className="flex-1 font-extrabold text-slate-900 leading-snug">{toast.text}</span>
-          <button
-            onClick={() => setToast(null)}
-            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-          >
-            <IconCross className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Mobile Backdrop */}
       {isMobileDrawerOpen && (
         <div
@@ -1222,13 +1193,17 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                 </div>
               )}
 
-              {/* Stat cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <MiniStatCard title="Total Students" value={Number(dashboardOverview?.totalStudents ?? 0)} subtitle="Enrolled in selected sprint" icon={IconUsers} />
-                <MiniStatCard title="Active Exams" value={Number(dashboardOverview?.totalExams ?? 0)} subtitle="Scheduled / live" icon={IconBook} />
-                <MiniStatCard title="Avg Sprint Score" value={Number(dashboardOverview?.averageScore ?? 0) > 0 ? `${Number(dashboardOverview?.averageScore).toFixed(0)}` : "N/A"} subtitle="Mean marks" icon={IconChart} />
-                <MiniStatCard title="Active Batches" value={Number(dashboardOverview?.totalBatches ?? 0)} subtitle="Assigned to selected sprint" icon={IconLayers} />
-              </div>
+              {/* Stat cards — only once metrics exist for the selected sprint.
+                  Before that the banners above already tell the admin what to do,
+                  and a grid of zeros just reads as a broken screen. */}
+              {(isDashboardLoading || dashboardOverview) && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <MiniStatCard title="Total Students" value={Number(dashboardOverview?.totalStudents ?? 0)} subtitle="Enrolled in selected sprint" icon={IconUsers} />
+                  <MiniStatCard title="Active Exams" value={Number(dashboardOverview?.totalExams ?? 0)} subtitle="Scheduled / live" icon={IconBook} />
+                  <MiniStatCard title="Avg Sprint Score" value={Number(dashboardOverview?.averageScore ?? 0) > 0 ? `${Number(dashboardOverview?.averageScore).toFixed(0)}` : "N/A"} subtitle="Mean marks" icon={IconChart} />
+                  <MiniStatCard title="Active Batches" value={Number(dashboardOverview?.totalBatches ?? 0)} subtitle="Assigned to selected sprint" icon={IconLayers} />
+                </div>
+              )}
 
               {/* Chapter Weakness & Topic Breakdown Widget */}
               {chapterBreakdown && (
@@ -1676,8 +1651,8 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                           <button onClick={() => setSprintHistoryId(sId)} className="p-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-200 border border-slate-200 cursor-pointer transition-colors" title="Sprint history">
                             <IconClock className="w-4 h-4" />
                           </button>
-                          {currentStatus === "draft" && (
-                            <button onClick={() => openEditSprintBuilder(sId)} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors" title="Edit blueprint">
+                          {(currentStatus === "draft" || user?.role === "super_admin") && (
+                            <button onClick={() => openEditSprintBuilder(sId)} className="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 cursor-pointer transition-colors" title={currentStatus === "draft" ? "Edit blueprint" : "Edit blueprint (super admin override)"}>
                               <IconEdit className="w-4 h-4" />
                             </button>
                           )}
