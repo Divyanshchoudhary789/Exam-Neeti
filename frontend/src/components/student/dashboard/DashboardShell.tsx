@@ -304,8 +304,8 @@ export function StudentDashboard({ onStartExam, onViewAttempt, onLogout }: Props
                 <AttemptAnalyticsView attemptId={viewingAttemptId} onBack={() => setViewingAttemptId(null)} />
               ) : data.error ? (
                 <SectionCard><EmptyState icon={IconChart} title="Something went wrong" desc={data.error} action={<button onClick={() => data.refresh()} className="mt-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer">Retry</button>} /></SectionCard>
-              ) : !sprintId && !data.loading && section !== "tests" && section !== "history" ? (
-                <SectionCard><EmptyState icon={IconChart} title="No active sprint" desc="Your dashboard unlocks once an admin activates a sprint for your batch and you take a test. Your assigned tests are always available under My Tests." /></SectionCard>
+              ) : !sprintId && !data.loading && !["tests", "history", "profile", "reports"].includes(section) ? (
+                <SectionCard><EmptyState icon={IconChart} title="No analytics yet" desc="Your analytics unlock per sprint as you attempt the tests your admin assigns. Head to My Tests to take your first one." action={<button onClick={() => go("tests")} className="mt-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer">Go to My Tests</button>} /></SectionCard>
               ) : (
                 <>
                   {section === "overview" && (

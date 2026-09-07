@@ -1806,7 +1806,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   const bId = String(b._id||b.id);
                   const bName = String(b.name||"Batch");
                   const isActive = b.isActive !== false;
-                  const prog = String(b.programType||"class_xi");
+                  const prog = String(b.programType || "");
                   const studentCount = Number(b.studentCount || 0);
 
                   const progInfo: Record<string, { label: string; style: string }> = {
@@ -1815,7 +1815,7 @@ export function AdminDashboard({ onLogout }: AdminDashboardProps) {
                     dropper:   { label: "Dropper / Repeater", style: "bg-emerald-50 text-emerald-700 border-emerald-200" },
                   };
 
-                  const currentProg = progInfo[prog] || { label: prog, style: "bg-slate-100 text-slate-700 border-slate-200" };
+                  const currentProg = progInfo[prog] || { label: "General (all classes)", style: "bg-slate-100 text-slate-700 border-slate-200" };
 
                   return (
                     <div key={bId} className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-3.5 hover:shadow-md transition-all flex flex-col justify-between">

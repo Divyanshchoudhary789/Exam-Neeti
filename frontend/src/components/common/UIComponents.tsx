@@ -483,9 +483,12 @@ export function CommonModal({
     return () => document.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
+  // Portal to <body> so the fixed overlay is always viewport-anchored — a
+  // transformed/filtered ancestor (e.g. an `animate-*` wrapper) would otherwise
+  // become the containing block and clip/mis-position the modal.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4">
       <div onClick={onClose} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" />
       <div
@@ -511,7 +514,8 @@ export function CommonModal({
           <div className="px-4 sm:px-8 py-3 border-t border-slate-100 bg-white shrink-0">{footer}</div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

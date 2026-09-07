@@ -30,6 +30,7 @@ import { BulkStudentUploadModal } from "../admin/BulkStudentUploadModal";
 import { ContentHubPanel } from "../admin/ContentHubPanel";
 import { ContactInboxPanel } from "./ContactInboxPanel";
 import { SubscribersPanel } from "./SubscribersPanel";
+import { RevenuePanel } from "./RevenuePanel";
 import { SprintPaperDownloadButton } from "../admin/SprintPaperDownloadButton";
 import { CreateBatchModal } from "../admin/CreateBatchModal";
 import { CreateExamModal } from "../admin/CreateExamModal";
@@ -78,6 +79,7 @@ const TABS = [
   { id: "batches", label: "Batches", icon: IconLayers },
   { id: "exams", label: "Exams", icon: IconBook },
   { id: "plans", label: "Plans & Tiers", icon: IconRocket },
+  { id: "revenue", label: "Revenue & Billing", icon: IconChart },
   { id: "questions", label: "Question Bank", icon: IconFilter },
   { id: "myQuestions", label: "My Questions", icon: IconUpload },
   { id: "content", label: "Content Hub", icon: IconFileText },
@@ -144,6 +146,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     groupTitle: "Root Governance",
     items: [
+      { id: "revenue", label: "Revenue & Billing", icon: IconChart, description: "Payments, plans & MRR" },
       { id: "admins", label: "Admin Team", icon: IconUsers, description: "Manage admin accounts" },
       { id: "logs", label: "Audit Trail", icon: IconClock, description: "Platform forensic logs" },
       { id: "governance", label: "Governance & Purge", icon: IconAlertTriangle, description: "Hard-delete records" },
@@ -1825,7 +1828,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                   const bId = String(b._id||b.id);
                   const bName = String(b.name||"Batch");
                   const isActive = b.isActive !== false;
-                  const prog = String(b.programType||"class_xi");
+                  const prog = String(b.programType || "");
                   const studentCount = Number(b.studentCount || 0);
 
                   const progInfo: Record<string, { label: string; style: string }> = {
@@ -1834,7 +1837,7 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
                     dropper:   { label: "Dropper / Repeater", style: "bg-emerald-50 text-emerald-700 border-emerald-200" },
                   };
 
-                  const currentProg = progInfo[prog] || { label: prog, style: "bg-slate-100 text-slate-700 border-slate-200" };
+                  const currentProg = progInfo[prog] || { label: "General (all classes)", style: "bg-slate-100 text-slate-700 border-slate-200" };
 
                   return (
                     <div key={bId} className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-3.5 hover:shadow-md transition-all flex flex-col justify-between">
@@ -2056,6 +2059,9 @@ export function SuperAdminDashboard({ onLogout }: SuperAdminDashboardProps) {
         {/* ══════════════════════════ SUPPORT INBOX TAB ═══════════════════════ */}
         {activeTab === "inbox" && <ContactInboxPanel showToast={showToast} />}
         {activeTab === "subscribers" && <SubscribersPanel showToast={showToast} />}
+
+        {/* ══════════════════════════ REVENUE & BILLING TAB ═══════════════════ */}
+        {activeTab === "revenue" && <RevenuePanel showToast={showToast} />}
 
         {/* ══════════════════════════ QUESTIONS TAB ════════════════════════════ */}
         {activeTab === "questions" && <QuestionBankPanel showToast={showToast} />}

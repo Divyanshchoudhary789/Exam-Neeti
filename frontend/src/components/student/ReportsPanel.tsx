@@ -329,7 +329,7 @@ export function ReportsPanel({
             <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
               Report Type
             </label>
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+            <div className="space-y-2">
               {REPORT_OPTIONS.map((opt) => {
                 const Icon       = opt.icon;
                 const isSelected = selectedType === opt.type;

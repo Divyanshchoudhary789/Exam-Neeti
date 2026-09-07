@@ -356,7 +356,7 @@ export function AttemptMetricsFramework(p: MFProps) {
       {section === "summary" && (
         <div className="space-y-4 animate-dash-in">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Hero label="Accuracy" value={pc(analytics.overallAccuracy)} sub={`${correct} of ${attempted} attempted`} tone={bandTone(accuracyN)}
+            <Hero label="Accuracy" value={pc(analytics.overallAccuracy)} sub={`${correct} correct of ${attempted} attempted`} tone={bandTone(accuracyN)}
               visual={<RadialMeter value={accuracyN} size={72} strokeWidth={7} />} />
             <Hero label="Attempt Rate" value={pc(analytics.overallAttemptRate)} sub={`${attempted} of ${totalQ} questions`} tone={bandTone(n(analytics.overallAttemptRate))}
               visual={<RadialMeter value={n(analytics.overallAttemptRate)} size={72} strokeWidth={7} />} />

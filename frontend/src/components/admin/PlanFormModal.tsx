@@ -22,7 +22,7 @@ interface Props {
 type Billing = "one_time" | "annual" | "custom";
 
 const PROGRAM_OPTIONS = [
-  { value: "", label: "No class level" },
+  { value: "", label: "General — open to any class" },
   { value: "class_xi", label: "Class XI" },
   { value: "class_xii", label: "Class XII" },
   { value: "dropper", label: "Dropper / Repeater" },

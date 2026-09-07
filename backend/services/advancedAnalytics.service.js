@@ -256,9 +256,23 @@ const computeDifficultyMetrics = (responses) => {
 
 /**
  * 4. ERROR CLASSIFICATION
- * - Silly Mistakes: High confidence, good history, normal time, but wrong
- * - Concept Errors: Medium confidence, slow time, weak history, wrong
- * - Guesses: Low confidence, fast time, wrong (or lucky correct)
+ *
+ * Every attempted-but-wrong answer is placed in exactly ONE bucket, so
+ * silly + concept + guess === wrongCount (the dashboard's "Error Analysis"
+ * must always add up and never leave a wrong answer unexplained):
+ *
+ * - Guess / rushed  : answered far faster than the question deserves
+ *                     (time ≪ the per-question ideal, or very fast + low
+ *                     confidence). "Didn't really engage."
+ * - Concept error   : spent real time and still got it wrong, especially on a
+ *                     medium/hard question or a topic with weak history.
+ *                     "Tried, didn't know it."
+ * - Silly mistake   : everything else — normal engagement, wrong anyway,
+ *                     typically an easy question or a strong-history topic.
+ *                     "Knew it, slipped."
+ *
+ * Confidence and topic history refine the call but never block a
+ * classification (exam confidence is often just a UI default).
  */
 const classifyErrors = (responses, params, historicalAccuracy = {}) => {
   const sillyMistakes = [];
@@ -271,38 +285,35 @@ const classifyErrors = (responses, params, historicalAccuracy = {}) => {
     attemptedForAvg.length
   );
 
+  const rushIdealFrac  = parseFloat(params.guess_ideal_time_factor) || 0.35;
+  const slowIdealFrac  = parseFloat(params.concept_ideal_time_factor) || 0.6;
+  const guessConf      = parseFloat(params.guess_confidence_threshold) || 50;
+  const guessOwnFrac   = parseFloat(params.guess_time_factor) || 0.6;
+
   responses.forEach((r) => {
-    if (!r.isAttempted) return;
+    if (!r.isAttempted || r.isCorrect) return;
 
-    const confidence = r.confidence || 50;
-    const timeSpent = r.timeSpentSeconds || 0;
-    const topicKey = `${r.subject}_${r.chapter}_${r.topic}`;
-    const topicAccuracy = historicalAccuracy[topicKey] || 50;
+    const confidence  = r.confidence || 50;
+    const timeSpent   = r.timeSpentSeconds || 0;
+    const idealTime   = r.idealTimeSeconds || 0;
+    const topicKey    = `${r.subject}_${r.chapter}_${r.topic}`;
+    const topicHist   = historicalAccuracy[topicKey];   // undefined on a first sitting
+    const q           = { questionId: r.questionId, slotPosition: r.slotPosition };
 
-    // Guess: Low confidence + fast time
-    if (confidence < params.guess_confidence_threshold && timeSpent < avgTime * params.guess_time_factor) {
-      guesses.push({ questionId: r.questionId, slotPosition: r.slotPosition });
-    }
-    // Silly Mistake: High confidence + normal/good time + wrong
-    else if (
-      !r.isCorrect &&
-      confidence >= params.silly_mistake_confidence_threshold &&
-      topicAccuracy >= 60 &&
-      timeSpent >= avgTime * 0.5
+    const rushedVsIdeal = idealTime > 0 && timeSpent < idealTime * rushIdealFrac;
+    const rushedVsSelf  = timeSpent < avgTime * guessOwnFrac;
+    const engagedVsIdeal = idealTime > 0 && timeSpent >= idealTime * slowIdealFrac;
+    const engagedVsSelf  = timeSpent >= avgTime * 1.1;
+
+    if (rushedVsIdeal || (rushedVsSelf && confidence < guessConf)) {
+      guesses.push(q);
+    } else if (
+      (engagedVsIdeal || engagedVsSelf) &&
+      (r.difficulty !== "easy" || (topicHist !== undefined && topicHist < 60))
     ) {
-      sillyMistakes.push({ questionId: r.questionId, slotPosition: r.slotPosition });
-    }
-    // Concept Error: mid confidence (50–80%) + slower-than-normal time + wrong +
-    // weak topic history (the complement of the "good history" a silly mistake
-    // needs — per the formula guide's concept-error criteria).
-    else if (
-      !r.isCorrect &&
-      confidence >= params.concept_error_confidence_min &&
-      confidence < params.concept_error_confidence_max &&
-      timeSpent > avgTime * 1.2 &&
-      topicAccuracy < 60
-    ) {
-      conceptErrors.push({ questionId: r.questionId, slotPosition: r.slotPosition });
+      conceptErrors.push(q);
+    } else {
+      sillyMistakes.push(q);
     }
   });
 

@@ -4,13 +4,17 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
 import { SuperAdminDashboard } from "../../components/dashboard/SuperAdminDashboard";
-import { Spinner, IconShield } from "../../components/common/UIComponents";
+import { Spinner } from "../../components/common/UIComponents";
+
+// Where a signed-out super admin lands — the public site's landing page.
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [isHydrated, setIsHydrated] = useState(false);
   const hydrationRef = useRef(false);
+  const loggingOutRef = useRef(false);
 
   useEffect(() => {
     if (!hydrationRef.current) {
@@ -20,42 +24,24 @@ export default function DashboardPage() {
   }, []);
 
   const handleLogout = () => {
+    loggingOutRef.current = true;
     logout();
     document.cookie = "sa-auth-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
-    router.push("/login");
+    // Full navigation to the public landing page (different origin from this console).
+    window.location.assign(`${SITE_URL}/`);
   };
 
-  // Show spinner while Zustand rehydrates from localStorage
-  if (!isHydrated) {
+  // Wrong role / expired session (not a deliberate logout) → back to the
+  // console's own sign-in. Never flash a dead-end "access denied" card.
+  const notSuperAdmin = isHydrated && (!user || user.role !== "super_admin");
+  useEffect(() => {
+    if (notSuperAdmin && !loggingOutRef.current) router.replace("/login");
+  }, [notSuperAdmin, router]);
+
+  if (!isHydrated || notSuperAdmin) {
     return (
       <div className="min-h-screen bg-[#f3f5f9] flex items-center justify-center">
         <Spinner className="w-10 h-10 text-indigo-600" />
-      </div>
-    );
-  }
-
-  // Middleware already blocks non-super_admin cookies from reaching this route,
-  // but Zustand's own state (post-refresh, pre-rehydration edge cases) gets a
-  // second, client-side check before the dashboard — and a real destination to
-  // recover to if it ever disagrees with the cookie.
-  if (!user || user.role !== "super_admin") {
-    return (
-      <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col items-center justify-center py-24 px-4 text-center font-sans">
-        <div className="max-w-md p-8 rounded-3xl bg-white border border-slate-200 space-y-6 shadow-xl">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
-            <IconShield className="w-6 h-6" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-900">Super Admin Access Required</h2>
-          <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-            This console is restricted to Root System Administrators only.
-          </p>
-          <button
-            onClick={() => router.push("/login")}
-            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 rounded-xl text-xs font-bold text-white transition-all cursor-pointer shadow-lg"
-          >
-            Back to Sign In
-          </button>
-        </div>
       </div>
     );
   }

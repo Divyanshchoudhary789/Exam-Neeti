@@ -458,16 +458,27 @@ const computeAnalytics = async (attempt) => {
   const negativeLoss = totalNegativeMarks * negativeWeight;
 
   // Time misallocation: time spent on incorrect questions that could have been
-  // reallocated to unattempted ones. Expressed as marks-equivalent potential.
+  // reallocated to UNATTEMPTED ones. Only meaningful when the student actually
+  // left questions blank — otherwise there is nowhere to reallocate that time,
+  // so it recovers nothing. Also bounded by the marks those blank questions
+  // are worth (you can't gain more than what was left on the table).
+  const unattemptedMarksTotal = responses.reduce(
+    (sum, r) => (!r.isAttempted ? sum + (r.marks || 0) : sum),
+    0
+  );
   const timeOnIncorrect = responses.reduce((sum, r) => {
     return r.isAttempted && !r.isCorrect ? sum + (r.timeSpentSeconds || 0) : sum;
   }, 0);
 
-  // Simplified time misallocation: if avg time per correct question was used instead
-  const timeMisallocation = roundTo(
-    safeDiv(timeOnIncorrect, Math.max(avgTimePerQuestion, 1)) *
-      (totalMarks / Math.max(totalQuestions, 1))
-  );
+  const timeMisallocation = unattemptedMarksTotal > 0
+    ? roundTo(
+        Math.min(
+          safeDiv(timeOnIncorrect, Math.max(avgTimePerQuestion, 1)) *
+            (totalMarks / Math.max(totalQuestions, 1)),
+          unattemptedMarksTotal
+        )
+      )
+    : 0;
 
   // Low accuracy areas: marks left on table from weak topics
   const lowAccuracyAreas = topicAccuracy.reduce((sum, t) => {
@@ -491,8 +502,16 @@ const computeAnalytics = async (attempt) => {
     return sum;
   }, 0);
 
+  // Hard invariant: you can never recover more marks than the gap between your
+  // score and a perfect score. The individual buckets overlap slightly (e.g. an
+  // incorrect easy question contributes both its +marks swing and its negative
+  // loss), so clamp the total to that ceiling.
+  const recoverableCeiling = Math.max(0, totalMarks - (attempt.score || 0));
   const totalRecoverable = roundTo(
-    incorrectEasyRecoverable + negativeLoss + timeMisallocation + lowAccuracyAreas + missedHighROI
+    Math.min(
+      incorrectEasyRecoverable + negativeLoss + timeMisallocation + lowAccuracyAreas + missedHighROI,
+      recoverableCeiling
+    )
   );
 
   const recoverableBySubject = subjectAccuracy.map((s) => {

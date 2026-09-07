@@ -350,10 +350,9 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
   }));
 
   // Error Analysis — sprint-level Silly Mistake / Concept Error / Guess split,
-  // feeds the Error Analysis donut. Silly/concept counts come from
-  // AdvancedAnalytics (computed alongside AnalyticsResult per attempt);
-  // guess count comes straight off AnalyticsResult, same field the per-attempt
-  // "Guess Rate" tile already uses.
+  // feeds the Error Analysis donut. All three come from the SAME per-attempt
+  // errorClassification so they partition the wrong answers exactly
+  // (silly + concept + guess === total wrong across the deduped attempts).
   const dedupedAttemptIds = dedupedAnalytics
     .map((ar) => ar.attempt?._id || ar.attempt)
     .filter(Boolean);
@@ -366,11 +365,11 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
     (acc, row) => {
       acc.silly   += row.errorClassification?.sillyMistakes || 0;
       acc.concept += row.errorClassification?.conceptErrors || 0;
+      acc.guess   += row.errorClassification?.guesses || 0;
       return acc;
     },
     { silly: 0, concept: 0, guess: 0, total: 0 }
   );
-  errorAnalysis.guess = dedupedAnalytics.reduce((s, ar) => s + (ar.totalGuessAttempts || 0), 0);
   errorAnalysis.total = errorAnalysis.silly + errorAnalysis.concept + errorAnalysis.guess;
 
   // Topic Progression — a topic's accuracy trend across this student's tests
@@ -513,14 +512,13 @@ exports.getAttemptOrderQuality = asyncHandler(async (req, res, next) => {
 // question-bank content. Student-scoped on every query.
 
 const INSIGHT_METRICS = Object.freeze({
+  // Silly / concept / guess all read the same per-attempt errorClassification
+  // that the "Error Analysis" donut uses, so the drill-down question sets and
+  // the headline counts always agree (classifyErrors partitions every wrong
+  // answer into exactly one of the three).
   silly_mistakes:    { source: "advanced", field: "sillyMistakeQuestions", reason: "Silly mistake" },
   concept_errors:    { source: "advanced", field: "conceptErrorQuestions", reason: "Concept gap" },
-  // Matches the "Guesses" tile, which is AnalyticsResult.totalGuessAttempts:
-  // attempted + wrong + answered faster than the guess-time threshold. (The
-  // confidence-based errorClassification.guessQuestions can be empty on
-  // attempts scored before that heuristic existed / without confidence data.)
-  guesses:           { source: "response", needsGuessThreshold: true, reason: "Rushed guess",
-                       predicate: (r, ctx) => r.isAttempted && r.isCorrect === false && Number(r.timeSpentSeconds || 0) <= ctx.guessThreshold },
+  guesses:           { source: "advanced", field: "guessQuestions", reason: "Rushed guess" },
   missed_high_roi:   { source: "order",    field: "highROIAttemptedLate",  reason: "High-value question reached too late" },
   low_roi_early:     { source: "order",    field: "lowROIAttemptedEarly",  reason: "Low-value question attempted early" },
   slowest:           { source: "result",   field: "slowestQuestions",      reason: "Among your slowest" },
@@ -574,18 +572,7 @@ exports.getSprintQuestionInsights = asyncHandler(async (req, res, next) => {
   }
   const attemptIds = [...resultByAttempt.keys()].map((id) => new mongoose.Types.ObjectId(id));
 
-  // Guess-time threshold — mirror analytics.service so the drill-down count
-  // matches the "Guesses" tile exactly.
-  const ctx = { guessThreshold: 5 };
-  if (config.needsGuessThreshold) {
-    try {
-      const cfgs = await FormulaConfig.find({ sprint: sprintId, isActive: true }).lean();
-      for (const c of cfgs) {
-        const v = parseFloat(c.params?.guess_attempt_time_threshold_seconds);
-        if (Number.isFinite(v) && v > 0) ctx.guessThreshold = v;
-      }
-    } catch (_) { /* default 5 */ }
-  }
+  const ctx = {};
 
   // 2. Advanced analytics (only when the metric needs it).
   let advancedByAttempt = new Map();
@@ -810,24 +797,20 @@ exports.getStudentAttemptedSprints = asyncHandler(async (req, res, next) => {
     }
   });
 
-  // 2. Fetch Sprint docs for attempted sprints + all active sprints.
-  // Multiple sprint patterns (Minor / Semi-Major / Major) can run in parallel.
-  const activeSprints = await Sprint.find({ status: SPRINT_STATUS.ACTIVE })
-    .select("-patternSlots -createdBy")
-    .lean();
-  const activeSprintIds = new Set(activeSprints.map((sp) => sp._id.toString()));
+  // 2. Fetch Sprint docs for the sprints this student has ACTUALLY attempted.
+  // A student's analytics workspace is scoped strictly to sprints they've sat
+  // an exam in — not every platform-wide active sprint. (`isActive` is still
+  // flagged per sprint so the UI can label an ongoing one.)
+  const sprints = attemptedSprintIds.length
+    ? await Sprint.find({ _id: { $in: attemptedSprintIds } })
+        .select("-patternSlots -createdBy")
+        .sort({ createdAt: -1 })
+        .lean()
+    : [];
 
-  const queryIds = [...attemptedSprintIds];
-  for (const activeSprint of activeSprints) {
-    if (!sprintStatMap.has(activeSprint._id.toString())) {
-      queryIds.push(activeSprint._id);
-    }
-  }
-
-  const sprints = await Sprint.find({ _id: { $in: queryIds } })
-    .select("-patternSlots -createdBy")
-    .sort({ createdAt: -1 })
-    .lean();
+  const activeSprintIds = new Set(
+    sprints.filter((sp) => sp.status === SPRINT_STATUS.ACTIVE).map((sp) => sp._id.toString())
+  );
 
   // 3. Format response with attempt metadata and active status flag
   const formattedSprints = sprints.map((sp) => {
@@ -859,9 +842,14 @@ exports.getStudentAttemptedSprints = asyncHandler(async (req, res, next) => {
     return timeB - timeA;
   });
 
+  // The default sprint to open: the most recently active one the student has
+  // attempted, else their most recent attempt overall.
+  const defaultSprint =
+    formattedSprints.find((sp) => sp.isActive) || formattedSprints[0] || null;
+
   return sendSuccess(res, 200, "Student attempted sprints fetched.", {
     sprints: formattedSprints,
-    activeSprintId: activeSprints[0] ? activeSprints[0]._id : null,
+    activeSprintId: defaultSprint ? defaultSprint._id : null,
   });
 });
 

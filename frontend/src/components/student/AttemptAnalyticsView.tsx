@@ -212,7 +212,12 @@ export function AttemptAnalyticsView({
   const accuracy     = Number(attemptDetails.accuracy ?? 0).toFixed(1);
   const percentile   = Number(attemptDetails.percentile ?? 0).toFixed(1);
   const totalTimeSec = Number(attemptDetails.totalTimeSpentSeconds ?? 0);
-  const orderRho     = Number(attemptDetails.strategyRho ?? 0).toFixed(2);
+  // spearmanRho is null when there weren't enough sequenced questions to
+  // compute a correlation — show a dash, not a misleading "0.00".
+  const rawOrderRho  = attemptDetails.strategyRho;
+  const orderRho     = rawOrderRho == null || Number.isNaN(Number(rawOrderRho))
+    ? "—"
+    : Number(rawOrderRho).toFixed(2);
 
   const rawResponses = (attemptDetails.responses as ResponseItem[]) || [];
   const rawQuestions = (attemptDetails.questions  as QuestionData[]) || [];
@@ -431,7 +436,7 @@ export function AttemptAnalyticsView({
 
         {/* Order quality */}
         <StatCard
-          label="Order Quality" value={orderRho} sub="Spearman ρ" color="text-indigo-600"
+          label="Order Quality" value={orderRho} sub={orderRho === "—" ? "not enough questions" : "Spearman ρ"} color="text-indigo-600"
           formula="Spearman ρ = 1 − (6 × Σd²) ÷ (n × (n²−1)), comparing your actual attempt order to the ideal priority order"
           calc={`ρ = ${orderRho} (${orderQuality.interpretation ?? "n/a"}) across ${orderQuality.totalSequenced ?? "n/a"} sequenced questions`}
         />

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   studentService,
-  adminService,
   subscriptionService,
   type Subscription,
   type PlanAccess,
@@ -222,8 +221,7 @@ export function useDashboardData(): DashboardData {
     let cancelled = false;
     (async () => {
       try {
-        const [activeRes, attemptedRes, subRes, accessRes] = await Promise.allSettled([
-          adminService.getActiveSprint(),
+        const [attemptedRes, subRes, accessRes] = await Promise.allSettled([
           studentService.getStudentAttemptedSprints(),
           subscriptionService.getMine(),
           subscriptionService.getMyAccess(),
@@ -231,24 +229,18 @@ export function useDashboardData(): DashboardData {
 
         if (cancelled) return;
 
-        const active = activeRes.status === "fulfilled" ? normSprintList(activeRes.value) : [];
+        // A student's analytics workspace is scoped to the sprints they have
+        // actually attempted an exam in — the backend already enforces this.
         const attempted = attemptedRes.status === "fulfilled" ? normSprintList(attemptedRes.value) : [];
 
-        // Merge — attempted rows carry attemptCount/lastAttemptedAt/isActive;
-        // active rows carry current-status truth. Combine both per sprint.
-        const byId = new Map<string, SprintItem>();
-        for (const s of attempted) byId.set(sid(s), { ...s });
-        for (const s of active) {
-          const prev = byId.get(sid(s));
-          byId.set(sid(s), { ...prev, ...s, isActive: true, attemptCount: prev?.attemptCount ?? s.attemptCount, lastAttemptedAt: prev?.lastAttemptedAt ?? s.lastAttemptedAt });
-        }
-        // Active sprints first, then by recency of activity.
-        const merged = [...byId.values()].filter((s) => sid(s)).sort((a, b) => {
-          if (!!a.isActive !== !!b.isActive) return a.isActive ? -1 : 1;
-          const ta = a.lastAttemptedAt ? new Date(a.lastAttemptedAt).getTime() : 0;
-          const tb = b.lastAttemptedAt ? new Date(b.lastAttemptedAt).getTime() : 0;
-          return tb - ta;
-        });
+        const merged = attempted
+          .filter((s) => sid(s))
+          .sort((a, b) => {
+            if (!!a.isActive !== !!b.isActive) return a.isActive ? -1 : 1;
+            const ta = a.lastAttemptedAt ? new Date(a.lastAttemptedAt).getTime() : 0;
+            const tb = b.lastAttemptedAt ? new Date(b.lastAttemptedAt).getTime() : 0;
+            return tb - ta;
+          });
 
         setSprints(merged);
         const chosen = pickDefaultSprint(merged);

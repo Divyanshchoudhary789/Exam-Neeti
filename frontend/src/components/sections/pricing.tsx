@@ -311,12 +311,13 @@ export function Pricing({ onOpenAuth }: PricingProps) {
       </div>
       )}
 
-      {/* Plan cards — horizontal snap-scroll carousel below lg, 3-col grid from lg up */}
+      {/* Plan cards — horizontal snap-scroll carousel below lg, N-col grid from lg up */}
       <div className="relative mx-auto max-w-7xl mt-8 sm:mt-10">
         <div
           ref={trackRef}
           onScroll={handleTrackScroll}
-          className="flex overflow-x-auto scrollbar-none snap-x snap-mandatory gap-4 px-[9%] sm:px-[18%] -mx-4 sm:mx-0 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-3 lg:gap-8 lg:overflow-visible lg:snap-none"
+          style={{ ["--pcols" as string]: Math.min(Math.max(PLANS.length, 1), 4) }}
+          className="flex overflow-x-auto scrollbar-none snap-x snap-mandatory gap-4 px-[9%] sm:px-[18%] -mx-4 sm:mx-0 lg:mx-0 lg:px-0 lg:grid lg:[grid-template-columns:repeat(var(--pcols),minmax(0,1fr))] lg:gap-6 xl:gap-8 lg:overflow-visible lg:snap-none"
         >
           {PLANS.map((plan, idx) => (
             <div

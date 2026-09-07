@@ -20,15 +20,16 @@ export function EditBatchModal({
   showToast,
 }: EditBatchModalProps) {
   const [name, setName] = useState("");
-  const [programType, setProgramType] = useState<"class_xi" | "class_xii" | "dropper">("class_xi");
+  // "" = General (all classes) → sent to the API as null.
+  const [programType, setProgramType] = useState<"" | "class_xi" | "class_xii" | "dropper">("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (batchData) {
       setName(String(batchData.name || ""));
-      const p = String(batchData.programType || "class_xi");
-      setProgramType((["class_xi", "class_xii", "dropper"].includes(p) ? p : "class_xi") as "class_xi" | "class_xii" | "dropper");
+      const p = String(batchData.programType || "");
+      setProgramType((["class_xi", "class_xii", "dropper"].includes(p) ? p : "") as "" | "class_xi" | "class_xii" | "dropper");
       setDescription(String(batchData.description || ""));
     }
   }, [batchData]);
@@ -46,7 +47,7 @@ export function EditBatchModal({
     try {
       await adminService.updateBatch(bId, {
         name: name.trim(),
-        programType,
+        programType: programType || null,
         description: description.trim(),
       });
 
@@ -94,13 +95,14 @@ export function EditBatchModal({
 
         <div>
           <label className="text-[11px] font-extrabold uppercase tracking-wide text-slate-600 block mb-1">
-            Program Type *
+            Class Level
           </label>
           <select
             value={programType}
-            onChange={(e) => setProgramType(e.target.value as "class_xi" | "class_xii" | "dropper")}
+            onChange={(e) => setProgramType(e.target.value as "" | "class_xi" | "class_xii" | "dropper")}
             className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold cursor-pointer"
           >
+            <option value="">General — open to any class</option>
             <option value="class_xi">Class XI (2-Year Foundation)</option>
             <option value="class_xii">Class XII (1-Year Target)</option>
             <option value="dropper">Dropper / Repeater (Full Syllabus)</option>

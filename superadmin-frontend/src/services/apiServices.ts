@@ -212,6 +212,93 @@ export const newsletterService = {
 };
 
 // ----------------------------------------------------
+// REVENUE & BILLING — super_admin only
+// ----------------------------------------------------
+
+export interface RevenueOverview {
+  currency: string;
+  lifetimeRevenue: number;
+  revenueThisMonth: number;
+  revenueLastMonth: number;
+  momChangePct: number;
+  ordersThisMonth: number;
+  paidOrders: number;
+  failedOrders: number;
+  pendingOrders: number;
+  totalOrders: number;
+  checkoutConversionPct: number;
+  payingCustomers: number;
+  averageOrderValue: number;
+  revenuePerCustomer: number;
+  estimatedMrr: number;
+  firstPaymentAt: string | null;
+  subscriptions: { active: number; trial: number; expired: number; cancelled: number; total: number };
+  students: {
+    total: number; active: number; selfServe: number; paying: number;
+    onTrial: number; coaching: number; paidConversionPct: number;
+  };
+}
+
+export interface RevenueTrendPoint {
+  month: string;
+  label: string;
+  revenue: number;
+  orders: number;
+  customers: number;
+}
+
+export interface RevenueByPlanRow {
+  planId: string;
+  key: string;
+  name: string;
+  priceRupees: number;
+  durationDays: number | null;
+  programType: PlanProgramType;
+  isActive: boolean;
+  isTrial: boolean;
+  isFree: boolean;
+  revenue: number;
+  paidOrders: number;
+  customers: number;
+  activeSubscriptions: number;
+  revenueShare: number;
+}
+
+export interface RevenueTransaction {
+  _id: string;
+  student: { _id: string; name: string; email: string } | null;
+  plan: { _id: string; name: string; key: string } | null;
+  amount: number;
+  currency: string;
+  status: "created" | "paid" | "failed";
+  razorpayOrderId: string;
+  razorpayPaymentId: string | null;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+export const revenueService = {
+  summary: async (params?: { months?: number }) => {
+    const res = await api.get(`/revenue/summary${listQuery(params as Record<string, number | undefined>)}`);
+    return res.data as {
+      success: boolean;
+      data: { overview: RevenueOverview; timeseries: RevenueTrendPoint[]; byPlan: RevenueByPlanRow[] };
+    };
+  },
+  transactions: async (params?: {
+    page?: number; limit?: number; status?: string; planId?: string;
+    search?: string; dateFrom?: string; dateTo?: string;
+  }) => {
+    const res = await api.get(`/revenue/transactions${listQuery(params)}`);
+    return res.data as {
+      success: boolean;
+      data: { transactions: RevenueTransaction[]; filteredTotals: { paidRevenue: number; paidCount: number } };
+      pagination?: { total: number; page: number; totalPages: number };
+    };
+  },
+};
+
+// ----------------------------------------------------
 // AUTH SERVICES
 // ----------------------------------------------------
 export const authService = {
