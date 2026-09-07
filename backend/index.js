@@ -97,7 +97,9 @@ app.use(
     credentials: true,                    // required for cookies to work cross-origin
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Auth-Client"],
-    exposedHeaders: [],
+    // Content-Disposition must be exposed so the browser download picks up the
+    // friendly filename we set on report / sprint-paper downloads.
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 

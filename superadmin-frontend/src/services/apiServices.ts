@@ -358,7 +358,9 @@ export const studentService = {
     });
     const contentDisposition = res.headers["content-disposition"] || "";
     const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
-    const filename = match?.[1] || `report_${reportId}`;
+    const type = (res.data as Blob)?.type || "";
+    const ext = type.includes("pdf") ? "pdf" : type.includes("spreadsheet") ? "xlsx" : "bin";
+    const filename = match?.[1] || `Exam-Neeti_Report_${reportId}.${ext}`;
     const objectUrl = URL.createObjectURL(res.data as Blob);
     return { objectUrl, filename };
   },
@@ -923,7 +925,9 @@ export const adminService = {
     });
     const contentDisposition = res.headers["content-disposition"] || "";
     const match = contentDisposition.match(/filename="?([^";\n]+)"?/);
-    const filename = match?.[1] || `report_${reportId}`;
+    const type = (res.data as Blob)?.type || "";
+    const ext = type.includes("pdf") ? "pdf" : type.includes("spreadsheet") ? "xlsx" : "bin";
+    const filename = match?.[1] || `Exam-Neeti_Report_${reportId}.${ext}`;
     const objectUrl = URL.createObjectURL(res.data as Blob);
     return { objectUrl, filename };
   },
