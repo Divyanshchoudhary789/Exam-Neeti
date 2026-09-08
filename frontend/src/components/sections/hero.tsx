@@ -18,6 +18,9 @@ interface HeroSlide {
    *  slide's artwork isn't centred in its frame (e.g. an illustration whose
    *  subject sits to one side). */
   imagePosition?: string;
+  /** Optional CSS filter for the desktop bleed layer — used to keep pale
+   *  line-art readable once it is blended into the page. */
+  imageFilter?: string;
 }
 
 /**
@@ -76,8 +79,10 @@ const HERO_SLIDES: HeroSlide[] = [
     imageAlt: "Marks leaking from a vessel through silly mistakes, poor time management and weak revision",
     // The artwork lives in the right ~55% of the frame (left half is blank),
     // so anchor hard-right: fills the height with zero letterbox and keeps
-    // every callout label in view.
+    // every callout label in view. Pale glass line-art, so bump contrast a
+    // little to survive being blended into the page.
     imagePosition: "100% 50%",
+    imageFilter: "contrast(1.15) saturate(1.08)",
   },
   {
     id: 3,
@@ -108,6 +113,30 @@ const HERO_SLIDES: HeroSlide[] = [
 ];
 
 const HERO_ROTATE_INTERVAL_MS = 6000;
+
+/**
+ * Elliptical vignette applied to the desktop visual. The subject and most of
+ * the frame stay fully opaque and crisp — only the outer rim ramps down to
+ * nothing before the container edge, so the photo has no visible boundary but
+ * is never dimmed or hazed.
+ */
+const HERO_IMAGE_MASK =
+  "radial-gradient(118% 122% at 64% 41%, #000 52%, rgba(0,0,0,0.85) 72%, rgba(0,0,0,0.4) 85%, transparent 96%)";
+
+/**
+ * Page tone feathered back over the outermost rim only (transparent through
+ * the whole body of the photo), so the very edge lands in the site's
+ * `indigo-50 → white` background and the seam disappears.
+ */
+const HERO_IMAGE_SEAM =
+  "radial-gradient(88% 92% at 62% 42%, rgba(243,244,252,0) 70%, rgba(244,245,252,0.45) 90%, rgba(245,246,252,0.9) 100%)," +
+  "linear-gradient(to right, #eef2ff 0%, rgba(238,242,255,0.28) 10%, rgba(238,242,255,0) 26%)," +
+  "linear-gradient(to bottom, rgba(255,255,255,0) 74%, #ffffff 100%)";
+
+/** Shared shell + label style for the three floating stat cards. */
+const HERO_CARD_SHELL =
+  "w-[212px] rounded-2xl bg-white p-4 shadow-[0_16px_40px_-10px_rgba(15,23,42,0.22)] ring-1 ring-slate-900/[0.04] transition-transform duration-300 hover:-translate-y-1";
+const HERO_CARD_LABEL = "text-[11px] font-semibold text-slate-500";
 
 /**
  * Advances through the hero slides on a fixed interval. Pauses while the tab is
@@ -191,89 +220,85 @@ function useCountUp(target: number, durationMs = 1400, decimals = 0) {
   return decimals > 0 ? value.toFixed(decimals) : Math.round(value);
 }
 
+/** Small upward chevron used by the "improvement" lines. */
+function UpTick({ className = "h-3 w-3" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+    </svg>
+  );
+}
+
 function ScorePredictionCard({ score }: { score: number }) {
   return (
-    <div className="w-[230px] sm:w-[240px] rounded-2xl border border-slate-100/90 bg-white/95 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all hover:-translate-y-1 duration-300">
-      <p className="text-[11px] font-semibold text-slate-500">Score Prediction</p>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="font-sans text-[28px] font-black tracking-tight text-slate-900 leading-none">
+    <div className={`${HERO_CARD_SHELL} relative overflow-hidden`}>
+      <p className={HERO_CARD_LABEL}>Score Prediction</p>
+      <div className="mt-1.5 flex items-baseline gap-1.5">
+        <span className="font-sans text-[30px] font-extrabold leading-none tracking-tight text-slate-900">
           {score}
         </span>
-        <span className="text-xs font-bold text-slate-400">/720</span>
+        <span className="text-[13px] font-medium text-slate-400">/720</span>
       </div>
-      <div className="mt-1 flex items-center justify-between">
-        <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-500">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-          </svg>
-          33 Marks
-        </span>
-        {/* Wave area chart */}
-        <div className="w-20 h-6">
-          <svg viewBox="0 0 80 24" className="w-full h-full overflow-visible">
-            <defs>
-              <linearGradient id="heroScoreGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.45" />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M 0,20 Q 15,18 30,16 T 55,8 T 80,4 L 80,24 L 0,24 Z"
-              fill="url(#heroScoreGrad)"
-            />
-            <path
-              d="M 0,20 Q 15,18 30,16 T 55,8 T 80,4"
-              fill="none"
-              stroke="#4338ca"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
+      <p className="mt-2 flex items-center gap-1 text-[12px] font-semibold text-emerald-600">
+        <UpTick className="h-3 w-3" />
+        33 Marks
+      </p>
+      {/* Rising area chart, tucked into the lower-right corner */}
+      <div className="pointer-events-none absolute bottom-3 right-3 h-[44px] w-[116px]">
+        <svg viewBox="0 0 116 44" preserveAspectRatio="none" className="h-full w-full">
+          <defs>
+            <linearGradient id="heroScoreGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0 34 L14 30 L26 32 L40 22 L52 25 L66 15 L80 18 L94 8 L116 3 L116 44 L0 44 Z"
+            fill="url(#heroScoreGrad)"
+          />
+          <path
+            d="M0 34 L14 30 L26 32 L40 22 L52 25 L66 15 L80 18 L94 8 L116 3"
+            fill="none"
+            stroke="#4f46e5"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </div>
     </div>
   );
 }
 
 function AccuracyCard({ accuracy }: { accuracy: number }) {
-  const radius = 15;
+  const radius = 18;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (accuracy / 100) * circumference;
 
   return (
-    <div className="w-[230px] sm:w-[240px] rounded-2xl border border-slate-100/90 bg-white/95 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all hover:-translate-y-1 duration-300">
-      <p className="text-[11px] font-semibold text-slate-500">Accuracy</p>
-      <div className="mt-1 flex items-center justify-between">
+    <div className={HERO_CARD_SHELL}>
+      <p className={HERO_CARD_LABEL}>Accuracy</p>
+      <div className="mt-1.5 flex items-center justify-between gap-2">
         <div>
-          <span className="font-sans text-[28px] font-black tracking-tight text-slate-900 leading-none">
+          <span className="font-sans text-[30px] font-extrabold leading-none tracking-tight text-slate-900">
             {accuracy}%
           </span>
-          <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-emerald-500">
-            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-            </svg>
+          <p className="mt-2 flex items-center gap-1 text-[12px] font-semibold text-emerald-600">
+            <UpTick className="h-3 w-3" />
             12% Improvement
           </p>
         </div>
-        {/* Radial donut gauge */}
-        <div className="relative h-11 w-11 flex items-center justify-center shrink-0">
-          <svg className="h-full w-full -rotate-90" viewBox="0 0 40 40">
+        {/* Open ring gauge */}
+        <div className="relative h-[46px] w-[46px] shrink-0">
+          <svg className="h-full w-full -rotate-90" viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r={radius} fill="none" stroke="#ede9fe" strokeWidth="5" />
             <circle
-              cx="20"
-              cy="20"
+              cx="22"
+              cy="22"
               r={radius}
               fill="none"
-              stroke="#ede9fe"
-              strokeWidth="4"
-            />
-            <circle
-              cx="20"
-              cy="20"
-              r={radius}
-              fill="none"
-              stroke="#4338ca"
-              strokeWidth="4"
+              stroke="#4f46e5"
+              strokeWidth="5"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
@@ -288,17 +313,18 @@ function AccuracyCard({ accuracy }: { accuracy: number }) {
 
 function WeakestChapterCard({ weakest }: { weakest: number }) {
   return (
-    <div className="w-[230px] sm:w-[240px] rounded-2xl border border-slate-100/90 bg-white/95 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all hover:-translate-y-1 duration-300">
-      <p className="text-[11px] font-semibold text-slate-500">Weakest Chapter</p>
-      <div className="mt-1 flex items-baseline justify-between gap-2">
-        <div className="font-sans text-xs sm:text-sm font-extrabold text-slate-900 truncate">
-          Physics <span className="font-medium text-slate-500">Mechanics</span>
+    <div className={HERO_CARD_SHELL}>
+      <p className={HERO_CARD_LABEL}>Weakest Chapter</p>
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <div className="leading-tight">
+          <div className="font-sans text-[15px] font-extrabold text-slate-900">Physics</div>
+          <div className="mt-0.5 text-[12px] font-normal text-slate-500">Mechanics</div>
         </div>
-        <span className="text-xs font-bold text-rose-500 shrink-0">{weakest}%</span>
+        <span className="text-[12px] font-bold text-rose-500">{weakest}%</span>
       </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-rose-500 to-red-500 transition-all duration-1000 ease-out"
+          className="h-full rounded-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-1000 ease-out"
           style={{ width: `${weakest}%` }}
         />
       </div>
@@ -315,7 +341,7 @@ export function Hero({ onOpenAuth }: HeroProps) {
   const slide = HERO_SLIDES[slideIndex];
 
   return (
-    <section id="home" className="relative w-full max-w-full overflow-hidden bg-gradient-to-b from-[#f5f6fb] via-[#f8f9fe] to-[#fafbfe] pt-4 sm:pt-6 lg:pt-8 pb-1 sm:pb-2">
+    <section id="home" className="relative w-full max-w-full overflow-hidden bg-gradient-to-b from-indigo-50 via-violet-50/60 to-white pt-4 sm:pt-6 lg:pt-8 pb-1 sm:pb-2">
       
       {/* Small Screen Background Image Layer (< lg) — crossfades with the active slide */}
       <div className="lg:hidden pointer-events-none absolute inset-0 z-0 select-none overflow-hidden">
@@ -332,7 +358,7 @@ export function Hero({ onOpenAuth }: HeroProps) {
             style={{ opacity: i === slideIndex ? (slideIndex === 0 ? 0.15 : 0.22) : 0 }}
           />
         ))}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#f5f6fb]/80 via-transparent to-[#fafbfe]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/80 via-transparent to-white" />
       </div>
 
       {/* Decorative dot matrix grid (Visible on large screens) */}
@@ -466,42 +492,38 @@ export function Hero({ onOpenAuth }: HeroProps) {
           <div className="hidden lg:flex lg:col-span-6 relative w-full h-[470px] xl:h-[510px] items-center">
             
             {/* Expansive Background NEET Aspirant Photo layer */}
-            <div
-              className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden"
-              style={{
-                // Feather the edges just enough to kill the hard rectangular
-                // corners — a slightly longer fade on the left where the cards
-                // overlap, tight fades elsewhere so the image stays crisp.
-                maskImage:
-                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.7) 2.5%, #000 8%, #000 98.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 95%, transparent 100%)",
-                WebkitMaskImage:
-                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.7) 2.5%, #000 8%, #000 98.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 95%, transparent 100%)",
-                maskComposite: "intersect",
-                WebkitMaskComposite: "destination-in",
-              }}
-            >
-              {HERO_SLIDES.map((s, i) => (
-                <Image
-                  key={s.id}
-                  src={s.image}
-                  alt={i === slideIndex ? s.imageAlt : ""}
-                  fill
-                  priority={i === 0}
-                  sizes="55vw"
-                  className="object-cover transition-opacity duration-700 ease-out"
-                  style={{
-                    opacity: i === slideIndex ? 1 : 0,
-                    objectPosition: s.imagePosition ?? "66% 16%",
-                  }}
-                />
-              ))}
+            <div className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden">
+              {/* Photo, dissolved into the page by a soft edgeless vignette. */}
+              <div
+                className="absolute inset-0"
+                style={{ maskImage: HERO_IMAGE_MASK, WebkitMaskImage: HERO_IMAGE_MASK }}
+              >
+                {HERO_SLIDES.map((s, i) => (
+                  <Image
+                    key={s.id}
+                    src={s.image}
+                    alt={i === slideIndex ? s.imageAlt : ""}
+                    fill
+                    priority={i === 0}
+                    sizes="55vw"
+                    className="object-cover transition-opacity duration-700 ease-out"
+                    style={{
+                      opacity: i === slideIndex ? 1 : 0,
+                      objectPosition: s.imagePosition ?? "66% 16%",
+                      filter: s.imageFilter,
+                    }}
+                  />
+                ))}
+              </div>
+              {/* Seam sealer — see HERO_IMAGE_SEAM. */}
+              <div className="absolute inset-0" style={{ background: HERO_IMAGE_SEAM }} />
             </div>
 
             {/* 3 Floating Cards (Desktop) — shown only on the first slide; the
                 later slides tell their story through the photo alone, so the
                 cards fade out and pull left to keep the aspirant in full view. */}
             <div
-              className={`relative z-20 flex flex-col justify-between h-[92%] -ml-14 xl:-ml-24 transition-opacity duration-700 ease-out ${
+              className={`relative z-20 flex flex-col justify-center gap-5 -ml-14 xl:-ml-24 transition-opacity duration-700 ease-out ${
                 slideIndex === 0 ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
               aria-hidden={slideIndex !== 0}

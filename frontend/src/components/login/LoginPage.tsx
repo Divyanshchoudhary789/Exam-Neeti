@@ -318,7 +318,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-white overflow-x-hidden font-sans">
       {/* ── LEFT HERO / DIAGNOSTICS BRAND PANEL ───────────────────────── */}
-      <div className="hidden lg:flex w-full lg:w-[58%] xl:w-[60%] relative bg-gradient-to-br from-[#f8faff] via-[#f1f4fe] to-[#edf2fe] border-b lg:border-b-0 lg:border-r border-slate-200/80 flex-col justify-between p-6 sm:p-10 lg:py-10 lg:pl-16 lg:pr-8 xl:py-12 xl:pl-20 xl:pr-10 2xl:pl-24 2xl:pr-12 overflow-hidden">
+      <div className="hidden lg:flex w-full lg:w-[58%] xl:w-[60%] relative bg-gradient-to-br from-[#f8faff] via-[#f1f4fe] to-[#edf2fe] border-b lg:border-b-0 lg:border-r border-slate-200/80 flex-col justify-between p-6 sm:p-10 lg:py-10 lg:pl-24 lg:pr-8 xl:py-12 xl:pl-32 xl:pr-10 2xl:pl-40 2xl:pr-12 overflow-hidden">
         {/* Soft background ambient blurs */}
         <div className="absolute -left-20 -top-20 w-[420px] h-[420px] bg-indigo-400/[0.12] rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute right-0 bottom-0 w-[400px] h-[400px] bg-violet-400/[0.10] rounded-full blur-[100px] pointer-events-none" />

@@ -139,7 +139,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f8fafc] overflow-x-hidden">
-      <div className="hidden lg:flex w-full lg:w-[55%] xl:w-[57%] relative bg-gradient-to-br from-[#fbfcfe] via-[#f4f7fe] to-[#edf2fe] border-b lg:border-b-0 lg:border-r border-slate-200/80 flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-14 overflow-hidden">
+      <div className="hidden lg:flex w-full lg:w-[55%] xl:w-[57%] relative bg-gradient-to-br from-[#fbfcfe] via-[#f4f7fe] to-[#edf2fe] border-b lg:border-b-0 lg:border-r border-slate-200/80 flex-col justify-between p-6 sm:p-10 lg:p-12 lg:pl-24 xl:p-14 xl:pl-32 overflow-hidden">
         <div className="absolute -left-20 -top-20 w-[420px] h-[420px] bg-indigo-400/[0.12] rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute right-[-5%] bottom-[-5%] w-[400px] h-[400px] bg-violet-400/[0.10] rounded-full blur-[100px] pointer-events-none" />
 

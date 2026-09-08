@@ -215,7 +215,10 @@ export function Pricing({ onOpenAuth }: PricingProps) {
   };
 
   return (
-    <section id="pricing" className="relative bg-white py-20 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden w-full max-w-full">
+    <section id="pricing" className="relative bg-gradient-to-b from-indigo-50 via-violet-50/60 to-white py-20 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden w-full max-w-full">
+      {/* Soft brand glow — matches the hero and the standalone pages */}
+      <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[700px] h-[400px] bg-indigo-500/[0.06] rounded-full blur-[130px] pointer-events-none" />
+
       {/* Decorative dot grid + plus (desktop only) */}
       <div className="hidden lg:grid absolute left-8 top-28 grid-cols-6 gap-2.5 opacity-60 pointer-events-none">
         {Array.from({ length: 24 }).map((_, i) => (
