@@ -15,13 +15,6 @@ interface PricingProps {
   onOpenAuth: (type: "login" | "join", planKey?: string) => void;
 }
 
-const IconPlay = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-6.518-3.76A1 1 0 007 8.24v7.52a1 1 0 001.234.972l6.518-3.76a1 1 0 000-1.804z" />
-    <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 const IconTrophy = ({ className = "w-7 h-7" }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
     <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 5H4a1 1 0 00-1 1v1a4 4 0 004 4M17 5h3a1 1 0 011 1v1a4 4 0 01-4 4" />
@@ -35,10 +28,10 @@ const IconDiamond = ({ className = "w-7 h-7" }: { className?: string }) => (
 );
 
 const HERO_FEATURES = [
-  { icon: IconShield, label: "NCERT First Approach" },
-  { icon: IconChart, label: "Data Driven Preparation" },
-  { icon: IconPlay, label: "Live + Recorded Classes" },
-  { icon: IconTarget, label: "Rank Focused Practice" },
+  { icon: IconShield, label: "NCERT-Aligned Tests" },
+  { icon: IconChart, label: "Behavioral Analysis" },
+  { icon: IconRocket, label: "Performance Analytics" },
+  { icon: IconTarget, label: "Error Pattern Analysis" },
 ];
 
 const ENTRY_FEATURES = [
