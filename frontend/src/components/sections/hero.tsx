@@ -321,7 +321,7 @@ export function Hero({ onOpenAuth }: HeroProps) {
             priority={i === 0}
             sizes="100vw"
             className="object-cover object-[75%_20%] transition-opacity duration-700 ease-out"
-            style={{ opacity: i === slideIndex ? 0.15 : 0 }}
+            style={{ opacity: i === slideIndex ? (slideIndex === 0 ? 0.15 : 0.22) : 0 }}
           />
         ))}
         <div className="absolute inset-0 bg-gradient-to-b from-[#f5f6fb]/80 via-transparent to-[#fafbfe]" />
@@ -432,23 +432,25 @@ export function Hero({ onOpenAuth }: HeroProps) {
               </p>
             </div>
 
-            {/* Mobile / Tablet: Infinite Auto-Scrollable Row (< lg) */}
-            <div className="lg:hidden w-full overflow-hidden py-2.5 mt-6 -mx-4 sm:mx-0 select-none">
-              <div className="animate-marquee-infinite flex items-center gap-3.5">
-                {/* Track Set 1 */}
-                <div className="flex items-center gap-3.5 shrink-0">
-                  <ScorePredictionCard score={Number(score)} />
-                  <AccuracyCard accuracy={Number(accuracy)} />
-                  <WeakestChapterCard weakest={Number(weakest)} />
-                </div>
-                {/* Track Set 2 (Duplicated for infinite seamless loop) */}
-                <div className="flex items-center gap-3.5 shrink-0">
-                  <ScorePredictionCard score={Number(score)} />
-                  <AccuracyCard accuracy={Number(accuracy)} />
-                  <WeakestChapterCard weakest={Number(weakest)} />
+            {/* Mobile / Tablet: Infinite Auto-Scrollable Row (< lg) — first slide only */}
+            {slideIndex === 0 && (
+              <div className="lg:hidden w-full overflow-hidden py-2.5 mt-6 -mx-4 sm:mx-0 select-none animate-fadeIn">
+                <div className="animate-marquee-infinite flex items-center gap-3.5">
+                  {/* Track Set 1 */}
+                  <div className="flex items-center gap-3.5 shrink-0">
+                    <ScorePredictionCard score={Number(score)} />
+                    <AccuracyCard accuracy={Number(accuracy)} />
+                    <WeakestChapterCard weakest={Number(weakest)} />
+                  </div>
+                  {/* Track Set 2 (Duplicated for infinite seamless loop) */}
+                  <div className="flex items-center gap-3.5 shrink-0">
+                    <ScorePredictionCard score={Number(score)} />
+                    <AccuracyCard accuracy={Number(accuracy)} />
+                    <WeakestChapterCard weakest={Number(weakest)} />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
           </div>
 
@@ -459,8 +461,12 @@ export function Hero({ onOpenAuth }: HeroProps) {
             <div
               className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden"
               style={{
-                maskImage: "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.85) 12%, black 100%), linear-gradient(to bottom, black 78%, transparent 100%)",
-                WebkitMaskImage: "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.85) 12%, black 100%), linear-gradient(to bottom, black 78%, transparent 100%)",
+                // Feather every edge so the photo melts into the page background
+                // instead of showing hard rectangular corners.
+                maskImage:
+                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.55) 9%, #000 22%, #000 90%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 11%, #000 82%, transparent 100%)",
+                WebkitMaskImage:
+                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.55) 9%, #000 22%, #000 90%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 11%, #000 82%, transparent 100%)",
                 maskComposite: "intersect",
                 WebkitMaskComposite: "destination-in",
               }}
@@ -479,8 +485,15 @@ export function Hero({ onOpenAuth }: HeroProps) {
               ))}
             </div>
 
-            {/* 3 Floating Cards (Desktop) */}
-            <div className="relative z-20 flex flex-col justify-between h-[92%] pl-2 xl:pl-4">
+            {/* 3 Floating Cards (Desktop) — shown only on the first slide; the
+                later slides tell their story through the photo alone, so the
+                cards fade out and pull left to keep the aspirant in full view. */}
+            <div
+              className={`relative z-20 flex flex-col justify-between h-[92%] -ml-4 xl:-ml-10 transition-opacity duration-700 ease-out ${
+                slideIndex === 0 ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+              aria-hidden={slideIndex !== 0}
+            >
               <div className="animate-float" style={{ animationDelay: "0s" }}>
                 <ScorePredictionCard score={Number(score)} />
               </div>
