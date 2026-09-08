@@ -14,6 +14,10 @@ interface HeroSlide {
   /** Right-column visual. Local path or whitelisted remote host (see next.config.ts). */
   image: string;
   imageAlt: string;
+  /** Desktop bleed-layer object-position. Defaults to "66% 16%". Override when a
+   *  slide's artwork isn't centred in its frame (e.g. an illustration whose
+   *  subject sits to one side). */
+  imagePosition?: string;
 }
 
 /**
@@ -70,6 +74,10 @@ const HERO_SLIDES: HeroSlide[] = [
       "Review test summaries driven by objective metrics to isolate avoidable careless mistakes.",
     image: "/hero_image01.png",
     imageAlt: "Marks leaking from a vessel through silly mistakes, poor time management and weak revision",
+    // The artwork lives in the right ~55% of the frame (left half is blank),
+    // so anchor hard-right: fills the height with zero letterbox and keeps
+    // every callout label in view.
+    imagePosition: "100% 50%",
   },
   {
     id: 3,
@@ -461,12 +469,13 @@ export function Hero({ onOpenAuth }: HeroProps) {
             <div
               className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden"
               style={{
-                // Feather every edge so the photo melts into the page background
-                // instead of showing hard rectangular corners.
+                // Feather the edges just enough to kill the hard rectangular
+                // corners — a slightly longer fade on the left where the cards
+                // overlap, tight fades elsewhere so the image stays crisp.
                 maskImage:
-                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.55) 9%, #000 22%, #000 90%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 11%, #000 82%, transparent 100%)",
+                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.7) 2.5%, #000 8%, #000 98.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 95%, transparent 100%)",
                 WebkitMaskImage:
-                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.55) 9%, #000 22%, #000 90%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 11%, #000 82%, transparent 100%)",
+                  "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.7) 2.5%, #000 8%, #000 98.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 3.5%, #000 95%, transparent 100%)",
                 maskComposite: "intersect",
                 WebkitMaskComposite: "destination-in",
               }}
@@ -479,8 +488,11 @@ export function Hero({ onOpenAuth }: HeroProps) {
                   fill
                   priority={i === 0}
                   sizes="55vw"
-                  className="object-cover object-[66%_16%] transition-opacity duration-700 ease-out"
-                  style={{ opacity: i === slideIndex ? 1 : 0 }}
+                  className="object-cover transition-opacity duration-700 ease-out"
+                  style={{
+                    opacity: i === slideIndex ? 1 : 0,
+                    objectPosition: s.imagePosition ?? "66% 16%",
+                  }}
                 />
               ))}
             </div>
@@ -489,7 +501,7 @@ export function Hero({ onOpenAuth }: HeroProps) {
                 later slides tell their story through the photo alone, so the
                 cards fade out and pull left to keep the aspirant in full view. */}
             <div
-              className={`relative z-20 flex flex-col justify-between h-[92%] -ml-4 xl:-ml-10 transition-opacity duration-700 ease-out ${
+              className={`relative z-20 flex flex-col justify-between h-[92%] -ml-14 xl:-ml-24 transition-opacity duration-700 ease-out ${
                 slideIndex === 0 ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
               aria-hidden={slideIndex !== 0}
