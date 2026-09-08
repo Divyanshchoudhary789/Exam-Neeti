@@ -175,29 +175,123 @@ function SequenceStrip({
 }
 
 // ── Per-question time bars — height = time, colour = outcome ─────────────────
+type TimeBarItem = {
+  slot: number; time: number; state: SeqState; title: string;
+  subject?: string; chapter?: string; topic?: string; difficulty?: string;
+  you?: string; ans?: string; marks?: number | null; ideal?: number;
+};
+
+function paceHint(time: number, ideal: number): { label: string; cls: string } | null {
+  if (!ideal || !time) return null;
+  const r = time / ideal;
+  if (r < 0.4) return { label: "much faster than ideal — likely rushed", cls: "text-amber-600" };
+  if (r < 0.75) return { label: "faster than ideal", cls: "text-slate-500" };
+  if (r <= 1.3) return { label: "on pace with the ideal time", cls: "text-emerald-600" };
+  if (r <= 2) return { label: "slower than ideal", cls: "text-slate-500" };
+  return { label: "well over the ideal time", cls: "text-rose-600" };
+}
+
 function TimeBars({
   items, onPick,
 }: {
-  items: { slot: number; time: number; state: SeqState; title: string }[];
+  items: TimeBarItem[];
   onPick?: (slot: number) => void;
 }) {
+  const [hover, setHover] = useState<{ i: number; x: number; y: number } | null>(null);
   if (!items.length) return null;
   const max = Math.max(...items.map((i) => i.time), 1);
+  const avg = items.reduce((s, i) => s + i.time, 0) / items.length;
+
+  const it = hover ? items[hover.i] : null;
+  const pace = it ? paceHint(it.time, it.ideal || 0) : null;
+  const stateLabel = it?.state === "correct" ? "Correct" : it?.state === "incorrect" ? "Incorrect" : "Skipped";
+  const stateCls = it?.state === "correct" ? "bg-emerald-500" : it?.state === "incorrect" ? "bg-rose-500" : "bg-slate-400";
+
   return (
-    <div className="flex items-end gap-[3px] h-28 w-full overflow-x-auto pb-1">
-      {items.map((it) => (
-        <button
-          key={it.slot}
-          type="button"
-          title={it.title}
-          onClick={onPick ? () => onPick(it.slot) : undefined}
-          className={`flex-1 min-w-[5px] rounded-t transition-all hover:opacity-70 ${onPick ? "cursor-pointer" : "cursor-default"} ${
-            it.state === "correct" ? "bg-emerald-500" : it.state === "incorrect" ? "bg-rose-500" : "bg-slate-300"
-          }`}
-          style={{ height: `${Math.max(4, (it.time / max) * 100)}%` }}
-        />
-      ))}
-    </div>
+    <>
+      <div
+        className="flex items-end gap-[3px] h-28 w-full overflow-x-auto pb-1"
+        onMouseLeave={() => setHover(null)}
+      >
+        {items.map((b, i) => (
+          <button
+            key={b.slot}
+            type="button"
+            aria-label={b.title}
+            onClick={onPick ? () => onPick(b.slot) : undefined}
+            onMouseEnter={(e) => setHover({ i, x: e.clientX, y: e.clientY })}
+            onMouseMove={(e) => setHover((h) => (h && h.i === i ? { ...h, x: e.clientX, y: e.clientY } : { i, x: e.clientX, y: e.clientY }))}
+            onFocus={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setHover({ i, x: r.left + r.width / 2, y: r.top });
+            }}
+            onBlur={() => setHover(null)}
+            className={`flex-1 min-w-[6px] rounded-t transition-all ${hover?.i === i ? "opacity-100 ring-2 ring-slate-900/15" : "hover:opacity-70"} ${onPick ? "cursor-pointer" : "cursor-default"} ${
+              b.state === "correct" ? "bg-emerald-500" : b.state === "incorrect" ? "bg-rose-500" : "bg-slate-300"
+            }`}
+            style={{ height: `${Math.max(4, (b.time / max) * 100)}%` }}
+          />
+        ))}
+      </div>
+
+      {/* legend */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-[10px] font-bold text-slate-400">
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-500" />Correct</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-rose-500" />Incorrect</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-slate-300" />Skipped</span>
+        <span className="text-slate-300">· avg {fmtTime(Math.round(avg))}{onPick ? " · tap a bar to open the question" : ""}</span>
+      </div>
+
+      {/* hover tooltip — fixed to the cursor so the scroll container never clips it */}
+      {it && hover && (
+        <div
+          className="fixed z-[80] pointer-events-none w-60 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 bg-white shadow-xl p-3 text-left"
+          style={{
+            left: Math.min(hover.x + 14, (typeof window !== "undefined" ? window.innerWidth : 400) - 252),
+            top: Math.max(hover.y - 12, 12),
+            transform: hover.y > 180 ? "translateY(-100%)" : undefined,
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-black text-slate-900">Q{it.slot}</span>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase text-white ${stateCls}`}>{stateLabel}</span>
+          </div>
+          {(it.subject || it.difficulty) && (
+            <p className="text-[11px] font-bold text-slate-500 mt-1 capitalize">
+              {[it.difficulty, it.subject].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {(it.chapter || it.topic) && (
+            <p className="text-[10px] font-semibold text-slate-400 leading-snug mt-0.5">
+              {[it.chapter, it.topic].filter(Boolean).join(" › ")}
+            </p>
+          )}
+          <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-bold">
+              <span className="text-slate-400">Time spent</span>
+              <span className="text-slate-900 tabular-nums">{fmtTime(it.time)}{it.ideal ? ` / ${fmtTime(it.ideal)} ideal` : ""}</span>
+            </div>
+            {pace && <p className={`text-[10px] font-bold ${pace.cls}`}>{pace.label}</p>}
+            {it.state !== "skipped" && (it.you || it.ans) && (
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className="text-slate-400">Answer</span>
+                <span className="text-slate-900">
+                  You: {it.you || "—"}{it.state === "incorrect" && it.ans ? <span className="text-emerald-600"> · Correct: {it.ans}</span> : null}
+                </span>
+              </div>
+            )}
+            {typeof it.marks === "number" && (
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className="text-slate-400">Marks</span>
+                <span className={it.marks > 0 ? "text-emerald-600" : it.marks < 0 ? "text-rose-600" : "text-slate-500"}>
+                  {it.marks > 0 ? `+${it.marks}` : it.marks}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -300,10 +394,19 @@ export function AttemptMetricsFramework(p: MFProps) {
       .sort((a, b) => n(a.slotPosition) - n(b.slotPosition))
       .map((r) => {
         const state: SeqState = !r.isAttempted ? "skipped" : r.isCorrect ? "correct" : "incorrect";
+        const rr = r as MQResponse & { idealTimeSeconds?: number };
         return {
           slot: n(r.slotPosition),
           time: n(r.timeSpentSeconds),
           state,
+          subject: rr.subject || rr.questionData?.subject || "",
+          chapter: rr.chapter || rr.questionData?.chapter || "",
+          topic: rr.questionData?.topic || "",
+          difficulty: rr.questionData?.difficulty || "",
+          you: rr.selectedAnswer || "",
+          ans: rr.correctAnswer || rr.questionData?.correctAnswer || "",
+          marks: typeof rr.marksAwarded === "number" ? rr.marksAwarded : null,
+          ideal: n(rr.idealTimeSeconds) || 0,
           title: `Q${n(r.slotPosition)} · ${state} · ${fmtTime(n(r.timeSpentSeconds))}${r.selectedAnswer ? ` · you: ${r.selectedAnswer}` : ""}`,
         };
       });

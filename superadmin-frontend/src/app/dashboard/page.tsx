@@ -6,9 +6,6 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { SuperAdminDashboard } from "../../components/dashboard/SuperAdminDashboard";
 import { Spinner } from "../../components/common/UIComponents";
 
-// Where a signed-out super admin lands — the public site's landing page.
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
-
 export default function DashboardPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -25,10 +22,13 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     loggingOutRef.current = true;
+    // Clears local auth state, the sa-auth-role cookie, and invalidates the
+    // server-side refresh token (see useAuthStore.logout).
     logout();
-    document.cookie = "sa-auth-role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
-    // Full navigation to the public landing page (different origin from this console).
-    window.location.assign(`${SITE_URL}/`);
+    // A super admin signs out to THIS console's own login page — not the
+    // public student/admin site. Full navigation so React state, the in-memory
+    // token and any cached RSC payloads are all torn down.
+    window.location.assign("/login");
   };
 
   // Wrong role / expired session (not a deliberate logout) → back to the
