@@ -26,7 +26,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans select-none antialiased overflow-x-hidden w-full max-w-full">
+    // overflow-x-clip (not -hidden) contains sideways overflow WITHOUT making this
+    // element a scroll container — otherwise every `position: sticky` descendant
+    // (the navbar, the Diagnostics rail) silently stops sticking.
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans select-none antialiased overflow-x-clip w-full max-w-full">
       {/* Navigation */}
       <Navbar
         onOpenAuth={handleOpenAuth}

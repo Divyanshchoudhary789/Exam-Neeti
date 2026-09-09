@@ -21,7 +21,6 @@ export function Navbar({ onOpenAuth, onViewChange }: NavbarProps) {
     { label: "Home", href: "/", id: "home" },
     { label: "About Us", href: "/about", id: "about" },
     { label: "Pricing", href: "/pricing", id: "pricing" },
-    { label: "Programs", href: "/programs", id: "programs" },
     { label: "Methodology", href: "/methodology", id: "methodology" },
     { label: "Resources", href: "/resources", id: "resources" },
     { label: "Contact", href: "/contact", id: "contact" }

@@ -71,9 +71,9 @@ const IconScan = () => (
   </svg>
 );
 
-const IconUsers = () => (
+const IconChart = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M8 16v2M13 11v7M18 6v12" />
   </svg>
 );
 
@@ -130,12 +130,12 @@ export function Diagnostics({ onOpenAuth }: DiagnosticsProps) {
       img: "https://iili.io/Clwu6jR.png"
     },
     {
-      id: "management",
-      title: "Management Dashboard",
-      description: "Centralized administrative control for institute heads featuring batch-to-batch comparisons, overall institute accuracy metrics, and downloadable PDF/Excel reports.",
-      tags: ["Batch Comparison", "Accuracy Metrics", "Export Reports"],
-      linkText: "View Management Panel",
-      icon: IconUsers,
+      id: "analytics",
+      title: "Analytics-Rich Dashboard",
+      description: "A visual command centre for every attempt—accuracy, pace, guess rate and negative-mark trends charted over time, with each metric drilling straight down to the exact questions behind it.",
+      tags: ["Visual Dashboards", "Metric Drill-Downs", "Trend Tracking"],
+      linkText: "View Analytics Dashboard",
+      icon: IconChart,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
       hoverColor: "group-hover:text-purple-600",
@@ -146,13 +146,17 @@ export function Diagnostics({ onOpenAuth }: DiagnosticsProps) {
   ];
 
   return (
-    <section id="diagnostics" className="relative bg-white py-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200/60 overflow-hidden w-full max-w-full">
-      <div className="absolute right-0 top-0 w-[400px] h-[400px] bg-indigo-500/[0.01] rounded-full blur-[120px] pointer-events-none translate-x-1/4" />
-      <div className="absolute left-0 bottom-0 w-[300px] h-[300px] bg-blue-500/[0.01] rounded-full blur-[100px] pointer-events-none -translate-x-1/4" />
-      
+    <section id="diagnostics" className="relative bg-white py-24 px-4 sm:px-6 lg:px-8 border-t border-slate-200/60 w-full max-w-full">
+      {/* Decorative glows — clipped in their own layer so they never make the
+          section a scroll container (which would break the sticky column below). */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute right-0 top-0 w-[400px] h-[400px] bg-indigo-500/[0.01] rounded-full blur-[120px] translate-x-1/4" />
+        <div className="absolute left-0 bottom-0 w-[300px] h-[300px] bg-blue-500/[0.01] rounded-full blur-[100px] -translate-x-1/4" />
+      </div>
+
       <div className="relative mx-auto max-w-7xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">
-          <div className="lg:col-span-4 text-left flex flex-col space-y-6 lg:sticky lg:top-24">
+          <div className="lg:col-span-4 text-left flex flex-col space-y-6 lg:sticky lg:top-24 lg:self-start">
             <div className="space-y-3">
               <span className="text-xs font-bold uppercase tracking-widest text-indigo-600">
                 THE COMPLETE ANALYTICS MATRIX
@@ -297,29 +301,39 @@ export function Diagnostics({ onOpenAuth }: DiagnosticsProps) {
         </div>
       </Modal>
 
-      {/* Management Modal */}
-      <Modal isOpen={diagnosticsModal === "management"} onClose={() => setDiagnosticsModal(null)} title="Management Dashboard & Analytics" theme="light">
+      {/* Analytics Modal */}
+      <Modal isOpen={diagnosticsModal === "analytics"} onClose={() => setDiagnosticsModal(null)} title="Analytics-Rich Dashboard" theme="light">
         <div className="space-y-4 text-slate-700">
           <p className="text-sm text-slate-500">
-            Equips academy leads with real-time statistics of multiple test batches, highlighting collective progress and comparative growth.
+            Every attempt is broken down into the metrics that actually move your score, then charted over time so you can see what is improving and what is still leaking. Tap any number to jump straight to the questions behind it.
           </p>
           <div className="rounded-2xl bg-slate-50 p-5 border border-slate-100 space-y-4">
-            <div className="flex justify-between text-[10px] font-extrabold uppercase tracking-wider text-slate-400 pb-2 border-b border-slate-200">
-              <span>Active Batch</span>
-              <span>Avg. Score</span>
-              <span>Accuracy</span>
+            <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Attempt Snapshot</span>
+              <span className="text-xs font-bold text-purple-600">Last 6 tests</span>
             </div>
-            <div className="space-y-3 text-xs text-slate-600 text-left">
+            <div className="grid grid-cols-2 gap-3 text-center">
               {[
-                { name: "UPSC Batch A (Elite)", score: "134.2 / 200", accuracy: "82.1%", color: "text-emerald-600" },
-                { name: "JEE Advanced (Special)", score: "188.0 / 360", accuracy: "64.5%", color: "text-cyan-600" }
-              ].map((b) => (
-                <div key={b.name} className="flex justify-between items-center p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
-                  <span className="font-semibold text-slate-800">{b.name}</span>
-                  <span className="font-mono font-bold text-slate-700">{b.score}</span>
-                  <span className={`font-extrabold ${b.color}`}>{b.accuracy}</span>
+                { label: "Accuracy Trend", value: "68% → 82%", color: "text-emerald-600" },
+                { label: "Avg Time / Qs", value: "72 sec", color: "text-cyan-600" },
+                { label: "Guess Rate", value: "11%", color: "text-amber-600" },
+                { label: "Recoverable", value: "+34 Marks", color: "text-purple-600" }
+              ].map((m) => (
+                <div key={m.label} className="rounded-xl bg-white border border-slate-100 p-3 shadow-sm">
+                  <span className="block text-[10px] text-slate-400 font-semibold uppercase">{m.label}</span>
+                  <span className={`font-mono text-base font-extrabold ${m.color}`}>{m.value}</span>
                 </div>
               ))}
+            </div>
+            <div className="space-y-2 text-xs text-slate-600 text-left pt-1">
+              <div className="flex justify-between p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
+                <span className="font-medium">Weakest chapter</span>
+                <span className="text-slate-800 font-bold">Physics · Mechanics (52%)</span>
+              </div>
+              <div className="flex justify-between p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
+                <span className="font-medium">Most repeated mistake</span>
+                <span className="text-slate-800 font-bold">Misread question (×7)</span>
+              </div>
             </div>
           </div>
         </div>

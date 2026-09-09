@@ -11,7 +11,7 @@ import {
   IconBook,
   IconGraduationCap,
   IconArrowLeft,
-  IconBuilding,
+  IconChart,
 } from "../../components/common/UIComponents";
 
 const STATS = [
@@ -38,9 +38,9 @@ const PRINCIPLES = [
     desc: "Dashboards are only useful if they change behaviour. Every metric we surface is tied to a concrete test-taking decision a student can make in their very next mock.",
   },
   {
-    icon: IconBuilding,
-    title: "Built for Institutes Too",
-    desc: "Batch comparisons, institute-wide accuracy metrics and exportable reports give academic directors the same analytical rigour we give every individual aspirant.",
+    icon: IconChart,
+    title: "One Attempt, Fully X-Rayed",
+    desc: "Accuracy, pacing, guess rate and negative-mark leakage are charted attempt over attempt — and every number on the dashboard drills straight down to the exact questions behind it.",
   },
 ];
 
@@ -48,7 +48,7 @@ const STORY = [
   {
     year: "2023",
     title: "The Question",
-    desc: "Two exam mentors ask why toppers and average scorers with identical syllabus coverage score 150 marks apart — and find the answer in decision patterns, not knowledge.",
+    desc: "The founder, an exam mentor, asks why toppers and average scorers with identical syllabus coverage score 150 marks apart — and finds the answer in decision patterns, not knowledge.",
   },
   {
     year: "2024",
@@ -68,10 +68,12 @@ const STORY = [
 ];
 
 const TEAM = [
-  { initials: "RM", name: "Rajesh Mehta", role: "Co-founder · Academic Strategy", bio: "14 years mentoring NEET & JEE toppers. Designs the business rules behind every analysis engine." },
-  { initials: "AK", name: "Ananya Krishnan", role: "Co-founder · Data Science", bio: "Ex-quant analyst. Turned mark-loss attribution into deterministic, auditable formulas." },
-  { initials: "VS", name: "Vikram Shah", role: "Head of Product", bio: "Builds the dashboards. Obsessed with making one glance worth a hundred spreadsheets." },
-  { initials: "PR", name: "Dr. Priya Raghavan", role: "Head of Pedagogy", bio: "Ensures every metric maps to a real, teachable exam-hall decision." },
+  {
+    initials: "AB",
+    name: "Abhishek Bhavnani",
+    role: "Founder",
+    bio: "Started Exam Neeti after watching disciplined aspirants plateau for reasons no mark sheet could explain. Built the formula-driven engine that names every lost mark — and the exact decision needed to win it back.",
+  },
 ];
 
 export default function AboutPage() {
@@ -82,11 +84,11 @@ export default function AboutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-hidden w-full max-w-full">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-clip w-full max-w-full">
       <Navbar onOpenAuth={handleOpenAuth} />
 
       {/* Hero */}
-      <section className="relative bg-gradient-to-b from-indigo-50 via-violet-50/60 to-white overflow-hidden">
+      <section className="relative bg-gradient-to-b border-b from-indigo-50 via-violet-50/60 to-white overflow-hidden">
         <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[700px] h-[400px] bg-indigo-500/[0.06] rounded-full blur-[130px] pointer-events-none" />
         <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
           <span className="text-xs font-bold uppercase tracking-widest text-indigo-600">About Exam Neeti</span>
@@ -98,11 +100,11 @@ export default function AboutPage() {
             Exam Neeti is an analytics platform for competitive-exam aspirants and institutes. We believe every score is the output of measurable decisions — and that measuring those decisions precisely is the fastest way to change them.
           </p>
 
-          <div className="mt-12 bg-white border border-slate-200 rounded-3xl shadow-sm px-6 py-8 grid grid-cols-2 sm:grid-cols-4 gap-6">
+          <div className="mt-12 bg-slate-950 border border-slate-800 rounded-3xl shadow-sm px-6 py-8 grid grid-cols-2 sm:grid-cols-4 gap-6">
             {STATS.map((s) => (
               <div key={s.label}>
-                <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{s.value}</div>
-                <div className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1">{s.label}</div>
+                <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">{s.value}</div>
+                <div className="text-[11px] sm:text-xs text-slate-400 font-medium mt-1">{s.label}</div>
               </div>
             ))}
           </div>
@@ -181,18 +183,18 @@ export default function AboutPage() {
       <section className="bg-slate-50 py-20 px-4 sm:px-6 lg:px-8 border-t border-slate-200/70">
         <div className="mx-auto max-w-6xl">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-xs font-bold uppercase tracking-widest text-indigo-600">The People</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-indigo-600">The Founder</span>
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-3">
-              Mentors, mathematicians &amp; builders.
+              The mind behind the method.
             </h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="max-w-sm mx-auto">
             {TEAM.map((m) => (
-              <div key={m.name} className="bg-white border border-slate-200 rounded-2xl p-6 text-center shadow-sm">
-                <div className="h-14 w-14 mx-auto rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-base">
+              <div key={m.name} className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+                <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
                   {m.initials}
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 mt-4">{m.name}</h3>
+                <h3 className="text-base font-bold text-slate-900 mt-4">{m.name}</h3>
                 <p className="text-[11px] font-semibold text-indigo-600 mt-1">{m.role}</p>
                 <p className="text-xs text-slate-500 leading-relaxed mt-3">{m.bio}</p>
               </div>

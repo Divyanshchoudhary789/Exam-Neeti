@@ -51,7 +51,7 @@ const audit = (req, action, metadata) =>
 
 exports.listPlans = asyncHandler(async (req, res) => {
   const plans = await Plan.find({ isActive: true })
-    .select("key name priceRupees durationDays testsIncluded description batchSlug programType tagline features examBreakdown featured sortOrder")
+    .select("key name priceRupees mrpRupees durationDays testsIncluded description batchSlug programType tagline features examBreakdown featured sortOrder")
     .sort({ sortOrder: 1, priceRupees: 1 });
 
   return sendSuccess(res, 200, "Plans fetched.", { plans });
@@ -92,6 +92,7 @@ exports.getAdminOverview = asyncHandler(async (req, res) => {
         key: plan.key,
         name: plan.name,
         priceRupees: plan.priceRupees,
+        mrpRupees: plan.mrpRupees ?? null,
         durationDays: plan.durationDays ?? null,
         testsIncluded: plan.testsIncluded,
         description: plan.description || "",
@@ -122,7 +123,7 @@ exports.getAdminOverview = asyncHandler(async (req, res) => {
 
 exports.createPlan = asyncHandler(async (req, res, next) => {
   const {
-    name, priceRupees, durationDays, testsIncluded, description,
+    name, priceRupees, mrpRupees, durationDays, testsIncluded, description,
     programType, tagline, features, examBreakdown, featured, sortOrder,
     batchMode, batchName, batchSlug,
   } = req.body;
@@ -166,6 +167,7 @@ exports.createPlan = asyncHandler(async (req, res, next) => {
       key,
       name: name.trim(),
       priceRupees,
+      mrpRupees: mrpRupees ?? null,
       durationDays: durationDays ?? null,
       testsIncluded: testsIncluded ?? 0,
       description: description || "",
@@ -201,7 +203,7 @@ exports.updatePlan = asyncHandler(async (req, res, next) => {
   const isTrial = plan.key === PLAN_KEYS.TRIAL;
   const body = req.body;
   const FIELDS = [
-    "name", "priceRupees", "durationDays", "testsIncluded", "description",
+    "name", "priceRupees", "mrpRupees", "durationDays", "testsIncluded", "description",
     "programType", "tagline", "features", "examBreakdown", "featured", "sortOrder", "isActive",
   ];
 

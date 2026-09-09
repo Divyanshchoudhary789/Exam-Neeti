@@ -34,6 +34,13 @@ const planSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    // Original (pre-discount) price. Drives the struck-through price + "% OFF"
+    // pill on the public pricing card. null => no discount shown.
+    mrpRupees: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
     // null => never expires (Trial, one-time access tiers)
     durationDays: {
       type: Number,

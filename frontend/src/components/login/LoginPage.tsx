@@ -332,10 +332,10 @@ export default function LoginPage() {
 
           {/* Headline & Subtitle matching mockup */}
           <div className="space-y-2">
-            <h1 className="font-script text-[42px] sm:text-[50px] xl:text-[56px] font-bold text-slate-900 leading-[1.06] tracking-tight">
+            <h1 className="font-script pt-8 text-[42px] sm:text-[50px] xl:text-[56px] font-bold text-slate-900 leading-[1.06] tracking-tight">
               Hi Doc <br />
               <span className="text-[#4338ca] text-indigo-600 inline-flex items-center gap-2">
-                in the making <IconWave className="w-8 h-8 sm:w-10 sm:h-10 inline-block shrink-0" />
+                in the making 
               </span>
             </h1>
             <div className="pt-1.5 space-y-0.5">

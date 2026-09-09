@@ -3,9 +3,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { adminService, type PlanOverviewRow } from "../../services/apiServices";
 import {
-  IconRocket, IconBook, IconUsers, IconPlus, IconEdit, IconTrash, Spinner,
+  IconRocket, IconBook, IconUsers, IconPlus, IconEdit, IconTrash, IconEye, Spinner,
 } from "../common/UIComponents";
 import { PlanFormModal } from "./PlanFormModal";
+import { PlanDetailModal } from "./PlanDetailModal";
+
+const inr = (n: number) => n.toLocaleString("en-IN");
 
 interface Props {
   showToast: (text: string, type?: "success" | "error") => void;
@@ -32,6 +35,7 @@ export function PlanTiersPanel({ showToast, onViewExams, role }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PlanOverviewRow | null>(null);
+  const [viewing, setViewing] = useState<PlanOverviewRow | null>(null);
 
   const isSuperAdmin = role === "super_admin";
 
@@ -82,6 +86,7 @@ export function PlanTiersPanel({ showToast, onViewExams, role }: Props) {
 
   const totalExams = rows.reduce((n, r) => n + r.publishedCount, 0);
   const totalStudents = rows.reduce((n, r) => n + r.studentCount, 0);
+  const activePlans = rows.filter((r) => r.isActive);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
@@ -102,10 +107,74 @@ export function PlanTiersPanel({ showToast, onViewExams, role }: Props) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <MiniStat label="Plans" value={rows.length} icon={IconRocket} />
+        <MiniStat label="Active plans" value={activePlans.length} icon={IconRocket} />
         <MiniStat label="Published tests across tiers" value={totalExams} icon={IconBook} />
         <MiniStat label="Students on self-serve plans" value={totalStudents} icon={IconUsers} />
       </div>
+
+      {/* At-a-glance: which plans are live, what they cost, and their test budget */}
+      {!loading && activePlans.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="text-xs font-black uppercase tracking-wide text-slate-500">Active plans &amp; pricing</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[10px] font-black uppercase tracking-wide text-slate-400 bg-slate-50/60">
+                  <th className="px-4 py-2.5">Plan</th>
+                  <th className="px-4 py-2.5">Price</th>
+                  <th className="px-4 py-2.5 text-center">Tests incl.</th>
+                  <th className="px-4 py-2.5 text-center">Created</th>
+                  <th className="px-4 py-2.5 text-center">Left to add</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {activePlans.map((r) => {
+                  const isAnnual = r.durationDays != null && r.durationDays >= 300;
+                  const left = Math.max(0, r.testsIncluded - r.examCount);
+                  return (
+                    <tr key={r._id} className="text-xs font-semibold text-slate-700 hover:bg-slate-50/60">
+                      <td className="px-4 py-2.5">
+                        <span className="font-black text-slate-900">{r.name}</span>
+                        {r.programType && <span className="ml-1.5 text-[10px] font-bold text-slate-400">{PROGRAM_LABEL[r.programType] || r.programType}</span>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {r.isFreeTier ? (
+                          <span className="text-emerald-600 font-bold">Free</span>
+                        ) : (
+                          <span>
+                            ₹{inr(r.priceRupees)}
+                            <span className="text-slate-400 font-medium"> / {isAnnual ? "yr" : r.durationDays ? `${r.durationDays}d` : "one-time"}</span>
+                            {r.mrpRupees && r.mrpRupees > r.priceRupees && (
+                              <span className="ml-1.5 text-[10px] text-rose-500">
+                                {Math.round((1 - r.priceRupees / r.mrpRupees) * 100)}% off
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">{r.testsIncluded || "—"}</td>
+                      <td className="px-4 py-2.5 text-center">{r.examCount}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {r.testsIncluded === 0 ? (
+                          <span className="text-slate-400">n/a</span>
+                        ) : (
+                          <span className={`px-1.5 py-0.5 rounded font-black ${left > 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{left}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => setViewing(r)} className="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">View</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="p-12 text-center bg-white rounded-2xl border border-slate-200"><Spinner className="w-6 h-6 text-indigo-600 mx-auto" /></div>
@@ -142,8 +211,8 @@ export function PlanTiersPanel({ showToast, onViewExams, role }: Props) {
 
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   <Chip>{r.publishedCount} published{r.examCount > r.publishedCount ? ` · ${r.examCount - r.publishedCount} draft` : ""}</Chip>
-                  <Chip>{r.studentCount} student{r.studentCount === 1 ? "" : "s"}</Chip>
-                  <Chip>{r.subscriberCount} subscriber{r.subscriberCount === 1 ? "" : "s"}</Chip>
+                  <Chip>{r.studentCount} on plan now</Chip>
+                  <Chip>{r.subscriberCount} subscription{r.subscriberCount === 1 ? "" : "s"} all-time</Chip>
                 </div>
                 {r.batchName && <p className="text-[10px] text-slate-400 font-bold pt-0.5">Batch: {r.batchName}</p>}
               </div>
@@ -157,6 +226,12 @@ export function PlanTiersPanel({ showToast, onViewExams, role }: Props) {
                   View / add this plan&apos;s tests
                 </button>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setViewing(r)}
+                    className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    <IconEye className="w-3.5 h-3.5" /> View
+                  </button>
                   <button
                     onClick={() => openEdit(r)}
                     className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold cursor-pointer transition-colors"
@@ -200,6 +275,13 @@ export function PlanTiersPanel({ showToast, onViewExams, role }: Props) {
         onClose={() => setModalOpen(false)}
         onSuccess={load}
         showToast={showToast}
+      />
+
+      <PlanDetailModal
+        isOpen={!!viewing}
+        plan={viewing}
+        onClose={() => setViewing(null)}
+        onViewExams={onViewExams}
       />
     </div>
   );

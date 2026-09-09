@@ -67,11 +67,11 @@ export function Contact() {
             <div className="space-y-3 text-xs font-semibold text-slate-700">
               <div className="flex items-center gap-3">
                 <span className="text-indigo-600 font-extrabold">EMAIL:</span>
-                <span>support@examneeti.com</span>
+                <span>-</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-indigo-600 font-extrabold">LOCATION:</span>
-                <span>New Delhi, India</span>
+                <span>India</span>
               </div>
             </div>
           </div>

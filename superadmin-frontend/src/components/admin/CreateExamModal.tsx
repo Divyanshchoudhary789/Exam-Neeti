@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { CommonModal, Spinner, IconBook, IconClock, IconLayers, IconCheck } from "../common/UIComponents";
 import { CustomSelect } from "../common/CustomSelect";
-import { adminService } from "../../services/apiServices";
+import { adminService, type PlanOverviewRow } from "../../services/apiServices";
 
 interface CreateExamModalProps {
   isOpen: boolean;
@@ -31,6 +31,7 @@ export function CreateExamModal({
   const [scheduledAt, setScheduledAt] = useState("");
   const [instructions, setInstructions] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [planRows, setPlanRows] = useState<PlanOverviewRow[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -43,6 +44,22 @@ export function CreateExamModal({
       }
     }
   }, [isOpen, defaultSprintId, sprintList, batchList]);
+
+  // Plan test budgets — lets us tell the admin how many exams a self-serve
+  // plan still needs when they pick its batch as the Audience.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    adminService
+      .getPlanOverview()
+      .then((res) => {
+        const list = (res as { data?: { overview?: PlanOverviewRow[] }; overview?: PlanOverviewRow[] })?.data?.overview
+          || (res as { overview?: PlanOverviewRow[] })?.overview || [];
+        if (!cancelled && Array.isArray(list)) setPlanRows(list);
+      })
+      .catch(() => { /* non-blocking — the hint just won't show */ });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +138,8 @@ export function CreateExamModal({
   ];
   const selectedBatch = batchList.find((b) => String(b._id || b.id) === batchId);
   const selectedIsPublic = selectedBatch && String(selectedBatch.source) === "public";
+  const selectedPlan = planRows.find((p) => p.batchId && String(p.batchId) === batchId) || null;
+  const planRemaining = selectedPlan ? Math.max(0, selectedPlan.testsIncluded - selectedPlan.examCount) : 0;
 
   return (
     <CommonModal isOpen={isOpen} onClose={onClose} title="Create New NEET Exam Paper" maxWidth="max-w-xl">
@@ -182,6 +201,34 @@ export function CreateExamModal({
             ? "This test will be available to students on this self-serve plan (free-tier or paid). Trial students are limited to their included test count."
             : "This test will be available to students in this coaching batch."}
         </p>
+
+        {/* Plan test budget — how many exams this plan advertises vs how many
+            already exist for its batch, so it's obvious how many are left. */}
+        {selectedPlan && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5 -mt-1">
+            <p className="text-[10px] font-black uppercase tracking-wide text-indigo-500">
+              {selectedPlan.name} plan · test budget
+            </p>
+            {selectedPlan.testsIncluded === 0 ? (
+              <p className="text-[11px] font-semibold text-slate-600 mt-1.5">
+                No advertised test count — every exam you add to this batch is available to all its students.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] font-bold text-slate-600">
+                  <span>Advertised: <span className="text-slate-900">{selectedPlan.testsIncluded}</span></span>
+                  <span>Already created: <span className="text-slate-900">{selectedPlan.examCount}</span>{selectedPlan.examCount > selectedPlan.publishedCount ? ` (${selectedPlan.examCount - selectedPlan.publishedCount} draft)` : ""}</span>
+                  <span>Left to add: <span className={planRemaining > 0 ? "text-amber-700" : "text-emerald-700"}>{planRemaining}</span></span>
+                </div>
+                <p className="text-[11px] font-semibold text-slate-500 mt-1.5">
+                  {planRemaining > 0
+                    ? `This one will be exam #${selectedPlan.examCount + 1} of ${selectedPlan.testsIncluded} for the “${selectedPlan.batchName || "plan"}” batch — ${planRemaining - 1} still to go after it.`
+                    : `All ${selectedPlan.testsIncluded} advertised exams already exist for this batch — you can still add more if you want.`}
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Duration & Scheduled Time Row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

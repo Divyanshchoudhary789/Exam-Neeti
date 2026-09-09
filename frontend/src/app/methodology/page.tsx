@@ -59,11 +59,11 @@ export default function MethodologyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-hidden w-full max-w-full">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-clip w-full max-w-full">
       <Navbar onOpenAuth={handleOpenAuth} />
 
       {/* Hero */}
-      <section className="relative bg-gradient-to-b from-indigo-50 via-violet-50/60 to-white overflow-hidden">
+      <section className="relative bg-gradient-to-b border-b from-indigo-50 via-violet-50/60 to-white overflow-hidden">
         <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[700px] h-[400px] bg-indigo-500/[0.06] rounded-full blur-[130px] pointer-events-none" />
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
           <span className="text-xs font-bold uppercase tracking-widest text-indigo-600">Methodology · How the Engine Thinks</span>

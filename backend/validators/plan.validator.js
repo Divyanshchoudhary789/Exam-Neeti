@@ -16,6 +16,7 @@ const examBreakdownSchema = Joi.object({
 const planFields = {
   name:          Joi.string().trim().min(2).max(80),
   priceRupees:   Joi.number().min(0).max(1_000_000),
+  mrpRupees:     Joi.number().min(0).max(1_000_000).allow(null).default(null),
   durationDays:  Joi.number().integer().min(1).max(3650).allow(null),
   testsIncluded: Joi.number().integer().min(0).max(1000).default(0),
   description:   Joi.string().trim().allow("").max(600).default(""),

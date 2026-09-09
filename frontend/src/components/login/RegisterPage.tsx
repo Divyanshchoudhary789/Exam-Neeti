@@ -147,7 +147,7 @@ export default function RegisterPage() {
           <BrandLogo href="/" size="lg" />
 
           <div className="space-y-1.5">
-            <h1 className="font-script text-[40px] sm:text-[48px] xl:text-[54px] font-bold text-slate-900 leading-[1.08] tracking-tight">
+            <h1 className="font-script pt-8 text-[40px] sm:text-[48px] xl:text-[54px] font-bold text-slate-900 leading-[1.08] tracking-tight">
               Ready to find <br />
               <span className="text-[#4338ca] text-indigo-600">your starting point?</span>
             </h1>

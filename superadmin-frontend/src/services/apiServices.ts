@@ -39,6 +39,7 @@ export interface PlanOverviewRow {
   key: string;
   name: string;
   priceRupees: number;
+  mrpRupees: number | null;
   durationDays: number | null;
   testsIncluded: number;
   description: string;
@@ -63,6 +64,7 @@ export interface PlanOverviewRow {
 export interface PlanFormPayload {
   name: string;
   priceRupees: number;
+  mrpRupees?: number | null;
   durationDays: number | null;
   testsIncluded: number;
   description?: string;

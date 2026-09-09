@@ -18,9 +18,9 @@ import {
 } from "../../components/common/UIComponents";
 
 const INFO_CARDS = [
-  { icon: IconMail, label: "Email Us", value: "hello@examneeti.in", sub: "Replies within 24 hours" },
-  { icon: IconPhone, label: "Call Us", value: "+91 98765 40000", sub: "Mon–Sat · 9 AM – 7 PM IST" },
-  { icon: IconTarget, label: "Visit Us", value: "HSR Layout, Bengaluru", sub: "Karnataka, India 560102" },
+  { icon: IconMail, label: "Email Us", value: "-", sub: "Replies within 24 hours" },
+  { icon: IconPhone, label: "Call Us", value: "-", sub: "Mon–Sat · 9 AM – 7 PM IST" },
+  { icon: IconTarget, label: "Visit Us", value: "India", sub: "" },
   { icon: IconClock, label: "Support Hours", value: "9 AM – 7 PM IST", sub: "Monday to Saturday" },
 ];
 
@@ -90,7 +90,7 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-hidden w-full max-w-full">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-clip w-full max-w-full">
       <Navbar onOpenAuth={handleOpenAuth} />
 
       {/* Hero */}
@@ -107,17 +107,17 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* Info cards */}
-      <div className="relative px-4 sm:px-6 lg:px-8 -mt-8">
+      {/* Info cards — dark cards lifted over the hero */}
+      <div className="relative border-b pb-8 z-10 px-4 sm:px-6 lg:px-8 -mt-8">
         <div className="mx-auto max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {INFO_CARDS.map((c) => (
-            <div key={c.label} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <div className="h-10 w-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+            <div key={c.label} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-lg shadow-slate-950/20">
+              <div className="h-10 w-10 rounded-xl bg-indigo-500/15 border border-indigo-400/25 text-indigo-300 flex items-center justify-center">
                 <c.icon className="w-4.5 h-4.5" />
               </div>
               <span className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mt-4">{c.label}</span>
-              <span className="block text-sm font-bold text-slate-900 mt-1">{c.value}</span>
-              <span className="block text-[11px] text-slate-500 mt-1">{c.sub}</span>
+              <span className="block text-sm font-bold text-white mt-1">{c.value}</span>
+              {c.sub && <span className="block text-[11px] text-slate-400 mt-1">{c.sub}</span>}
             </div>
           ))}
         </div>

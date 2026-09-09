@@ -15,7 +15,7 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-hidden w-full max-w-full">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans antialiased overflow-x-clip w-full max-w-full">
       <Navbar onOpenAuth={handleOpenAuth} />
 
       <Pricing onOpenAuth={handleOpenAuth} />

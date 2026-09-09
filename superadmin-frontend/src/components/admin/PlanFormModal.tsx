@@ -40,6 +40,7 @@ const num = (v: string, fallback = 0) => {
 export function PlanFormModal({ isOpen, mode, plan, onClose, onSuccess, showToast }: Props) {
   const [name, setName] = useState("");
   const [priceRupees, setPriceRupees] = useState("0");
+  const [mrpRupees, setMrpRupees] = useState("");
   const [billing, setBilling] = useState<Billing>("annual");
   const [customDays, setCustomDays] = useState("365");
   const [testsIncluded, setTestsIncluded] = useState("0");
@@ -61,6 +62,7 @@ export function PlanFormModal({ isOpen, mode, plan, onClose, onSuccess, showToas
     if (mode === "edit" && plan) {
       setName(plan.name);
       setPriceRupees(String(plan.priceRupees));
+      setMrpRupees(plan.mrpRupees != null ? String(plan.mrpRupees) : "");
       setBilling(plan.durationDays == null ? "one_time" : plan.durationDays === 365 ? "annual" : "custom");
       setCustomDays(String(plan.durationDays ?? 365));
       setTestsIncluded(String(plan.testsIncluded));
@@ -74,7 +76,7 @@ export function PlanFormModal({ isOpen, mode, plan, onClose, onSuccess, showToas
       setFeatured(Boolean(plan.featured));
       setSortOrder(String(plan.sortOrder ?? 0));
     } else {
-      setName(""); setPriceRupees("0"); setBilling("annual"); setCustomDays("365");
+      setName(""); setPriceRupees("0"); setMrpRupees(""); setBilling("annual"); setCustomDays("365");
       setTestsIncluded("0"); setProgramType(""); setTagline(""); setDescription("");
       setFeatures([]); setMinor("0"); setSemiMajor("0"); setMajor("0");
       setFeatured(false); setSortOrder("0");
@@ -94,10 +96,15 @@ export function PlanFormModal({ isOpen, mode, plan, onClose, onSuccess, showToas
     if (trimmed.length < 2) return showToast("Plan name must be at least 2 characters.", "error");
     const price = num(priceRupees);
     if (price < 0) return showToast("Price can't be negative.", "error");
+    const mrp = mrpRupees.trim() ? Math.max(0, num(mrpRupees)) : null;
+    if (mrp != null && mrp <= price) {
+      return showToast("Original price must be higher than the selling price.", "error");
+    }
 
     const payload: PlanFormPayload = {
       name: trimmed,
       priceRupees: isTrial ? 0 : price,
+      mrpRupees: isTrial ? null : mrp,
       durationDays,
       testsIncluded: Math.max(0, num(testsIncluded)),
       description: description.trim(),
@@ -150,7 +157,11 @@ export function PlanFormModal({ isOpen, mode, plan, onClose, onSuccess, showToas
         {isTrial && (
           <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] font-semibold text-amber-800">
             <IconInfo className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>The free Trial is required by the platform — its price stays ₹0 and it can&apos;t be deactivated or deleted.</span>
+            <span>
+              The free Trial is required by the platform — its price stays ₹0 and it can&apos;t be deactivated or deleted.
+              You <b>can</b> change <b>Tests included</b>: that&apos;s how many free tests every registered user gets.
+              Raise it, then add that many exams to the Trial batch (Create Exam → Audience → “Free Trial”).
+            </span>
           </div>
         )}
 
@@ -165,8 +176,27 @@ export function PlanFormModal({ isOpen, mode, plan, onClose, onSuccess, showToas
             <input className={I} type="number" min={0} disabled={Boolean(isTrial)} value={isTrial ? "0" : priceRupees} onChange={(e) => setPriceRupees(e.target.value)} />
           </div>
           <div>
-            <label className={L}>Tests included</label>
+            <label className={L}>Original price (₹)</label>
+            <input
+              className={I}
+              type="number"
+              min={0}
+              disabled={Boolean(isTrial)}
+              value={isTrial ? "" : mrpRupees}
+              onChange={(e) => setMrpRupees(e.target.value)}
+              placeholder="Blank = no discount shown"
+            />
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">Struck-through price + “% OFF” pill on the pricing card</p>
+          </div>
+
+          <div>
+            <label className={L}>Tests included {isTrial && "· free tests per user"}</label>
             <input className={I} type="number" min={0} value={testsIncluded} onChange={(e) => setTestsIncluded(e.target.value)} />
+            {isTrial && (
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">
+                Each free user may attempt this many distinct Trial-batch exams
+              </p>
+            )}
           </div>
 
           <div>
