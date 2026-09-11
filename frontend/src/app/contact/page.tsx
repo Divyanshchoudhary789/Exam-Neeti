@@ -108,7 +108,7 @@ export default function ContactPage() {
       </section>
 
       {/* Info cards — dark cards lifted over the hero */}
-      <div className="relative border-b pb-8 z-10 px-4 sm:px-6 lg:px-8 -mt-8">
+      <div className="relative z-10 px-4 sm:px-6 lg:px-8 -mt-8">
         <div className="mx-auto max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {INFO_CARDS.map((c) => (
             <div key={c.label} className="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-lg shadow-slate-950/20">

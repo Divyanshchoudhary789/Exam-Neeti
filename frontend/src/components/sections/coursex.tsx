@@ -875,7 +875,7 @@ export function CourseXBatches() {
                 <label className="text-[10px] font-bold uppercase text-slate-500">Description</label>
                 <textarea
                   rows={3}
-                  placeholder="Batch created for NEET/JEE students..."
+                  placeholder="Batch created for NEET students..."
                   value={batchDesc}
                   onChange={(e) => setBatchDesc(e.target.value)}
                   className="w-full rounded-xl bg-slate-50 border border-slate-200 text-xs px-3.5 py-2.5 text-slate-900 focus:outline-none focus:border-[#1e69ff]"

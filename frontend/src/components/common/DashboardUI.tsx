@@ -483,8 +483,112 @@ export const SUBJECT_TINT: Record<string, string> = {
   physics: "#6366f1",
   chemistry: "#8b5cf6",
   biology: "#14b8a6",
+  mathematics: "#0ea5e9",
+  maths: "#0ea5e9",
+  math: "#0ea5e9",
 };
 export const subjectColor = (s?: string) => SUBJECT_TINT[String(s || "").toLowerCase()] || "#64748b";
+
+/** Gradient pair for a subject's icon tile / accent bar. */
+export const subjectGradient = (s?: string): string => {
+  const base = subjectColor(s);
+  return `linear-gradient(135deg, ${base}, ${base}cc)`;
+};
+
+// ─── Gradient icon tile — the reference's coloured rounded-square icon ──────
+export function GradientIconTile({
+  icon: Icon,
+  gradient,
+  size = "md",
+  className = "",
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  gradient?: string;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  const box = size === "lg" ? "w-12 h-12" : size === "sm" ? "w-8 h-8" : "w-10 h-10";
+  const ic = size === "lg" ? "w-5 h-5" : size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4";
+  return (
+    <span
+      className={`dash-icon-tile shrink-0 ${box} ${className}`}
+      style={gradient ? ({ "--tile": gradient } as React.CSSProperties) : undefined}
+    >
+      <Icon className={ic} />
+    </span>
+  );
+}
+
+// ─── Pivot tabs — the Subject / Chapter / Topic / Difficulty selector row ──
+export function PivotTabs<T extends string>({
+  options,
+  value,
+  onChange,
+  variant = "solid",
+}: {
+  options: { value: T; label: string; icon?: React.ComponentType<{ className?: string }> }[];
+  value: T;
+  onChange: (v: T) => void;
+  variant?: "solid" | "pill";
+}) {
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+      {options.map((o) => {
+        const active = value === o.value;
+        const Icon = o.icon;
+        return (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            className={`inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+              active
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                : variant === "pill"
+                  ? "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {Icon && <Icon className="w-3.5 h-3.5" />}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── "Chapters covered by weightage" — High / Medium / Low covered/total ───
+export interface WeightageBand { covered: number; total: number }
+export function WeightageCoverageRow({ data }: { data?: Record<string, WeightageBand> | null }) {
+  if (!data) return null;
+  const bands: { key: "high" | "medium" | "low"; label: string; cls: string }[] = [
+    { key: "high", label: "High", cls: "bg-rose-50 text-rose-700 border-rose-100" },
+    { key: "medium", label: "Medium", cls: "bg-amber-50 text-amber-700 border-amber-100" },
+    { key: "low", label: "Low", cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+  ];
+  const anything = bands.some((b) => (data[b.key]?.total ?? 0) > 0);
+  if (!anything) return null;
+  return (
+    <div>
+      <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400 mb-1.5 flex items-center gap-1">
+        Chapters covered by weightage
+      </p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {bands.map((b) => {
+          const band = data[b.key] || { covered: 0, total: 0 };
+          return (
+            <div key={b.key} className={`rounded-xl border px-2 py-1.5 text-center ${b.cls}`}>
+              <p className="text-[9px] font-black uppercase tracking-wide opacity-80">{b.label}</p>
+              <p className="text-sm font-black tabular-nums">
+                {band.covered}<span className="opacity-50 text-[11px]"> / {band.total}</span>
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** Strip LaTeX delimiters / markup for a plain one-line preview of question text. */
 export const previewText = (t?: string) =>

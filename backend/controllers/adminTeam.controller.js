@@ -23,6 +23,7 @@ const { sendSuccess } = require("../utils/response");
 const { sendPaginated } = require("../utils/response");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 const { sendEmail, templates } = require("../services/email.service");
+const { clientPath } = require("../utils/clientUrl");
 const { NOTIFICATION_TRIGGER, ROLES, ATTEMPT_STATUS, ADMIN_ACTIONS } = require("../config/constants");
 
 /** Escape special regex characters to prevent ReDoS */
@@ -164,6 +165,7 @@ exports.createAdmin = asyncHandler(async (req, res, next) => {
         password:   plainPassword,
         role:       admin.role,
         invitedBy:  req.user.email,
+        loginUrl:   clientPath("/login"),
       }),
       trigger:     NOTIFICATION_TRIGGER.ADMIN_INVITED,
       recipientId: admin._id,

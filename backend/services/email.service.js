@@ -2,28 +2,114 @@ const nodemailer = require("nodemailer");
 const NotificationLog = require("../models/NotificationLog.model");
 const { NOTIFICATION_STATUS } = require("../config/constants");
 
-let transporter = null;
+// ─── Delivery transport ─────────────────────────────────────────────────────
+//
+// Preferred path is Brevo's HTTP API (POST over HTTPS/443) — it is immune to the
+// most common production failure mode for SMTP: networks (many ISPs, offices,
+// some cloud hosts) that accept the TCP connection to port 25/465/587/2525 but
+// silently drop the SMTP protocol, which surfaces as "Greeting never received".
+// Set BREVO_API_KEY (Brevo → SMTP & API → API Keys) to use it.
+//
+// Without an API key it falls back to SMTP via nodemailer, now with explicit
+// connection/greeting/socket timeouts and no pooling, so a dead socket fails
+// fast instead of hanging the caller.
 
-/**
- * Brevo SMTP configuration.
- * Brevo requires: host=smtp-relay.brevo.com, port=587, user=your_email, pass=smtp_key
- */
+// Read at call time, never at module load — email.service can be required before
+// dotenv has populated process.env (load order), and a value frozen to "" here
+// would silently force the SMTP fallback even when BREVO_API_KEY is configured.
+const cfg = () => ({
+  fromName: process.env.EMAIL_FROM_NAME || "Exam Neeti",
+  fromAddress: process.env.EMAIL_FROM_ADDRESS || "noreply@example.com",
+  apiKey: (process.env.BREVO_API_KEY || "").trim(),
+});
+
+let transporter = null;
 const getTransporter = () => {
   if (!transporter) {
+    const port = parseInt(process.env.BREVO_SMTP_PORT, 10) || 587;
     transporter = nodemailer.createTransport({
       host: process.env.BREVO_SMTP_HOST || "smtp-relay.brevo.com",
-      port: parseInt(process.env.BREVO_SMTP_PORT, 10) || 587,
-      secure: false,
+      port,
+      secure: port === 465, // 465 = implicit TLS; 587/2525 = STARTTLS
       auth: {
         user: process.env.BREVO_SMTP_USER,
         pass: process.env.BREVO_SMTP_PASS,
       },
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
+      pool: false,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
   }
   return transporter;
+};
+
+/** Normalise a "a@x.com" | "a@x.com,b@y.com" | ["a@x.com"] recipient to an array. */
+const toList = (to) =>
+  (Array.isArray(to) ? to : String(to).split(","))
+    .map((s) => String(s).trim())
+    .filter(Boolean);
+
+/**
+ * Send one email through whichever transport is configured. Throws on failure
+ * so callers can record it; never silently swallows.
+ */
+const deliver = async ({ to, subject, html, replyTo }) => {
+  const { fromName, fromAddress, apiKey } = cfg();
+
+  if (apiKey) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": apiKey,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: fromAddress },
+          to: toList(to).map((email) => ({ email })),
+          subject,
+          htmlContent: html,
+          ...(replyTo ? { replyTo: { email: replyTo } } : {}),
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`Brevo API ${res.status}: ${detail.slice(0, 300)}`);
+      }
+    } catch (err) {
+      if (err.name === "AbortError") throw new Error("Brevo API request timed out after 15s");
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+    return;
+  }
+
+  await getTransporter().sendMail({
+    from: `"${fromName}" <${fromAddress}>`,
+    to,
+    subject,
+    html,
+    ...(replyTo ? { replyTo } : {}),
+  });
+};
+
+/** One-line startup log so it's obvious which transport is live. */
+const logTransport = () => {
+  if (cfg().apiKey) {
+    console.log("[Email] Transport: Brevo HTTP API (https://api.brevo.com)");
+  } else {
+    console.warn(
+      "[Email] Transport: SMTP fallback — set BREVO_API_KEY to use Brevo's HTTP API. " +
+        "Many networks block outbound SMTP ports (25/465/587/2525), which shows up as " +
+        '"Greeting never received" / "Connection timeout".',
+    );
+  }
 };
 
 /**
@@ -69,13 +155,7 @@ const sendEmail = async ({
   });
 
   try {
-    const transport = getTransporter();
-    await transport.sendMail({
-      from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM_ADDRESS}>`,
-      to,
-      subject,
-      html,
-    });
+    await deliver({ to, subject, html });
 
     log.status = NOTIFICATION_STATUS.SENT;
     log.sentAt = new Date();
@@ -89,162 +169,388 @@ const sendEmail = async ({
   }
 };
 
-// ─── Email template builders ────────────────────────────────────────────────
+// ─── Design system ──────────────────────────────────────────────────────────
+//
+// Table-based, fully inline-styled layout — the only thing that renders
+// consistently across Gmail, Apple Mail, Outlook (desktop + web) and mobile.
+// A <style> block is included for progressive enhancement only (dark mode /
+// responsive tweaks); nothing critical lives there because many clients drop it.
 
-const baseTemplate = (content) => `
-<!DOCTYPE html>
-<html>
+const BRAND = {
+  name: "Exam Neeti",
+  tagline: "Every Score Has a Strategy",
+  indigo: "#4f46e5",
+  indigoDark: "#3730a3",
+  ink: "#0f172a",
+  inkSoft: "#475569",
+  inkFaint: "#94a3b8",
+  line: "#e2e8f0",
+  panel: "#f8fafc",
+  page: "#eef2ff",
+  good: "#059669",
+  bad: "#dc2626",
+};
+
+const SUPPORT_EMAIL =
+  process.env.SUPPORT_EMAIL || process.env.EMAIL_FROM_ADDRESS || "hello@examneeti.in";
+
+const COMPANY_LINE =
+  process.env.EMAIL_COMPANY_LINE || `${BRAND.name} · India`;
+
+/** Hidden preview text shown by the inbox before the email is opened. */
+const preheader = (text) => `
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;height:0;width:0;">
+    ${escHtml(text)}&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;&#8199;
+  </div>`;
+
+/** Bulletproof-ish CTA button (rounded on modern clients, square on old Outlook). */
+const button = (label, url) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+    <tr>
+      <td align="center" bgcolor="${BRAND.indigo}" style="border-radius:8px;">
+        <a href="${escHtml(url)}" target="_blank"
+           style="display:inline-block;padding:13px 28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;">
+          ${escHtml(label)}
+        </a>
+      </td>
+    </tr>
+  </table>`;
+
+/** Small "if the button doesn't work" fallback line. */
+const fallbackLink = (url) => `
+  <p style="margin:0 0 4px;font-size:12px;line-height:1.6;color:${BRAND.inkFaint};">
+    Or paste this link into your browser:
+  </p>
+  <p style="margin:0 0 8px;font-size:12px;line-height:1.6;word-break:break-all;">
+    <a href="${escHtml(url)}" target="_blank" style="color:${BRAND.indigo};">${escHtml(url)}</a>
+  </p>`;
+
+/** Key / value detail panel. rows = [[label, value], ...]; value may be pre-escaped HTML if `raw` is true. */
+const panel = (rows, { raw = false } = {}) => `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="margin:8px 0 20px;background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:10px;">
+    <tr><td style="padding:6px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        ${rows
+          .filter(([, v]) => v !== undefined && v !== null && v !== "")
+          .map(
+            ([k, v]) => `
+        <tr>
+          <td style="padding:8px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${BRAND.inkFaint};vertical-align:top;width:44%;">${escHtml(k)}</td>
+          <td style="padding:8px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:${BRAND.ink};vertical-align:top;">${raw ? v : escHtml(v)}</td>
+        </tr>`,
+          )
+          .join("")}
+      </table>
+    </td></tr>
+  </table>`;
+
+/** Coloured callout for security / important notes. */
+const callout = (text, tone = "info") => {
+  const c =
+    tone === "warn"
+      ? { bg: "#fef2f2", bd: "#fecaca", fg: "#991b1b" }
+      : tone === "good"
+        ? { bg: "#ecfdf5", bd: "#a7f3d0", fg: "#065f46" }
+        : { bg: "#eef2ff", bd: "#c7d2fe", fg: BRAND.indigoDark };
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px;">
+    <tr><td style="padding:12px 16px;background:${c.bg};border:1px solid ${c.bd};border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.6;color:${c.fg};">
+      ${text}
+    </td></tr>
+  </table>`;
+};
+
+const para = (html) =>
+  `<p style="margin:0 0 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:${BRAND.inkSoft};">${html}</p>`;
+
+/**
+ * Wrap section content in the branded shell.
+ * @param {Object} o
+ * @param {string} o.title    Big heading inside the card
+ * @param {string} o.preview  Inbox preview text
+ * @param {string} o.body     Inner HTML (use para/panel/button/callout helpers)
+ */
+const shell = ({ title, preview, body }) => `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light only" />
+  <title>${escHtml(title)}</title>
+  <!--[if mso]><style>table{border-collapse:collapse}</style><![endif]-->
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
-    .header { background: #1a56db; padding: 24px 32px; }
-    .header h1 { color: #ffffff; margin: 0; font-size: 22px; }
-    .body { padding: 32px; color: #333333; line-height: 1.6; }
-    .btn { display: inline-block; margin-top: 20px; padding: 12px 24px; background: #1a56db; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; }
-    .footer { background: #f4f4f4; padding: 16px 32px; font-size: 12px; color: #888888; text-align: center; }
+    @media only screen and (max-width:620px) {
+      .en-card { padding:24px !important; }
+      .en-wrap { padding:16px !important; }
+    }
+    a { color:${BRAND.indigo}; }
   </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header"><h1>Exam Neeti</h1></div>
-    <div class="body">${content}</div>
-    <div class="footer">This is an automated email. Please do not reply.</div>
-  </div>
-</body>
-</html>
-`;
+<body style="margin:0;padding:0;background:${BRAND.page};-webkit-text-size-adjust:100%;">
+  ${preheader(preview || title)}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.page};">
+    <tr>
+      <td class="en-wrap" align="center" style="padding:28px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;">
 
-// All user-controlled values are passed through escHtml() to prevent XSS in email clients
+          <!-- Header -->
+          <tr>
+            <td style="background:${BRAND.indigo};border-radius:14px 14px 0 0;padding:22px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="font-family:Arial,Helvetica,sans-serif;font-size:19px;font-weight:bold;color:#ffffff;letter-spacing:0.2px;">
+                    ${BRAND.name}
+                  </td>
+                  <td align="right" style="font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1.5px;color:#c7d2fe;text-transform:uppercase;">
+                    ${escHtml(BRAND.tagline)}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td class="en-card" style="background:#ffffff;padding:34px 32px;border-left:1px solid ${BRAND.line};border-right:1px solid ${BRAND.line};">
+              <h1 style="margin:0 0 18px;font-family:Arial,Helvetica,sans-serif;font-size:21px;line-height:1.3;font-weight:bold;color:${BRAND.ink};">
+                ${escHtml(title)}
+              </h1>
+              ${body}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#ffffff;border:1px solid ${BRAND.line};border-top:none;border-radius:0 0 14px 14px;padding:22px 32px;">
+              <p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:${BRAND.inkFaint};">
+                Need help? Write to
+                <a href="mailto:${escHtml(SUPPORT_EMAIL)}" style="color:${BRAND.indigo};font-weight:bold;">${escHtml(SUPPORT_EMAIL)}</a>.
+              </p>
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;color:${BRAND.inkFaint};">
+                This is an automated message from ${escHtml(COMPANY_LINE)}. Please do not reply to this address.<br />
+                &copy; ${new Date().getFullYear()} ${BRAND.name}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+const greet = (name) => para(`Hi <strong style="color:${BRAND.ink};">${escHtml(name || "there")}</strong>,`);
+
+// ─── Templates ──────────────────────────────────────────────────────────────
+// All user-controlled values are passed through escHtml() (directly or via the
+// helpers) to prevent XSS in email clients.
+
 const templates = {
-  accountCreated: ({ name, email, password }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Your Exam Neeti account has been created. You can now log in using the credentials below.</p>
-      <p><strong>Email:</strong> ${escHtml(email)}</p>
-      <p><strong>Temporary Password:</strong> <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">${escHtml(password)}</code></p>
-      <p>Please change your password after your first login.</p>
-    `),
+  accountCreated: ({ name, email, password, loginUrl }) =>
+    shell({
+      title: "Your Exam Neeti account is ready",
+      preview: "Sign in with the credentials inside and set your own password.",
+      body:
+        greet(name) +
+        para("Your account has been created. Use the credentials below to sign in for the first time.") +
+        panel([
+          ["Email", email],
+          ["Temporary password", `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:monospace;">${escHtml(password)}</code>`],
+        ], { raw: true }) +
+        callout("For your security, change this temporary password immediately after your first sign-in.", "warn") +
+        (loginUrl ? button("Sign in to Exam Neeti", loginUrl) + fallbackLink(loginUrl) : ""),
+    }),
 
   examAvailable: ({ name, examTitle, examNumber, dashboardUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>A new exam is now available for you: <strong>${escHtml(examTitle || `Exam ${examNumber}`)}</strong>.</p>
-      <p>Log in to your dashboard to attempt it.</p>
-      <a href="${escHtml(dashboardUrl)}" class="btn">Go to Dashboard</a>
-    `),
+    shell({
+      title: "A new test is now available",
+      preview: `${examTitle || `Exam ${examNumber}`} has been published to your dashboard.`,
+      body:
+        greet(name) +
+        para("A new test has been published to your dashboard and is ready to attempt.") +
+        panel([
+          ["Test", examTitle || `Exam ${examNumber}`],
+          ["Test number", examNumber != null ? `#${examNumber}` : ""],
+        ]) +
+        (dashboardUrl ? button("Open my dashboard", dashboardUrl) + fallbackLink(dashboardUrl) : ""),
+    }),
 
-  examSubmitted: ({ name, examTitle, examNumber }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Your submission for <strong>${escHtml(examTitle || `Exam ${examNumber}`)}</strong> has been received successfully.</p>
-      <p>Your results will be ready shortly. You will receive another email once the analytics are computed.</p>
-    `),
+  examSubmitted: ({ name, examTitle, examNumber, submittedAt }) =>
+    shell({
+      title: "We've received your submission",
+      preview: `Your attempt for ${examTitle || `Exam ${examNumber}`} was recorded successfully.`,
+      body:
+        greet(name) +
+        para(`Your attempt for <strong style="color:${BRAND.ink};">${escHtml(examTitle || `Exam ${examNumber}`)}</strong> has been recorded successfully.`) +
+        (submittedAt ? panel([["Submitted at", submittedAt]]) : "") +
+        para("We're now scoring your paper and computing your analytics — subject and chapter breakdown, recoverable marks, timing and error analysis. You'll get another email the moment your results are ready."),
+    }),
 
-  analyticsReady: ({ name, examTitle, examNumber, dashboardUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Your results for <strong>${escHtml(examTitle || `Exam ${examNumber}`)}</strong> are ready.</p>
-      <p>Visit your dashboard to view detailed analytics, subject-wise breakdown, and recoverable marks.</p>
-      <a href="${escHtml(dashboardUrl)}" class="btn">View Results</a>
-    `),
+  analyticsReady: ({ name, examTitle, examNumber, dashboardUrl, score, maxScore, percentage, accuracy, percentile }) => {
+    const rows = [];
+    if (score != null && maxScore != null) rows.push(["Score", `${score} / ${maxScore}`]);
+    if (percentage != null) rows.push(["Percentage", `${percentage}%`]);
+    if (accuracy != null) rows.push(["Accuracy", `${accuracy}%`]);
+    if (percentile != null && Number(percentile) > 0) rows.push(["Percentile", `${percentile}`]);
+    return shell({
+      title: "Your results are ready",
+      preview: `Detailed analytics for ${examTitle || `Exam ${examNumber}`} are now on your dashboard.`,
+      body:
+        greet(name) +
+        para(`Your results for <strong style="color:${BRAND.ink};">${escHtml(examTitle || `Exam ${examNumber}`)}</strong> have been computed.`) +
+        (rows.length ? panel(rows) : "") +
+        para("Open your dashboard for the full picture — subject &amp; chapter accuracy, recoverable marks, time utilisation, error classification and how this attempt compares to your previous ones.") +
+        (dashboardUrl ? button("View detailed analytics", dashboardUrl) + fallbackLink(dashboardUrl) : ""),
+    });
+  },
 
-  batchAnalyticsUpdated: ({ adminName, batchName, dashboardUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(adminName)}</strong>,</p>
-      <p>Batch-level analytics for <strong>${escHtml(batchName)}</strong> have been recalculated and are now up to date.</p>
-      <a href="${escHtml(dashboardUrl)}" class="btn">View Management Dashboard</a>
-    `),
+  batchAnalyticsUpdated: ({ adminName, batchName, submittedCount, totalStudents, dashboardUrl }) =>
+    shell({
+      title: "Batch analytics updated",
+      preview: `Every student in ${batchName} has submitted — batch analytics are refreshed.`,
+      body:
+        greet(adminName) +
+        para(`All students in <strong style="color:${BRAND.ink};">${escHtml(batchName)}</strong> have completed the latest test, and batch-level analytics have been recalculated.`) +
+        (submittedCount != null && totalStudents != null
+          ? panel([
+              ["Batch", batchName],
+              ["Submissions", `${submittedCount} / ${totalStudents} students`],
+            ])
+          : "") +
+        (dashboardUrl ? button("Open the admin dashboard", dashboardUrl) + fallbackLink(dashboardUrl) : ""),
+    }),
 
   sprintCompleted: ({ name, sprintName, dashboardUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Congratulations! You have completed all exams in the sprint: <strong>${escHtml(sprintName)}</strong>.</p>
-      <p>Your full Sprint performance summary is now available on your dashboard.</p>
-      <a href="${escHtml(dashboardUrl)}" class="btn">View Sprint Summary</a>
-    `),
+    shell({
+      title: "Sprint complete — well done",
+      preview: `You've finished every test in ${sprintName}.`,
+      body:
+        greet(name) +
+        para(`You've completed every test in the sprint <strong style="color:${BRAND.ink};">${escHtml(sprintName)}</strong>.`) +
+        para("Your full sprint summary is now available — trend across tests, strongest and weakest chapters, and where your recoverable marks are concentrated.") +
+        (dashboardUrl ? button("View sprint summary", dashboardUrl) + fallbackLink(dashboardUrl) : ""),
+    }),
 
   passwordReset: ({ name, resetUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>You requested a password reset. Click the link below to set a new password. This link is valid for <strong>10 minutes</strong>.</p>
-      <a href="${escHtml(resetUrl)}" class="btn">Reset Password</a>
-      <p>If you did not request this, please ignore this email.</p>
-    `),
+    shell({
+      title: "Reset your password",
+      preview: "This link is valid for 10 minutes.",
+      body:
+        greet(name) +
+        para("We received a request to reset your Exam Neeti password. Click the button below to choose a new one.") +
+        button("Reset my password", resetUrl) +
+        callout("This link expires in <strong>10 minutes</strong> and can be used only once.", "info") +
+        fallbackLink(resetUrl) +
+        para(`If you didn't request this, you can safely ignore this email — your password will not change. If these requests continue, contact us at <a href="mailto:${escHtml(SUPPORT_EMAIL)}">${escHtml(SUPPORT_EMAIL)}</a>.`),
+    }),
 
   reportReady: ({ name, reportType, downloadUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Your requested report (<strong>${escHtml(reportType)}</strong>) is ready for download.</p>
-      <a href="${escHtml(downloadUrl)}" class="btn">Download Report</a>
-    `),
+    shell({
+      title: "Your report is ready to download",
+      preview: `${reportType} is ready.`,
+      body:
+        greet(name) +
+        para(`Your requested report (<strong style="color:${BRAND.ink};">${escHtml(reportType)}</strong>) has been generated.`) +
+        (downloadUrl ? button("Download report", downloadUrl) + fallbackLink(downloadUrl) : "") +
+        para("For security, you may be asked to sign in before the download begins."),
+    }),
 
-  adminInvited: ({ name, email, password, role, invitedBy }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>You have been added to the <strong>Exam Neeti</strong> admin team as <strong>${escHtml(role)}</strong> by ${escHtml(invitedBy)}.</p>
-      <p>You can now log in using the credentials below.</p>
-      <p><strong>Email:</strong> ${escHtml(email)}</p>
-      <p><strong>Temporary Password:</strong> <code style="background:#f4f4f4;padding:2px 6px;border-radius:4px;">${escHtml(password)}</code></p>
-      <p style="color:#e74c3c;"><strong>Important:</strong> Please change your password immediately after your first login.</p>
-    `),
+  adminInvited: ({ name, email, password, role, invitedBy, loginUrl }) =>
+    shell({
+      title: "You've been added to the Exam Neeti team",
+      preview: `${invitedBy} added you as ${role}.`,
+      body:
+        greet(name) +
+        para(`<strong style="color:${BRAND.ink};">${escHtml(invitedBy)}</strong> has added you to the ${BRAND.name} team as <strong style="color:${BRAND.ink};">${escHtml(role)}</strong>.`) +
+        panel([
+          ["Email", email],
+          ["Temporary password", `<code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:monospace;">${escHtml(password)}</code>`],
+          ["Role", role],
+        ], { raw: true }) +
+        callout("Change this temporary password immediately after your first sign-in.", "warn") +
+        (loginUrl ? button("Sign in", loginUrl) + fallbackLink(loginUrl) : ""),
+    }),
 
   selfRegisteredWelcome: ({ name, dashboardUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Welcome to <strong>Exam Neeti</strong>! Your account is ready and you have <strong>1 free diagnostic test</strong> waiting on your dashboard.</p>
-      <p>Take it to see exactly where you stand — then pick the SIGNATURE plan that fits your prep.</p>
-      <a href="${escHtml(dashboardUrl)}" class="btn">Go to Dashboard</a>
-    `),
+    shell({
+      title: "Welcome to Exam Neeti",
+      preview: "Your free diagnostic test is waiting on your dashboard.",
+      body:
+        greet(name) +
+        para("Your account is ready. You have <strong>1 free diagnostic test</strong> waiting on your dashboard.") +
+        para("Take it to see exactly where you stand — then pick the plan that fits your preparation.") +
+        (dashboardUrl ? button("Go to my dashboard", dashboardUrl) + fallbackLink(dashboardUrl) : ""),
+    }),
 
-  subscriptionActivated: ({ name, planName, expiresAt, dashboardUrl }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Your payment was successful and your <strong>${escHtml(planName)}</strong> plan is now active${expiresAt ? ` until <strong>${escHtml(expiresAt)}</strong>` : ""}.</p>
-      <p>All tests included in your plan are now unlocked on your dashboard.</p>
-      <a href="${escHtml(dashboardUrl)}" class="btn">Go to Dashboard</a>
-    `),
+  subscriptionActivated: ({ name, planName, expiresAt, amount, dashboardUrl }) =>
+    shell({
+      title: "Your plan is active",
+      preview: `${planName} is now active on your account.`,
+      body:
+        greet(name) +
+        para("Your payment was successful and your plan is now active. Every test included in it has been unlocked on your dashboard.") +
+        panel([
+          ["Plan", planName],
+          ["Amount paid", amount ? `₹${amount}` : ""],
+          ["Access", expiresAt ? `Until ${expiresAt}` : "One-time — never expires"],
+        ]) +
+        (dashboardUrl ? button("Go to my dashboard", dashboardUrl) + fallbackLink(dashboardUrl) : ""),
+    }),
 
   adminDeleted: ({ name, deletedBy }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Your admin account on <strong>Exam Neeti</strong> has been permanently deleted by <strong>${escHtml(deletedBy)}</strong>.</p>
-      <p>You will no longer be able to log in to the admin panel.</p>
-      <p>If you believe this was done in error, please contact the platform owner.</p>
-    `),
+    shell({
+      title: "Your admin account has been removed",
+      preview: "Your access to the Exam Neeti admin console has ended.",
+      body:
+        greet(name) +
+        para(`Your admin account on ${BRAND.name} has been permanently deleted by <strong style="color:${BRAND.ink};">${escHtml(deletedBy)}</strong>. You will no longer be able to sign in to the admin console.`) +
+        para(`If you believe this was a mistake, please contact the platform owner or write to <a href="mailto:${escHtml(SUPPORT_EMAIL)}">${escHtml(SUPPORT_EMAIL)}</a>.`),
+    }),
 
-  // ── Contact form ──────────────────────────────────────────────────────────
+  // ── Contact form (internal notification) ──────────────────────────────────
   contactFormReceived: ({ name, email, reason, message }) =>
-    baseTemplate(`
-      <p>New message from the website contact form.</p>
-      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-        <tr><td style="padding:6px 0;color:#888;width:110px;">Name</td><td style="padding:6px 0;font-weight:bold;">${escHtml(name)}</td></tr>
-        <tr><td style="padding:6px 0;color:#888;">Email</td><td style="padding:6px 0;font-weight:bold;">${escHtml(email)}</td></tr>
-        <tr><td style="padding:6px 0;color:#888;">Topic</td><td style="padding:6px 0;font-weight:bold;">${escHtml(reason)}</td></tr>
-      </table>
-      <p style="color:#888;margin-bottom:4px;">Message</p>
-      <div style="background:#f4f4f4;border-radius:6px;padding:14px;white-space:pre-wrap;">${escHtml(message)}</div>
-      <p style="margin-top:16px;">Reply directly to this email to respond to ${escHtml(name)}.</p>
-    `),
+    shell({
+      title: "New contact-form message",
+      preview: `${name} · ${reason}`,
+      body:
+        para("A new message was submitted through the website contact form.") +
+        panel([
+          ["Name", name],
+          ["Email", email],
+          ["Topic", reason],
+        ]) +
+        para(`<span style="color:${BRAND.inkFaint};">Message</span>`) +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 16px;">
+           <tr><td style="padding:14px 16px;background:${BRAND.panel};border:1px solid ${BRAND.line};border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:${BRAND.ink};white-space:pre-wrap;">${escHtml(message)}</td></tr>
+         </table>` +
+        para(`Reply directly to this email to respond to ${escHtml(name)}.`),
+    }),
 
   contactAck: ({ name }) =>
-    baseTemplate(`
-      <p>Hi <strong>${escHtml(name)}</strong>,</p>
-      <p>Thanks for reaching out to <strong>Exam Neeti</strong>. We've received your message and a member of the product team will get back to you within one working day.</p>
-      <p>If your question is urgent, you can also call us at <strong>+91 98765 40000</strong> (Mon–Sat, 9 AM – 7 PM IST).</p>
-      <p>— Team Exam Neeti</p>
-    `),
+    shell({
+      title: "We've received your message",
+      preview: "A member of the team will get back to you within one working day.",
+      body:
+        greet(name) +
+        para(`Thanks for reaching out to ${BRAND.name}. Your message is with the product team and we'll get back to you within one working day.`) +
+        para(`If it's urgent, you can also reach us at <a href="mailto:${escHtml(SUPPORT_EMAIL)}">${escHtml(SUPPORT_EMAIL)}</a>.`) +
+        para(`— Team ${BRAND.name}`),
+    }),
 
-  // ── Newsletter ────────────────────────────────────────────────────────────
+  // ── Newsletter ───────────────────────────────────────────────────────────
   newsletterWelcome: ({ email }) =>
-    baseTemplate(`
-      <p>You're in.</p>
-      <p>Thanks for subscribing to <strong>Exam Neeti Strategy Briefings</strong> — weekly, no-fluff notes on mock-test strategy, percentile optimisation, and cutting negative marks.</p>
-      <p>Your first briefing lands in your inbox soon.</p>
-      <p style="color:#888;font-size:12px;margin-top:20px;">You're receiving this because <strong>${escHtml(email)}</strong> was used to subscribe on our website. Not you? Ignore this email and you won't be added.</p>
-      <p>— Team Exam Neeti</p>
-    `),
+    shell({
+      title: "You're subscribed",
+      preview: "Exam Neeti Strategy Briefings — your first one lands soon.",
+      body:
+        para(`Thanks for subscribing to <strong style="color:${BRAND.ink};">${BRAND.name} Strategy Briefings</strong> — short, practical notes on mock-test strategy, percentile optimisation and cutting negative marks.`) +
+        para("Your first briefing will land in your inbox soon.") +
+        callout(`You're receiving this because <strong>${escHtml(email)}</strong> was used to subscribe on our website. Didn't do this? Ignore this email and you won't be added.`, "info") +
+        para(`— Team ${BRAND.name}`),
+    }),
 };
 
 /**
@@ -260,14 +566,7 @@ const templates = {
  */
 const sendRawEmail = async ({ to, subject, html, replyTo }) => {
   try {
-    const transport = getTransporter();
-    await transport.sendMail({
-      from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM_ADDRESS}>`,
-      to,
-      subject,
-      html,
-      ...(replyTo ? { replyTo } : {}),
-    });
+    await deliver({ to, subject, html, replyTo });
     return true;
   } catch (err) {
     console.error(`[Email] Raw send failed to ${to}:`, err.message);
@@ -275,4 +574,4 @@ const sendRawEmail = async ({ to, subject, html, replyTo }) => {
   }
 };
 
-module.exports = { sendEmail, sendRawEmail, templates };
+module.exports = { sendEmail, sendRawEmail, templates, logTransport };

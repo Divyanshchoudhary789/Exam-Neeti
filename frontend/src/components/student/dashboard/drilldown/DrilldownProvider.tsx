@@ -166,7 +166,21 @@ export function DrilldownProvider({
                     )}
 
                     {questions.length === 0 ? (
-                      <EmptyState icon={IconChart} title="Nothing to show here" desc="No questions matched this metric for the current selection." />
+                      <EmptyState
+                        icon={IconChart}
+                        title={
+                          cfg.metric === "incorrect" || cfg.metric === "negative_marking" ? "Nothing wrong here"
+                          : cfg.metric === "unattempted" ? "You attempted them all"
+                          : cfg.metric === "attempted" || cfg.metric === "all_questions" ? "No questions in this slice"
+                          : "Nothing to show here"
+                        }
+                        desc={
+                          cfg.metric === "incorrect" ? "You got every question in this selection right — no misses to review."
+                          : cfg.metric === "negative_marking" ? "No marks were lost to wrong answers here."
+                          : cfg.metric === "unattempted" ? "Every question in this selection was attempted."
+                          : "No questions match this selection in the current sprint."
+                        }
+                      />
                     ) : (
                       <ul className="space-y-2">
                         {questions.map((q) => (

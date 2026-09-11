@@ -5,6 +5,7 @@ import { studentService } from "../../services/apiServices";
 import { Spinner, CommonModal } from "../common/UIComponents";
 import { MathRenderer } from "../common/MathRenderer";
 import { toast, confirmDialog } from "../common/feedback";
+import { BrandLogo } from "../common/BrandLogo";
 
 // ─── SVG Icons (Strictly No Emojis) ─────────────────────────────────────────
 
@@ -886,8 +887,8 @@ export function ExamPortal({
         <div className="max-w-screen-2xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3">
           {/* Brand & Exam Title */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="hidden sm:flex h-9 w-9 shrink-0 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white items-center justify-center font-black text-xs shadow-md shadow-indigo-500/20">
-              NEET
+            <div className="hidden sm:block shrink-0">
+              <BrandLogo iconOnly href={null} size="sm" />
             </div>
             <div className="min-w-0">
               <h1 className="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">{examTitle}</h1>

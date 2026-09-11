@@ -12,9 +12,45 @@ const IconUsers = () => (
   </svg>
 );
 
-const IconShield = () => (
-  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+const Icon360 = () => (
+  <svg className="h-7 w-7" viewBox="0 0 32 32" fill="none">
+    <path
+      d="M6 12.5A11 11 0 0 1 25 8.2"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M20.5 3.5 25.4 8 20.8 12.8"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M26 19.5A11 11 0 0 1 7 23.8"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+    />
+    <path
+      d="M11.5 28.5 6.6 24 11.2 19.2"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <text
+      x="16"
+      y="19.5"
+      textAnchor="middle"
+      fontSize="9"
+      fontWeight="800"
+      fill="currentColor"
+      fontFamily="inherit"
+    >
+      360°
+    </text>
   </svg>
 );
 
@@ -39,10 +75,10 @@ export function Stats() {
       icon: IconUsers,
     },
     {
-      id: "accuracy",
-      value: "94.8%",
-      label: "Accuracy Optimization Rate",
-      icon: IconShield,
+      id: "analysis",
+      value: "360°",
+      label: "Performance Analysis",
+      icon: Icon360,
     },
     {
       id: "engine",

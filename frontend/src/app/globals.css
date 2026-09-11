@@ -225,6 +225,69 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
 .animate-dash-in { animation: dashFadeUp .22s ease-out; }
 @media (prefers-reduced-motion: reduce) { .animate-dash-in { animation: none; } }
 
+/* ── Reference-design surfaces (student dashboard top-nav reskin) ─────────
+   Matches the "previous finalized" dashboard at helpful-melba-4ea3e7:
+   airy lavender page ground, crisp white cards, gradient icon tiles and a
+   coloured top-accent on entity cards (chapters / subjects). */
+:root {
+  --dash-page:        #f6f7fd;
+  --dash-page-2:      #eef1fb;
+  --dash-accent:      #4f46e5;
+}
+.dash-page {
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(124,58,237,0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 0%, rgba(79,70,229,0.05), transparent 55%),
+    var(--dash-page);
+}
+/* Top-nav bar — sticky, fully opaque. A translucent + backdrop-filter bar is
+   unreliable (some engines / embedded webviews drop the blur, leaving content
+   bleeding through), so this stays solid white for production. */
+.dash-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid var(--dash-border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 10px 24px -18px rgba(15, 23, 42, 0.15);
+}
+/* Nav item underline — the reference's active-tab treatment */
+.dash-navitem { position: relative; }
+.dash-navitem[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+}
+/* Entity card with a coloured top accent (subject / chapter cards) */
+.dash-accent-card {
+  position: relative;
+  overflow: hidden;
+}
+.dash-accent-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--accent, linear-gradient(90deg, #4f46e5, #7c3aed));
+}
+/* Gradient icon tile (KPI cards, section headers) */
+.dash-icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.85rem;
+  color: #fff;
+  background: var(--tile, linear-gradient(135deg, #4f46e5, #7c3aed));
+  box-shadow: 0 6px 16px -6px rgba(79,70,229,0.45);
+}
+/* Deep gradient panel — "Score Projection" / recoverable header */
+.dash-deep {
+  background:
+    radial-gradient(600px 240px at 90% -20%, rgba(129,140,248,0.35), transparent 60%),
+    linear-gradient(135deg, #1e1b4b 0%, #312e81 55%, #4338ca 100%);
+  color: #fff;
+}
+
 /* ── Seamless Horizontal Auto-Scroll (Marquee) ─────────────── */
 @keyframes marqueeHorizontal {
   0%   { transform: translateX(0); }

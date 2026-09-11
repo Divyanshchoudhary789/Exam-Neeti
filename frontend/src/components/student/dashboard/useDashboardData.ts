@@ -65,6 +65,7 @@ export interface ChapterPerf {
   marksObtained: number;
   accuracy: number;
   attemptRate: number;
+  avgTimeSeconds?: number;
 }
 
 export interface DifficultyBand {
@@ -84,6 +85,7 @@ export interface TopicPerf {
   correct: number;
   accuracy: number;
   attemptRate: number;
+  avgTimeSeconds?: number;
   isWeak?: boolean;
   isStrong?: boolean;
   byDifficulty?: Record<string, DifficultyBand>;
@@ -102,6 +104,20 @@ export interface DifficultyPerf {
   percentageOfTotal?: number;
 }
 
+/** `{ [subject]: { high|medium|low: { covered, total } } }` from getWeightageCoverage */
+export type WeightageCoverage = Record<
+  string,
+  { high: { covered: number; total: number }; medium: { covered: number; total: number }; low: { covered: number; total: number } }
+>;
+
+export interface CoverageMetrics {
+  syllabusCoverage?: number;
+  conceptCoverage?: number;
+  weightedCoverage?: number;
+  revisionCoverage?: number;
+  [k: string]: unknown;
+}
+
 export interface SprintAnalytics {
   summary: SprintSummary | null;
   subjectPerformance: SubjectPerf[];
@@ -111,8 +127,8 @@ export interface SprintAnalytics {
   difficultyPerformance: DifficultyPerf[];
   subjectDifficultyPerformance: Array<{ subject: string; difficulty: string; totalQuestions: number; attempted: number; correct: number; accuracy: number; attemptRate: number }>;
   errorAnalysis: { silly: number; concept: number; guess: number; total: number };
-  coverageMetrics?: Record<string, unknown>;
-  weightageCoverage?: Record<string, unknown>;
+  coverageMetrics?: CoverageMetrics;
+  weightageCoverage?: WeightageCoverage;
   timeline: TimelineEntry[];
 }
 

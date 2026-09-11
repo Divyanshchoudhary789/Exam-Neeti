@@ -29,14 +29,19 @@ const IconTrophy = ({ className = "w-7 h-7" }: { className?: string }) => (
   </svg>
 );
 
-/** Default feature list — used when a plan carries no bullets of its own. */
+/**
+ * Default feature list — used when a plan carries no bullets of its own.
+ * Kept in sync with the backend seed (`backend/scripts/seedPublicPlansAndBatches.js`
+ * → `PLAN_FEATURES`) so the static fallback and the live catalog render the same
+ * bullets and the cards don't visibly re-flow once the request resolves.
+ */
 const PLAN_FEATURES = [
-  "NCERT-aligned tests",
-  "NEET-level practice",
-  "Complete syllabus coverage",
-  "Detailed test analytics",
-  "Recoverable marks analysis",
-  "Self-review & improvement tools",
+  "NCERT-Aligned Coverage",
+  "Filtered Practice at NEET Level",
+  "Gradual Syllabus Coverage",
+  "Recoverable Marks Identified",
+  "Detailed Analytics for Every Test",
+  "Self-Reflective Tests to Improve",
 ];
 
 /** The value row under the cards. */
@@ -146,7 +151,7 @@ function shapeCatalog(raw: Plan[]): PlanCard[] {
 
 // Static fallback shown while the catalog loads or if the request fails.
 const FALLBACK = shapeCatalog([
-  { key: "signature_entry", name: "Try", priceRupees: 149, durationDays: null, testsIncluded: 2, tagline: "Experience the Exam Neeti difference.", featured: false, sortOrder: 1,
+  { key: "signature_entry", name: "Signature Entry", priceRupees: 149, durationDays: null, testsIncluded: 2, tagline: "Experience the Exam Neeti difference.", featured: false, sortOrder: 1,
     features: ["2 Full-length Tests", "NEET-level practice", "Basic performance report", "Lifetime access — never expires", "Upgrade anytime"] },
   { key: "core",  name: "Core",  priceRupees: 1999, mrpRupees: 3588, durationDays: 365, testsIncluded: 16, programType: "class_xi",  tagline: "Build the strongest base.",            featured: false, sortOrder: 2, examBreakdown: { minor: 10, semiMajor: 2, major: 4 },  features: PLAN_FEATURES },
   { key: "prime", name: "Prime", priceRupees: 2599, mrpRupees: 4788, durationDays: 365, testsIncluded: 18, programType: "class_xii", tagline: "Strengthen concepts. Perform smarter.", featured: true,  sortOrder: 3, examBreakdown: { minor: 10, semiMajor: 2, major: 6 },  features: PLAN_FEATURES },
@@ -277,7 +282,7 @@ export function Pricing({ onOpenAuth }: PricingProps) {
                 <div className="p-6 sm:p-7 flex-1 flex flex-col">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{plan.eyebrow}</span>
+                      {/* <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{plan.eyebrow}</span> */}
                       <h3 className={`${plan.name.length > 9 ? "text-2xl sm:text-[26px] leading-tight" : "text-3xl sm:text-[32px] leading-none"} font-black tracking-tight mt-1.5 ${plan.theme.name}`}>
                         {plan.name}
                       </h3>

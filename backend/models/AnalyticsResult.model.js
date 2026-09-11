@@ -37,6 +37,8 @@ const chapterBreakdownSchema = new mongoose.Schema(
     negativeMarks: Number,
     accuracy: Number,
     attemptRate: Number,
+    totalTimeSeconds: Number,
+    avgTimeSeconds: Number,
   },
   { _id: false }
 );
@@ -52,6 +54,8 @@ const topicBreakdownSchema = new mongoose.Schema(
     incorrect: Number,
     accuracy: Number,
     attemptRate: Number,
+    totalTimeSeconds: Number,
+    avgTimeSeconds: Number,
     isWeak: Boolean,
     isStrong: Boolean,
   },

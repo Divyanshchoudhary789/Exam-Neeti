@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User.model");
 const Batch = require("../models/Batch.model");
 const Attempt = require("../models/Attempt.model");
@@ -13,6 +14,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
 const { sendPaginated } = require("../utils/response");
 const { sendEmail, templates } = require("../services/email.service");
+const { clientPath } = require("../utils/clientUrl");
 const { NOTIFICATION_TRIGGER, ROLES, ADMIN_ACTIONS } = require("../config/constants");
 const { getPaginationParams, buildPaginationMeta } = require("../utils/pagination");
 const { parseStudentRoster } = require("../utils/studentRosterParser");
@@ -54,6 +56,7 @@ exports.createStudent = asyncHandler(async (req, res, next) => {
         name: student.name,
         email: student.email,
         password: plainPassword,
+        loginUrl: clientPath("/login"),
       }),
       trigger: NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
       recipientId: student._id,
@@ -125,7 +128,7 @@ async function createStudentsInBatch(students, batchId, preSkipped = []) {
         sendEmail({
           to: student.email,
           subject: "Welcome to Exam Neeti — Your Account is Ready",
-          html: templates.accountCreated({ name: student.name, email: student.email, password: plainPassword }),
+          html: templates.accountCreated({ name: student.name, email: student.email, password: plainPassword, loginUrl: clientPath("/login") }),
           trigger: NOTIFICATION_TRIGGER.ACCOUNT_CREATED,
           recipientId: student._id,
           contextRef: student._id,
@@ -219,10 +222,17 @@ exports.downloadStudentTemplate = asyncHandler(async (req, res) => {
 
 exports.listStudents = asyncHandler(async (req, res, next) => {
   const { page, limit, skip } = getPaginationParams(req.query);
-  const { batchId, search, isActive } = req.query;
+  const { search, isActive } = req.query;
+  // Frontends send the batch filter as `batch`; older callers used `batchId`.
+  const batchFilter = req.query.batch || req.query.batchId;
 
   const filter = { role: ROLES.STUDENT };
-  if (batchId) filter.batch = batchId;
+  if (batchFilter) {
+    if (!mongoose.Types.ObjectId.isValid(batchFilter)) {
+      return next(new AppError("Invalid batch id.", 400));
+    }
+    filter.batch = batchFilter;
+  }
   if (isActive !== undefined && isActive !== "") filter.isActive = isActive === "true";
   if (search) {
     const escaped = escapeRegex(search);

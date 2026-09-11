@@ -213,14 +213,15 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
     for (const c of ar.chapterAccuracy) {
       const key = `${c.subject}__${c.chapter}`;
       if (!chapterAgg[key]) {
-        chapterAgg[key] = { subject: c.subject, chapter: c.chapter, totalQuestions: 0, attempted: 0, correct: 0, incorrect: 0, marksObtained: 0 };
+        chapterAgg[key] = { subject: c.subject, chapter: c.chapter, totalQuestions: 0, attempted: 0, correct: 0, incorrect: 0, marksObtained: 0, totalTimeSeconds: 0 };
       }
       const agg = chapterAgg[key];
-      agg.totalQuestions += c.totalQuestions || 0;
-      agg.attempted      += c.attempted      || 0;
-      agg.correct        += c.correct        || 0;
-      agg.incorrect      += c.incorrect      || 0;
-      agg.marksObtained  += c.marksObtained  || 0;
+      agg.totalQuestions   += c.totalQuestions   || 0;
+      agg.attempted        += c.attempted        || 0;
+      agg.correct          += c.correct          || 0;
+      agg.incorrect        += c.incorrect        || 0;
+      agg.marksObtained    += c.marksObtained    || 0;
+      agg.totalTimeSeconds += c.totalTimeSeconds || 0;
     }
   }
 
@@ -228,6 +229,7 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
     ...c,
     accuracy:    parseFloat(((c.correct   / Math.max(c.attempted,      1)) * 100).toFixed(2)),
     attemptRate: parseFloat(((c.attempted / Math.max(c.totalQuestions, 1)) * 100).toFixed(2)),
+    avgTimeSeconds: parseFloat((c.totalTimeSeconds / Math.max(c.totalQuestions, 1)).toFixed(1)),
   }));
 
   // Topic aggregates — thresholds from FormulaConfig (falls back to defaults)
@@ -246,11 +248,12 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
     for (const t of ar.topicAccuracy) {
       const key = `${t.subject}__${t.chapter}__${t.topic}`;
       if (!topicAgg[key]) {
-        topicAgg[key] = { subject: t.subject, chapter: t.chapter, topic: t.topic, totalQuestions: 0, attempted: 0, correct: 0 };
+        topicAgg[key] = { subject: t.subject, chapter: t.chapter, topic: t.topic, totalQuestions: 0, attempted: 0, correct: 0, totalTimeSeconds: 0 };
       }
-      topicAgg[key].totalQuestions += t.totalQuestions || 0;
-      topicAgg[key].attempted      += t.attempted      || 0;
-      topicAgg[key].correct        += t.correct        || 0;
+      topicAgg[key].totalQuestions   += t.totalQuestions   || 0;
+      topicAgg[key].attempted        += t.attempted        || 0;
+      topicAgg[key].correct          += t.correct          || 0;
+      topicAgg[key].totalTimeSeconds += t.totalTimeSeconds || 0;
     }
   }
 
@@ -291,6 +294,7 @@ exports.getStudentSprintSummary = asyncHandler(async (req, res, next) => {
       ...t,
       accuracy,
       attemptRate: parseFloat(((t.attempted / Math.max(t.totalQuestions, 1)) * 100).toFixed(2)),
+      avgTimeSeconds: parseFloat((t.totalTimeSeconds / Math.max(t.totalQuestions, 1)).toFixed(1)),
       isWeak:   t.attempted > 0 && accuracy <  weakThreshold,
       isStrong: t.attempted > 0 && accuracy >= strongThreshold,
       byDifficulty,
@@ -528,6 +532,13 @@ const INSIGHT_METRICS = Object.freeze({
   unattempted:       { source: "response", predicate: (r) => !r.isAttempted,                            reason: "Left unattempted" },
   correct:           { source: "response", predicate: (r) => r.isCorrect === true,                      reason: "Correct" },
   weak_topic:        { source: "response", predicate: (r) => r.isAttempted,                             reason: "Weak topic" },
+  // Every question the student attempted — used by the difficulty / chapter
+  // drill-downs where the caller wants the whole set, not just the misses.
+  attempted:         { source: "response", predicate: (r) => r.isAttempted,
+                       reason: (r) => (r.isCorrect === false ? "Incorrect" : r.isCorrect ? "Correct" : "Attempted") },
+  // Every question in the paper (attempted or not) at the current filter.
+  all_questions:     { source: "response", predicate: () => true,
+                       reason: (r) => (!r.isAttempted ? "Not attempted" : r.isCorrect === false ? "Incorrect" : "Correct") },
 });
 
 exports.getSprintQuestionInsights = asyncHandler(async (req, res, next) => {
@@ -599,7 +610,10 @@ exports.getSprintQuestionInsights = asyncHandler(async (req, res, next) => {
 
     if (config.source === "response") {
       for (const r of respMap.values()) {
-        if (config.predicate(r, ctx)) targets.push({ attemptId: aId, slotPosition: r.slotPosition, reason: config.reason });
+        if (config.predicate(r, ctx)) {
+          const reason = typeof config.reason === "function" ? config.reason(r) : config.reason;
+          targets.push({ attemptId: aId, slotPosition: r.slotPosition, reason });
+        }
       }
     } else if (config.source === "result") {
       const list = resultByAttempt.get(aId)?.[config.field] || [];

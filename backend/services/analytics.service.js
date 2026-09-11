@@ -154,10 +154,12 @@ const computeAnalytics = async (attempt) => {
         unattempted: 0,
         marksObtained: 0,
         negativeMarks: 0,
+        totalTimeSeconds: 0,
       };
     }
     const c = chapterMap[key];
     c.totalQuestions++;
+    c.totalTimeSeconds += r.timeSpentSeconds || 0;
     if (r.isAttempted) {
       c.attempted++;
       if (r.isCorrect) {
@@ -177,6 +179,7 @@ const computeAnalytics = async (attempt) => {
     ...c,
     accuracy: roundTo(safeDiv(c.correct, c.attempted) * 100),
     attemptRate: roundTo(safeDiv(c.attempted, c.totalQuestions) * 100),
+    avgTimeSeconds: roundTo(safeDiv(c.totalTimeSeconds, c.totalQuestions)),
   }));
 
   // Group by topic
@@ -192,10 +195,12 @@ const computeAnalytics = async (attempt) => {
         attempted: 0,
         correct: 0,
         incorrect: 0,
+        totalTimeSeconds: 0,
       };
     }
     const t = topicMap[key];
     t.totalQuestions++;
+    t.totalTimeSeconds += r.timeSpentSeconds || 0;
     if (r.isAttempted) {
       t.attempted++;
       if (r.isCorrect) t.correct++;
@@ -213,6 +218,7 @@ const computeAnalytics = async (attempt) => {
       ...t,
       accuracy,
       attemptRate: roundTo(safeDiv(t.attempted, t.totalQuestions) * 100),
+      avgTimeSeconds: roundTo(safeDiv(t.totalTimeSeconds, t.totalQuestions)),
       isWeak: t.attempted > 0 && accuracy < weakThreshold,
       isStrong: t.attempted > 0 && accuracy >= strongThreshold,
     };

@@ -51,7 +51,7 @@ export function About() {
               At Exam Neeti, we don&apos;t just provide practice questions. We analyze mock test data using advanced mathematical algorithms to pinpoint exactly where students lose marks.
             </p>
             <p className="text-sm sm:text-base leading-relaxed text-slate-600 font-normal">
-              Whether you are preparing for NEET, JEE, or UPSC, our analytics engine monitors pacing profiles, guess attempts, and chapter accuracy thresholds to build a personalized pathway for consistent score improvement.
+              Built exclusively for NEET, our analytics engine monitors pacing profiles, guess attempts, and chapter accuracy thresholds to build a personalized pathway for consistent score improvement.
             </p>
 
             <div className="grid grid-cols-2 gap-6 pt-5 border-t border-slate-200">

@@ -269,7 +269,12 @@ function AccuracyLens({ data }: { data: DashboardData }) {
             }}
             onCellClick={(row, col) => {
               const [subject, chapter] = row.split(" · ");
-              open({ title: `${chapter} · ${col} · incorrect`, subtitle: subject, metric: "incorrect", params: { subject, chapter, difficulty: col } });
+              open({
+                title: `${chapter} · ${col[0].toUpperCase()}${col.slice(1)}`,
+                subtitle: `${subject} — every question you attempted at this difficulty`,
+                metric: "attempted",
+                params: { subject, chapter, difficulty: col },
+              });
             }}
           />
         </SectionCard>

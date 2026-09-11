@@ -228,6 +228,7 @@ const startServer = async () => {
       console.log(
         `[App] Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
       );
+      require("./services/email.service").logTransport();
     });
 
     // ─── Graceful Shutdown ────────────────────────────────────────────────────

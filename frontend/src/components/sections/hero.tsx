@@ -239,6 +239,8 @@ const HERO_IMAGE_SEAM =
 /** Shared shell + label style for the three floating stat cards. */
 const HERO_CARD_SHELL =
   "w-[212px] rounded-2xl bg-white p-4 shadow-[0_16px_40px_-10px_rgba(15,23,42,0.22)] ring-1 ring-slate-900/[0.04] transition-transform duration-300 hover:-translate-y-1";
+/** Same shell with tighter vertical padding — used by the two slimmer cards. */
+const HERO_CARD_SHELL_COMPACT = `${HERO_CARD_SHELL} !py-3`;
 const HERO_CARD_LABEL = "text-[11px] font-semibold text-slate-500";
 
 /**
@@ -332,41 +334,94 @@ function UpTick({ className = "h-3 w-3" }: { className?: string }) {
   );
 }
 
-function ScorePredictionCard({ score }: { score: number }) {
+/** Faint circled "i" that sits beside a card label, mirroring the product UI. */
+function InfoDot({ className = "h-3 w-3" }: { className?: string }) {
   return (
-    <div className={`${HERO_CARD_SHELL} relative overflow-hidden`}>
-      <p className={HERO_CARD_LABEL}>Score Prediction</p>
-      <div className="mt-1.5 flex items-baseline gap-1.5">
-        <span className="font-sans text-[30px] font-extrabold leading-none tracking-tight text-slate-900">
-          {score}
-        </span>
-        <span className="text-[13px] font-medium text-slate-400">/720</span>
+    <svg className={`${className} text-slate-300`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2">
+      <circle cx="12" cy="12" r="9" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 11.5v4.5M12 8h.01" />
+    </svg>
+  );
+}
+
+/** Descending trend glyph used by the "weakest chapter" marker. */
+function TrendDown({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l6 6 4-4 8 8m0 0h-5m5 0v-5" />
+    </svg>
+  );
+}
+
+/** Score-trajectory across the aspirant's last four mock tests. */
+function ScoreTrendCard({ delta }: { delta: number }) {
+  // Four most-recent scaled scores; the card reads as a steady climb.
+  const marks = [548, 571, 604, 637];
+  const min = Math.min(...marks);
+  const max = Math.max(...marks);
+  const pts = marks.map((m, i) => ({
+    x: 14 + (i * 152) / (marks.length - 1),
+    y: 30 - ((m - min) / (max - min)) * 24,
+    m,
+  }));
+  const line = pts.map((p) => `${p.x},${p.y}`).join(" ");
+  const area =
+    `M${pts[0].x},36 ` +
+    pts.map((p) => `L${p.x},${p.y} `).join("") +
+    `L${pts[pts.length - 1].x},36 Z`;
+
+  return (
+    <div className={`${HERO_CARD_SHELL_COMPACT} relative overflow-hidden`}>
+      <div className="flex items-center gap-1">
+        <p className={HERO_CARD_LABEL}>Score Trend</p>
+        <InfoDot />
       </div>
-      <p className="mt-2 flex items-center gap-1 text-[12px] font-semibold text-emerald-600">
-        <UpTick className="h-3 w-3" />
-        33 Marks
+      <p className="mt-0.5 flex items-center gap-1 font-sans text-[18px] font-extrabold leading-none tracking-tight text-emerald-600">
+        <UpTick className="h-3.5 w-3.5" />+{delta} Marks
       </p>
-      {/* Rising area chart, tucked into the lower-right corner */}
-      <div className="pointer-events-none absolute bottom-3 right-3 h-[44px] w-[116px]">
-        <svg viewBox="0 0 116 44" preserveAspectRatio="none" className="h-full w-full">
+      <p className="mt-0.5 text-[10.5px] font-medium text-slate-400">Over last 3 tests</p>
+      <div className="pointer-events-none mt-1 h-[26px] w-full">
+        <svg viewBox="0 0 180 38" preserveAspectRatio="none" className="h-full w-full overflow-visible">
           <defs>
-            <linearGradient id="heroScoreGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.32" />
+            <linearGradient id="heroTrendGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.28" />
               <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <path
-            d="M0 34 L14 30 L26 32 L40 22 L52 25 L66 15 L80 18 L94 8 L116 3 L116 44 L0 44 Z"
-            fill="url(#heroScoreGrad)"
-          />
-          <path
-            d="M0 34 L14 30 L26 32 L40 22 L52 25 L66 15 L80 18 L94 8 L116 3"
+          <path d={area} fill="url(#heroTrendGrad)" />
+          <polyline
+            points={line}
             fill="none"
             stroke="#4f46e5"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          {pts.map((p, i) => {
+            const last = i === pts.length - 1;
+            return (
+              <g key={p.m}>
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={last ? 3 : 2.2}
+                  fill="#fff"
+                  stroke={last ? "#4338ca" : "#818cf8"}
+                  strokeWidth="1.6"
+                />
+                <text
+                  x={p.x}
+                  y={p.y - 6}
+                  textAnchor="middle"
+                  fontSize="7.5"
+                  fontWeight={last ? 800 : 600}
+                  fill={last ? "#4338ca" : "#94a3b8"}
+                >
+                  {p.m}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       </div>
     </div>
@@ -414,21 +469,31 @@ function AccuracyCard({ accuracy }: { accuracy: number }) {
   );
 }
 
-function WeakestChapterCard({ weakest }: { weakest: number }) {
+function WeakestChapterCard({ marksLost }: { marksLost: number }) {
   return (
-    <div className={HERO_CARD_SHELL}>
-      <p className={HERO_CARD_LABEL}>Weakest Chapter</p>
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <div className="leading-tight">
-          <div className="font-sans text-[15px] font-extrabold text-slate-900">Physics</div>
-          <div className="mt-0.5 text-[12px] font-normal text-slate-500">Mechanics</div>
+    <div className={HERO_CARD_SHELL_COMPACT}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-1">
+          <p className={HERO_CARD_LABEL}>Weakest Chapter</p>
+          <InfoDot />
         </div>
-        <span className="text-[12px] font-bold text-rose-500">{weakest}%</span>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-500">
+          <TrendDown className="h-2.5 w-2.5" />
+        </span>
       </div>
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+      <div className="mt-0.5 font-sans text-[13px] font-extrabold leading-[1.05] text-slate-900">
+        Physics
+        <br />
+        Kinematics
+      </div>
+      <div className="mt-1 flex items-end justify-between">
+        <span className="text-[11px] font-semibold text-rose-500">Marks Lost</span>
+        <span className="font-sans text-[17px] font-extrabold leading-none text-rose-500">{marksLost}</span>
+      </div>
+      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-rose-100">
         <div
           className="h-full rounded-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-1000 ease-out"
-          style={{ width: `${weakest}%` }}
+          style={{ width: "76%" }}
         />
       </div>
     </div>
@@ -545,16 +610,16 @@ function SplitHero({
   slide,
   slideIndex,
   onOpenAuth,
-  score,
+  trendDelta,
   accuracy,
-  weakest,
+  marksLost,
 }: {
   slide: HeroSlide;
   slideIndex: number;
   onOpenAuth: HeroProps["onOpenAuth"];
-  score: number;
+  trendDelta: number;
   accuracy: number;
-  weakest: number;
+  marksLost: number;
 }) {
   return (
     <div className="grid w-full grid-cols-1 items-center gap-6 lg:grid-cols-12 lg:gap-8 min-h-[420px] lg:min-h-[470px]">
@@ -585,15 +650,15 @@ function SplitHero({
             <div className="animate-marquee-infinite flex items-center gap-3.5">
               {/* Track Set 1 */}
               <div className="flex items-center gap-3.5 shrink-0">
-                <ScorePredictionCard score={score} />
+                <ScoreTrendCard delta={trendDelta} />
                 <AccuracyCard accuracy={accuracy} />
-                <WeakestChapterCard weakest={weakest} />
+                <WeakestChapterCard marksLost={marksLost} />
               </div>
               {/* Track Set 2 (Duplicated for infinite seamless loop) */}
               <div className="flex items-center gap-3.5 shrink-0">
-                <ScorePredictionCard score={score} />
+                <ScoreTrendCard delta={trendDelta} />
                 <AccuracyCard accuracy={accuracy} />
-                <WeakestChapterCard weakest={weakest} />
+                <WeakestChapterCard marksLost={marksLost} />
               </div>
             </div>
           </div>
@@ -639,7 +704,7 @@ function SplitHero({
           aria-hidden={slideIndex !== 0}
         >
           <div className="animate-float" style={{ animationDelay: "0s" }}>
-            <ScorePredictionCard score={score} />
+            <ScoreTrendCard delta={trendDelta} />
           </div>
 
           <div className="animate-float" style={{ animationDelay: "0.8s" }}>
@@ -647,7 +712,7 @@ function SplitHero({
           </div>
 
           <div className="animate-float" style={{ animationDelay: "1.6s" }}>
-            <WeakestChapterCard weakest={weakest} />
+            <WeakestChapterCard marksLost={marksLost} />
           </div>
         </div>
       </div>
@@ -742,9 +807,9 @@ function useSlideCrossfade(rawIndex: number) {
 }
 
 export function Hero({ onOpenAuth }: HeroProps) {
-  const score = useCountUp(645, 1400);
+  const trendDelta = useCountUp(33, 1400);
   const accuracy = useCountUp(82, 1400);
-  const weakest = useCountUp(58, 1400);
+  const marksLost = useCountUp(18, 1400);
 
   const rawIndex = useHeroRotator(HERO_SLIDES.length, HERO_ROTATE_INTERVAL_MS);
   const { shownIndex: slideIndex, fadingOut } = useSlideCrossfade(rawIndex);
@@ -815,9 +880,9 @@ export function Hero({ onOpenAuth }: HeroProps) {
               slide={slide}
               slideIndex={slideIndex}
               onOpenAuth={onOpenAuth}
-              score={Number(score)}
+              trendDelta={Number(trendDelta)}
               accuracy={Number(accuracy)}
-              weakest={Number(weakest)}
+              marksLost={Number(marksLost)}
             />
           )}
         </div>

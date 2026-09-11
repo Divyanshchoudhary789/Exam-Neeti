@@ -60,7 +60,7 @@ export function questionOutcomes(subjects: SprintAnalytics["subjectPerformance"]
   );
 }
 
-export const SUBJECT_ORDER = ["physics", "chemistry", "biology"];
+export const SUBJECT_ORDER = ["physics", "chemistry", "biology", "mathematics", "maths"];
 export const orderSubjects = <T extends { subject: string }>(rows: T[]): T[] =>
   [...rows].sort((a, b) => SUBJECT_ORDER.indexOf(a.subject?.toLowerCase()) - SUBJECT_ORDER.indexOf(b.subject?.toLowerCase()));
 

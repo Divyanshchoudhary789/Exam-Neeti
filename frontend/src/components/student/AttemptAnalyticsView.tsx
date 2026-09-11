@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { MathRenderer } from "../common/MathRenderer";
 import {
   IconChart, IconClock, IconCross,
-  IconChevronLeft, IconChevronRight,
+  IconChevronLeft, IconChevronRight, IconChevronDown,
   IconCheck, IconEye, Spinner,
   IconAlertTriangle, IconTarget,
   FormulaInfo,
 } from "../common/UIComponents";
 import { RadialMeter, DonutChart } from "../common/Charts";
+import { subjectColor, subjectGradient } from "../common/DashboardUI";
 import { studentService } from "../../services/apiServices";
 import { AttemptMetricsFramework } from "./AttemptMetricsFramework";
 import type { MQResponse } from "./MetricQuestionsModal";
@@ -78,8 +79,10 @@ interface AttemptAnalyticsViewProps {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const formatTime = (secs: number) =>
-  `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s`;
+const formatTime = (secs: number) => {
+  const s = Math.round(Number(secs) || 0);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+};
 
 const imgUrl = (img?: CloudinaryImage | null): string | null =>
   img?.url || null;
@@ -102,6 +105,9 @@ export function AttemptAnalyticsView({
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [statusFilter, setStatusFilter]   = useState("all");
   const [selectedIdx, setSelectedIdx]     = useState<number | null>(null);
+  // When the modal is opened from a Chapter/Topic card it navigates only within
+  // that card's question set (null = free navigation across every response).
+  const [modalScope, setModalScope]      = useState<{ idxs: number[]; label: string } | null>(null);
   // Metric drill-down: a clicked metric tile narrows the Solutions tab to the
   // exact questions behind that number.
   const [flagged, setFlagged] = useState<{ slots: Set<number>; label: string } | null>(null);
@@ -166,11 +172,27 @@ export function AttemptAnalyticsView({
   }, [initialAttemptDetails, attemptId]);
 
   // ── Modal keyboard nav ────────────────────────────────────────────────────
-  const closeModal = useCallback(() => setSelectedIdx(null), []);
+  const closeModal = useCallback(() => { setSelectedIdx(null); setModalScope(null); }, []);
   const goPrev = useCallback(() =>
-    setSelectedIdx(p => p !== null ? Math.max(0, p - 1) : null), []);
+    setSelectedIdx(p => {
+      if (p === null) return null;
+      const scope = modalScope?.idxs;
+      if (scope && scope.length) {
+        const pos = scope.indexOf(p);
+        return pos > 0 ? scope[pos - 1] : p;
+      }
+      return Math.max(0, p - 1);
+    }), [modalScope]);
   const goNext = useCallback((len: number) =>
-    setSelectedIdx(p => p !== null ? Math.min(len - 1, p + 1) : null), []);
+    setSelectedIdx(p => {
+      if (p === null) return null;
+      const scope = modalScope?.idxs;
+      if (scope && scope.length) {
+        const pos = scope.indexOf(p);
+        return pos >= 0 && pos < scope.length - 1 ? scope[pos + 1] : p;
+      }
+      return Math.min(len - 1, p + 1);
+    }), [modalScope]);
 
   useEffect(() => {
     if (selectedIdx === null) return;
@@ -263,8 +285,60 @@ export function AttemptAnalyticsView({
   const difficultySummary = (analytics.difficultySummary as Record<string, unknown>[]) || [];
   const subjectTimeDistribution = (analytics.subjectTimeDistribution as Record<string, unknown>[]) || [];
   const topicAccuracy = (analytics.topicAccuracy as Record<string, unknown>[]) || [];
+  const chapterAccuracy = (analytics.chapterAccuracy as Record<string, unknown>[]) || [];
+  const topicDifficultyAccuracy = (analytics.topicDifficultyAccuracy as Record<string, unknown>[]) || [];
   const recoverableMarks = (analytics.recoverableMarks as Record<string, unknown>) || {};
   const personalAverages = attemptDetails.personalAverages as Record<string, unknown> | null;
+
+  // ── Chapter & Topic analysis for THIS test ────────────────────────────────
+  // Same shape / UI language as the sprint-level Chapters tab, but scoped to
+  // the one attempt and wired to the Solutions-tab drill-down (by slot).
+  const slotsFor = (predicate: (r: ResponseItem) => boolean) =>
+    enrichedResponses.filter(predicate).map((r) => Number(r.slotPosition)).filter(Number.isFinite);
+
+  const chapterAnalysis = chapterAccuracy
+    .map((c) => {
+      const subject = String(c.subject || "");
+      const chapter = String(c.chapter || "");
+      const topics = topicAccuracy
+        .filter((t) => String(t.subject) === subject && String(t.chapter) === chapter)
+        .map((t) => {
+          const topic = String(t.topic || "");
+          const byDifficulty = (["easy", "medium", "hard"] as const)
+            .map((d) => topicDifficultyAccuracy.find(
+              (td) => String(td.subject) === subject && String(td.chapter) === chapter && String(td.topic) === topic && String(td.difficulty).toLowerCase() === d,
+            ))
+            .filter((x): x is Record<string, unknown> => Boolean(x))
+            .map((td) => ({
+              difficulty: String(td.difficulty),
+              accuracy: Number(td.accuracy ?? 0),
+              attemptRate: Number(td.attemptRate ?? 0),
+            }));
+          return {
+            topic,
+            accuracy: Number(t.accuracy ?? 0),
+            attempted: Number(t.attempted ?? 0),
+            totalQuestions: Number(t.totalQuestions ?? 0),
+            avgTimeSeconds: Number(t.avgTimeSeconds ?? 0),
+            byDifficulty,
+            slots: slotsFor((r) => String(r.questionData?.subject || r.subject || "") === subject && String(r.questionData?.topic || "") === topic),
+          };
+        });
+      return {
+        subject,
+        chapter,
+        accuracy: Number(c.accuracy ?? 0),
+        attemptRate: Number(c.attemptRate ?? 0),
+        attempted: Number(c.attempted ?? 0),
+        incorrect: Number(c.incorrect ?? 0),
+        totalQuestions: Number(c.totalQuestions ?? 0),
+        marksObtained: Number(c.marksObtained ?? 0),
+        avgTimeSeconds: Number(c.avgTimeSeconds ?? 0),
+        topics,
+        slots: slotsFor((r) => String(r.questionData?.subject || r.subject || "") === subject && String(r.questionData?.chapter || "") === chapter),
+      };
+    })
+    .sort((a, b) => a.accuracy - b.accuracy);
 
   const attemptRatePct = Number(analytics.overallAttemptRate ?? 0);
   const unattemptedCount = Number(analytics.totalUnattempted ?? basicAnalytics?.totalUnattempted ?? 0);
@@ -310,6 +384,20 @@ export function AttemptAnalyticsView({
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Open the question-detail modal directly on a set of questions (by slot),
+  // landing on the first one and navigating only within that set. Used by the
+  // Chapter & Topic cards so a tap shows the question itself, not a filtered tab.
+  const openQuestionsBySlots = (slots: number[], label: string) => {
+    const idxs = slots
+      .map(Number)
+      .filter(Number.isFinite)
+      .map((slot) => enrichedResponses.findIndex((r) => Number(r.slotPosition) === slot))
+      .filter((i) => i >= 0);
+    if (idxs.length === 0) return;
+    setModalScope({ idxs, label });
+    setSelectedIdx(idxs[0]);
+  };
+
   const statusMeta = (r: ResponseItem) => {
     if (r.isCorrect)      return { label: "Correct",     cls: "bg-emerald-50 border-emerald-300 text-emerald-800" };
     if (r.selectedAnswer) return { label: "Incorrect",   cls: "bg-red-50 border-red-300 text-red-800" };
@@ -324,6 +412,10 @@ export function AttemptAnalyticsView({
 
   // ── Selected response for modal ───────────────────────────────────────────
   const selectedResp = selectedIdx !== null ? enrichedResponses[selectedIdx] : null;
+  // Ordered list the modal's prev/next steps through — a scoped subset when the
+  // modal was opened from a Chapter/Topic card, otherwise every response.
+  const modalList = modalScope?.idxs?.length ? modalScope.idxs : enrichedResponses.map((_, i) => i);
+  const modalPos = selectedIdx !== null ? modalList.indexOf(selectedIdx) : -1;
   const qData        = selectedResp?.questionData as QuestionData | undefined;
   const solObj       = qData?.solution;
   const solText      = solObj?.text || "";
@@ -593,6 +685,25 @@ export function AttemptAnalyticsView({
         </div>
       )}
 
+      {/* ── Chapter & Topic Analysis for this test ─────────────────────────── */}
+      {activeTab === "overview" && chapterAnalysis.length > 0 && (
+        <div className="dash-card p-4 sm:p-5 space-y-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <IconTarget className="w-4 h-4 text-indigo-600 shrink-0" />Chapter &amp; Topic Analysis
+            </h3>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              {chapterAnalysis.length} chapter{chapterAnalysis.length !== 1 ? "s" : ""} covered in this test · tap a row for its questions
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {chapterAnalysis.map((c) => (
+              <AttemptChapterCard key={`${c.subject}-${c.chapter}`} c={c} onOpenQuestions={openQuestionsBySlots} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Error Analysis — silly mistake / conceptual / guess split ───────── */}
       {activeTab === "overview" && totalErrorEvents > 0 && (
         <div className="dash-card p-4 sm:p-5 space-y-4">
@@ -791,24 +902,33 @@ export function AttemptAnalyticsView({
                 }`}>
                   {selectedIdx + 1}
                 </span>
-                <p className="text-xs sm:text-sm font-black text-slate-900 truncate">Solution &amp; Analysis</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-black text-slate-900 truncate">
+                    {modalScope ? modalScope.label : "Solution & Analysis"}
+                  </p>
+                  {modalScope && (
+                    <p className="text-[10px] font-bold text-slate-400 truncate">
+                      {modalPos + 1} of {modalList.length} question{modalList.length !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={goPrev}
-                  disabled={selectedIdx === 0}
+                  disabled={modalPos <= 0}
                   className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors disabled:opacity-40"
                   aria-label="Previous question"
                 >
                   <IconChevronLeft className="w-4 h-4" />
                 </button>
                 <span className="text-[10px] font-extrabold text-slate-400 px-1 tabular-nums whitespace-nowrap">
-                  {selectedIdx + 1}/{enrichedResponses.length}
+                  {modalPos + 1}/{modalList.length}
                 </span>
                 <button
                   onClick={() => goNext(enrichedResponses.length)}
-                  disabled={selectedIdx === enrichedResponses.length - 1}
+                  disabled={modalPos >= modalList.length - 1}
                   className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors disabled:opacity-40"
                   aria-label="Next question"
                 >
@@ -1010,6 +1130,146 @@ function StatCard({
         </h2>
       </div>
       <p className="text-[10px] text-slate-400 font-semibold">{sub}</p>
+    </div>
+  );
+}
+
+// ─── Chapter card for a single attempt's analysis ────────────────────────────
+// Mirrors the sprint-level Chapters tab card (accent bar, ring %, tiles,
+// expandable topics with per-difficulty bars) for UI consistency.
+interface AttemptChapterData {
+  subject: string;
+  chapter: string;
+  accuracy: number;
+  attemptRate: number;
+  attempted: number;
+  incorrect: number;
+  totalQuestions: number;
+  marksObtained: number;
+  avgTimeSeconds: number;
+  slots: number[];
+  topics: {
+    topic: string;
+    accuracy: number;
+    attempted: number;
+    totalQuestions: number;
+    avgTimeSeconds: number;
+    byDifficulty: { difficulty: string; accuracy: number; attemptRate: number }[];
+    slots: number[];
+  }[];
+}
+
+const attBand = (acc: number) =>
+  acc >= 80 ? { l: "excellent", c: "bg-emerald-50 text-emerald-700" }
+  : acc >= 65 ? { l: "good", c: "bg-teal-50 text-teal-700" }
+  : acc >= 45 ? { l: "average", c: "bg-amber-50 text-amber-700" }
+  : acc >= 30 ? { l: "weak", c: "bg-orange-50 text-orange-700" }
+  : { l: "critical", c: "bg-rose-50 text-rose-700" };
+
+function AttemptChapterCard({
+  c,
+  onOpenQuestions,
+}: {
+  c: AttemptChapterData;
+  onOpenQuestions: (slots: number[], label: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const b = attBand(c.accuracy);
+  const maxMarks = c.totalQuestions * 4;
+
+  return (
+    <div className="dash-card dash-accent-card overflow-hidden" style={{ ["--accent" as string]: subjectGradient(c.subject) }}>
+      <div className="p-4 space-y-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ backgroundColor: `${subjectColor(c.subject)}18`, color: subjectColor(c.subject) }}>{c.subject}</span>
+              <span className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${b.c}`}>{b.l}</span>
+            </div>
+            <h4 className="text-sm font-black text-slate-900 mt-1 leading-tight">{c.chapter}</h4>
+          </div>
+          <RadialMeter value={c.accuracy} size={54} strokeWidth={6} color={subjectColor(c.subject)} />
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5">
+          <button
+            onClick={() => c.slots.length && onOpenQuestions(c.slots, c.chapter)}
+            disabled={!c.slots.length}
+            className="dash-inset p-2 text-center enabled:cursor-pointer enabled:hover:border-indigo-300 disabled:opacity-100"
+          >
+            <p className="text-[9px] font-extrabold uppercase text-slate-400">Attempt</p>
+            <p className="text-sm font-black text-slate-700 tabular-nums">{c.attemptRate.toFixed(0)}%</p>
+          </button>
+          <div className="dash-inset p-2 text-center">
+            <p className="text-[9px] font-extrabold uppercase text-slate-400">Marks</p>
+            <p className="text-sm font-black text-slate-700 tabular-nums">{c.marksObtained}<span className="text-slate-400 text-[10px]">/{maxMarks}</span></p>
+          </div>
+          <div className="dash-inset p-2 text-center">
+            <p className="text-[9px] font-extrabold uppercase text-slate-400">Avg Time</p>
+            <p className="text-sm font-black text-slate-700 tabular-nums">{c.avgTimeSeconds > 0 ? formatTime(c.avgTimeSeconds) : "—"}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400">
+          <span className="inline-flex items-center gap-1"><IconCheck className="w-3 h-3 text-slate-400" />{c.attempted} attempted</span>
+          <span className="inline-flex items-center gap-1"><IconCross className="w-3 h-3 text-rose-400" />{c.incorrect} incorrect</span>
+        </div>
+
+        {c.topics.length > 0 && (
+          <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-1 text-[11px] font-bold text-slate-500 hover:text-indigo-600 pt-1 cursor-pointer rounded-lg dash-inset px-3 py-2">
+            {expanded ? "Hide topics" : `View ${c.topics.length} topic${c.topics.length !== 1 ? "s" : ""} inside`}
+            <IconChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {expanded && c.topics.length > 0 && (
+        <div className="border-t border-slate-100 bg-slate-50/60 p-3 space-y-2.5">
+          {c.topics.map((t) => {
+            const tb = attBand(t.accuracy);
+            return (
+              <div key={t.topic} className="rounded-xl bg-white border border-slate-100 p-2.5">
+                <button
+                  onClick={() => t.slots.length && onOpenQuestions(t.slots, t.topic)}
+                  disabled={!t.slots.length}
+                  className="w-full flex items-center gap-2 text-left enabled:cursor-pointer"
+                >
+                  <span className="w-1 h-6 rounded-full shrink-0" style={{ backgroundColor: subjectColor(c.subject) }} />
+                  <span className="text-[11px] font-bold text-slate-700 truncate flex-1 min-w-0">{t.topic}</span>
+                  <span className={`text-[8.5px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${tb.c}`}>{tb.l}</span>
+                  <span className="text-[10px] font-black tabular-nums text-slate-500 w-8 text-right shrink-0">{t.accuracy.toFixed(0)}%</span>
+                </button>
+                {t.byDifficulty.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-slate-100">
+                    {(["attemptRate", "accuracy"] as const).map((col) => (
+                      <div key={col}>
+                        <p className="text-[9px] font-extrabold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1">
+                          <IconClock className="w-2.5 h-2.5" />{col === "attemptRate" ? "Attempt Rate by Difficulty" : "Accuracy by Difficulty"}
+                        </p>
+                        <div className="space-y-1">
+                          {t.byDifficulty.map((d) => {
+                            const v = d[col];
+                            const cl = d.difficulty === "easy" ? "#22c55e" : d.difficulty === "medium" ? "#f59e0b" : "#ef4444";
+                            return (
+                              <div key={d.difficulty} className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-slate-500 capitalize w-9 shrink-0">{d.difficulty}</span>
+                                <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: cl }} />
+                                </div>
+                                <span className="text-[9px] font-black tabular-nums text-slate-500 w-7 text-right shrink-0">{v.toFixed(0)}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

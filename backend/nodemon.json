@@ -1,0 +1,6 @@
+{
+  "watch": ["index.js", "config", "controllers", "middleware", "models", "routes", "services", "utils", "validators", ".env"],
+  "ext": "js,json,env",
+  "ignore": ["node_modules", "scripts", "**/*.test.js"],
+  "delay": "250"
+}

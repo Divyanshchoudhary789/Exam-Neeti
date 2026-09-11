@@ -679,6 +679,200 @@ export function Heatmap({
   );
 }
 
+// ─── Multi-Line Chart — 2-3 series on one 0-100 axis, toggleable legend ─────
+// Reference "Score Trend" plots Score %, Accuracy % and Attempt Rate % together.
+export interface LineSeries {
+  label: string;
+  color: string;
+  values: number[]; // one per x tick, same length as `labels`
+}
+
+export function MultiLineChart({
+  labels,
+  series,
+  height = 220,
+  yMax = 100,
+  valueSuffix = "%",
+}: {
+  labels: string[];
+  series: LineSeries[];
+  height?: number;
+  yMax?: number;
+  valueSuffix?: string;
+}) {
+  const width = 640;
+  const padL = 26, padR = 10, padT = 14, padB = 22;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const n = labels.length;
+  if (n < 2) {
+    return <div className="flex items-center justify-center py-10 text-xs font-semibold text-slate-400">Need 2+ tests for a trend.</div>;
+  }
+  const x = (i: number) => (i / (n - 1)) * (width - padL - padR) + padL;
+  const y = (v: number) => padT + (height - padT - padB) * (1 - Math.max(0, Math.min(yMax, v)) / yMax);
+  const gridY = [0, 0.25, 0.5, 0.75, 1].map((f) => padT + (height - padT - padB) * (1 - f));
+
+  const onMove = (clientX: number) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const rel = ((clientX - rect.left) / rect.width) * width;
+    let nearest = 0, best = Infinity;
+    for (let i = 0; i < n; i++) { const d = Math.abs(x(i) - rel); if (d < best) { best = d; nearest = i; } }
+    setHoverIdx(nearest);
+  };
+  const visible = series.filter((s) => !hidden.has(s.label));
+
+  return (
+    <div className="relative w-full">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-auto touch-none"
+        style={{ height }}
+        onMouseMove={(e) => onMove(e.clientX)}
+        onMouseLeave={() => setHoverIdx(null)}
+        onTouchStart={(e) => onMove(e.touches[0].clientX)}
+        onTouchMove={(e) => onMove(e.touches[0].clientX)}
+        onTouchEnd={() => setHoverIdx(null)}
+      >
+        {gridY.map((gy, i) => (
+          <g key={i}>
+            <line x1={padL} y1={gy} x2={width - padR} y2={gy} stroke="#eef1f7" strokeWidth={1} />
+            <text x={padL - 6} y={gy + 3} textAnchor="end" fontSize={9} fontWeight={700} fill="#cbd5e1">
+              {Math.round((1 - (gy - padT) / (height - padT - padB)) * yMax)}
+            </text>
+          </g>
+        ))}
+        {labels.map((l, i) =>
+          i % Math.max(1, Math.ceil(n / 8)) === 0 || i === n - 1 ? (
+            <text key={i} x={x(i)} y={height - 6} textAnchor="middle" fontSize={9} fontWeight={700} fill="#94a3b8">{l}</text>
+          ) : null,
+        )}
+        {hoverIdx !== null && (
+          <line x1={x(hoverIdx)} y1={padT} x2={x(hoverIdx)} y2={height - padB} stroke="#94a3b8" strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
+        )}
+        {visible.map((s) => {
+          const d = s.values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+          return <path key={s.label} d={d} fill="none" stroke={s.color} strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" />;
+        })}
+        {visible.map((s) =>
+          s.values.map((v, i) => (
+            <circle key={`${s.label}-${i}`} cx={x(i)} cy={y(v)} r={hoverIdx === i ? 4 : 2.5} fill="#fff" stroke={s.color} strokeWidth={2} style={{ transition: "r 120ms ease" }} />
+          )),
+        )}
+      </svg>
+
+      {hoverIdx !== null && (
+        <div
+          className="absolute z-10 pointer-events-none bg-slate-900 text-white text-[11px] font-semibold rounded-lg px-2.5 py-1.5 shadow-lg -translate-x-1/2 -translate-y-full whitespace-nowrap"
+          style={{ left: `${(x(hoverIdx) / width) * 100}%`, top: `${(padT / height) * 100}%` }}
+        >
+          <div className="font-black">{labels[hoverIdx]}</div>
+          {visible.map((s) => (
+            <div key={s.label} className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+              {s.label}: <span className="tabular-nums font-black">{s.values[hoverIdx]?.toFixed(0)}{valueSuffix}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap justify-center gap-2 mt-2">
+        {series.map((s) => {
+          const off = hidden.has(s.label);
+          return (
+            <button
+              key={s.label}
+              onClick={() => setHidden((h) => { const nx = new Set(h); if (nx.has(s.label)) nx.delete(s.label); else nx.add(s.label); return nx; })}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer ${off ? "border-slate-200 text-slate-300 line-through" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+            >
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: off ? "#cbd5e1" : s.color }} />
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Scatter Plot — X = question order, Y = seconds, with an "optimal zone" ──
+export interface ScatterPoint {
+  x: number;      // 1..N question index
+  y: number;      // seconds
+  correct?: boolean;
+  label?: string;
+}
+export function ScatterPlot({
+  points,
+  zoneLow = 60,
+  zoneHigh = 120,
+  height = 260,
+  yLabel = "seconds",
+}: {
+  points: ScatterPoint[];
+  zoneLow?: number;
+  zoneHigh?: number;
+  height?: number;
+  yLabel?: string;
+}) {
+  const width = 640;
+  const padL = 34, padR = 12, padT = 14, padB = 26;
+  const [hover, setHover] = useState<number | null>(null);
+  if (points.length === 0) return <div className="py-10 text-center text-xs font-semibold text-slate-400">No timing data.</div>;
+
+  const maxX = Math.max(...points.map((p) => p.x), 1);
+  const maxY = Math.max(...points.map((p) => p.y), zoneHigh) * 1.1;
+  const px = (x: number) => padL + (x / maxX) * (width - padL - padR);
+  const py = (y: number) => padT + (height - padT - padB) * (1 - y / maxY);
+  const colorOf = (p: ScatterPoint) => (p.y < zoneLow ? "#0ea5e9" : p.y <= zoneHigh ? "#059669" : "#f97316");
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((maxY * f) / 30) * 30);
+
+  return (
+    <div className="relative w-full">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" style={{ height }}>
+        {/* optimal zone band */}
+        <rect x={padL} y={py(zoneHigh)} width={width - padL - padR} height={py(zoneLow) - py(zoneHigh)} fill="#ecfdf5" />
+        <text x={padL + 6} y={py(zoneHigh) + 12} fontSize={9} fontWeight={800} fill="#10b981">optimal zone</text>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={padL} y1={py(t)} x2={width - padR} y2={py(t)} stroke="#eef1f7" strokeWidth={1} />
+            <text x={padL - 6} y={py(t) + 3} textAnchor="end" fontSize={9} fontWeight={700} fill="#cbd5e1">{t}</text>
+          </g>
+        ))}
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            cx={px(p.x)} cy={py(p.y)}
+            r={hover === i ? 6 : 4}
+            fill={p.correct === false ? "#fff" : colorOf(p)}
+            stroke={colorOf(p)}
+            strokeWidth={p.correct === false ? 2 : 1}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+            style={{ transition: "r 120ms ease", cursor: "pointer" }}
+          />
+        ))}
+      </svg>
+      <div className="flex flex-wrap gap-3 justify-center mt-1 text-[10px] font-bold text-slate-500">
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500" />Fast (&lt;{zoneLow}s)</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-600" />Optimal</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" />Slow (&gt;{zoneHigh}s)</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-slate-400 bg-white" />Wrong</span>
+      </div>
+      {hover != null && points[hover] && (
+        <div className="absolute -translate-x-1/2 -translate-y-full bg-slate-900 text-white text-[11px] font-semibold rounded-lg px-2 py-1 pointer-events-none whitespace-nowrap"
+          style={{ left: `${(px(points[hover].x) / width) * 100}%`, top: `${(py(points[hover].y) / height) * 100}%` }}>
+          {points[hover].label || `Q${points[hover].x}`} · {points[hover].y}s{yLabel === "seconds" ? "" : ` ${yLabel}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Scatter Strip — events on a single horizontal timeline (mistake map) ───
 export function ScatterStrip({
   durationSeconds,

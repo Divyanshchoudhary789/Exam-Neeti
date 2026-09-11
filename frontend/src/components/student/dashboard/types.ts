@@ -4,4 +4,13 @@ export interface ExamStartMeta {
   instructions?: string;
 }
 
-export type SectionId = "overview" | "analytics" | "tests" | "history" | "reports" | "profile";
+export type SectionId =
+  | "overview"
+  | "performance"
+  | "subjects"
+  | "chapters"
+  | "tests"
+  | "analytics"
+  | "history"
+  | "reports"
+  | "profile";

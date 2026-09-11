@@ -54,7 +54,54 @@ const aggregateBreakdown = (analyticsList, key) => {
 };
 
 const round2 = (n) => parseFloat(Number(n || 0).toFixed(2));
+const round1 = (n) => parseFloat(Number(n || 0).toFixed(1));
 const avg = (arr, pick) => (arr.length ? round2(arr.reduce((s, a) => s + (pick(a) || 0), 0) / arr.length) : 0);
+const pctStr = (v) => `${round1(v)}%`;
+
+/** Sum every test's recoverable-marks breakdown so an "overall" report reflects
+ *  the whole scope, not just the most recent test. */
+const aggregateRecoverable = (analyticsList) => {
+  const keys = ["totalRecoverable", "incorrectEasyQuestions", "negativeLoss", "timeMisallocation", "lowAccuracyAreas", "missedHighROI"];
+  const out = Object.fromEntries(keys.map((k) => [k, 0]));
+  let seen = false;
+  for (const ar of analyticsList) {
+    const rm = ar.recoverableMarks;
+    if (!rm) continue;
+    seen = true;
+    for (const k of keys) out[k] = round2(out[k] + (Number(rm[k]) || 0));
+  }
+  return seen ? out : null;
+};
+
+/** Roll every test's topicAccuracy rows up into one per-topic breakdown. */
+const aggregateTopics = (analyticsList) => {
+  const bucket = {};
+  for (const ar of analyticsList) {
+    for (const row of ar.topicAccuracy || []) {
+      const id = `${row.subject}||${row.chapter}||${row.topic}`;
+      if (!row.topic) continue;
+      if (!bucket[id]) {
+        bucket[id] = {
+          subject: row.subject, chapter: row.chapter, topic: row.topic,
+          totalQuestions: 0, attempted: 0, correct: 0,
+        };
+      }
+      const b = bucket[id];
+      b.totalQuestions += row.totalQuestions || 0;
+      b.attempted      += row.attempted      || 0;
+      b.correct        += row.correct        || 0;
+    }
+  }
+  return Object.values(bucket).map((b) => {
+    const accuracy = round1((b.correct / Math.max(b.attempted, 1)) * 100);
+    return {
+      ...b,
+      accuracy,
+      isWeak: b.attempted > 0 && accuracy < 40,
+      isStrong: b.attempted > 0 && accuracy >= 80,
+    };
+  });
+};
 
 // ─── Build report data by type ────────────────────────────────────────────────
 //
@@ -110,24 +157,25 @@ const buildReportData = async (type, opts) => {
         },
         summary: {
           "Total Tests":          analytics.length,
-          "Total Score":          scores.reduce((s, v) => s + v, 0),
+          "Average Score":        avgScore,
           "Highest Score":        scores.length ? Math.max(...scores) : 0,
           "Lowest Score":         scores.length ? Math.min(...scores) : 0,
-          "Average Score":        avgScore,
+          "Average Percentage (%)":   avg(analytics, (a) => a.percentage),
           "Overall Accuracy (%)":     avg(analytics, (a) => a.overallAccuracy),
           "Overall Attempt Rate (%)": avg(analytics, (a) => a.overallAttemptRate),
+          "Total Negative Marks":     -Math.abs(analytics.reduce((s, a) => s + (a.totalNegativeMarks || 0), 0)),
         },
-        // Aggregated across every test in scope — not just the latest one.
+        // Everything below is aggregated across every test in scope — not the latest one.
         subjectBreakdown: aggregateBreakdown(analytics, "subjectAccuracy"),
         chapterBreakdown: aggregateBreakdown(analytics, "chapterAccuracy"),
-        recoverableMarks: analytics.length ? analytics[analytics.length - 1].recoverableMarks : null,
+        recoverableMarks: aggregateRecoverable(analytics),
         sections: [
           {
             title: "Performance Timeline",
             headers: ["Exam", "Score", "Total Marks", "Percentage", "Accuracy %", "Attempt Rate %"],
             rows: analytics.map((a) => [
               a.exam?.title || `Exam ${a.exam?.examNumber}`,
-              a.score, a.totalMarks, `${a.percentage}%`, `${a.overallAccuracy}%`, `${a.overallAttemptRate}%`,
+              a.score, a.totalMarks, pctStr(a.percentage), pctStr(a.overallAccuracy), pctStr(a.overallAttemptRate),
             ]),
           },
         ],
@@ -190,7 +238,7 @@ const buildReportData = async (type, opts) => {
           "Avg Chapter Accuracy (%)": chapters.length ? round2(chapters.reduce((s, x) => s + x.accuracy, 0) / chapters.length) : 0,
         },
         chapterBreakdown: chapters.sort((a, b) => a.accuracy - b.accuracy),
-        topicAccuracy:    all.length ? all[all.length - 1].topicAccuracy || [] : [],
+        topicAccuracy:    aggregateTopics(all),
       };
     }
 
@@ -271,9 +319,9 @@ const buildReportData = async (type, opts) => {
             headers: ["Exam", "Accuracy %", "Attempt Rate %", "Correct", "Incorrect", "Unattempted", "Guesses", "Negative Marks"],
             rows: analytics.map((a) => [
               a.exam?.title || `Exam ${a.exam?.examNumber}`,
-              `${a.overallAccuracy}%`, `${a.overallAttemptRate}%`,
-              a.totalCorrect, a.totalIncorrect, a.totalUnattempted,
-              a.totalGuessAttempts, a.totalNegativeMarks,
+              pctStr(a.overallAccuracy), pctStr(a.overallAttemptRate),
+              a.totalCorrect ?? 0, a.totalIncorrect ?? 0, a.totalUnattempted ?? 0,
+              a.totalGuessAttempts ?? 0, round1(a.totalNegativeMarks),
             ]),
           },
         ],
@@ -456,23 +504,21 @@ const buildReportData = async (type, opts) => {
           "Student Name":  student.name,
           "Student Email": student.email,
           "Batch":         student.batch?.name || "—",
-          "Total Tests":   allAnalytics.length,
-          "Average Score": avgScore,
-          "Highest Score": scores.length ? Math.max(...scores) : 0,
+          "Tests Analysed": allAnalytics.length,
           "Report Scope":  scopeLabel,
         },
         summary: {
-          "Total Tests":      allAnalytics.length,
-          "Average Score":    avgScore,
-          "Highest Score":    scores.length ? Math.max(...scores) : 0,
-          "Lowest Score":     scores.length ? Math.min(...scores) : 0,
-          "Average Accuracy": allAnalytics.length
-            ? parseFloat((allAnalytics.reduce((s, a) => s + a.overallAccuracy, 0) / allAnalytics.length).toFixed(2))
-            : 0,
+          "Total Tests":         allAnalytics.length,
+          "Average Score":       avgScore,
+          "Highest Score":       scores.length ? Math.max(...scores) : 0,
+          "Lowest Score":        scores.length ? Math.min(...scores) : 0,
+          "Average Accuracy (%)": avg(allAnalytics, (a) => a.overallAccuracy),
+          "Average Attempt Rate (%)": avg(allAnalytics, (a) => a.overallAttemptRate),
+          "Total Negative Marks": -Math.abs(allAnalytics.reduce((s, a) => s + (a.totalNegativeMarks || 0), 0)),
         },
         subjectBreakdown,
-        chapterBreakdown: allAnalytics.length ? allAnalytics[allAnalytics.length - 1].chapterAccuracy || [] : [],
-        recoverableMarks: allAnalytics.length ? allAnalytics[allAnalytics.length - 1].recoverableMarks : null,
+        chapterBreakdown: aggregateBreakdown(allAnalytics, "chapterAccuracy").sort((a, b) => a.accuracy - b.accuracy),
+        recoverableMarks: aggregateRecoverable(allAnalytics),
         sections: [
           {
             title:   "Test-wise Performance",
@@ -480,7 +526,7 @@ const buildReportData = async (type, opts) => {
             rows: allAnalytics.map((a) => [
               a.exam?.title || `Exam ${a.exam?.examNumber}`,
               a.score, a.totalMarks,
-              `${a.percentage}%`, `${a.overallAccuracy}%`, `${a.overallAttemptRate}%`,
+              pctStr(a.percentage), pctStr(a.overallAccuracy), pctStr(a.overallAttemptRate),
             ]),
           },
         ],
@@ -514,8 +560,8 @@ const buildReportData = async (type, opts) => {
           idx + 1,
           ar.student?.name, ar.student?.email,
           ar.score, ar.totalMarks,
-          `${ar.percentage}%`, `${ar.overallAccuracy}%`, `${ar.overallAttemptRate}%`,
-          ar.totalNegativeMarks,
+          pctStr(ar.percentage), pctStr(ar.overallAccuracy), pctStr(ar.overallAttemptRate),
+          round1(ar.totalNegativeMarks),
         ]);
 
       return {

@@ -9,6 +9,17 @@ const asyncHandler = require("../utils/asyncHandler");
 const { sendSuccess, sendPaginated } = require("../utils/response");
 const { reconstructExamQuestions } = require("../services/questionReconstruction.service");
 const { sendEmail, templates } = require("../services/email.service");
+const { clientPath } = require("../utils/clientUrl");
+
+/** Readable IST timestamp for emails, e.g. "9 Sep 2026, 4:32 pm". */
+const fmtIST = (d) =>
+  d
+    ? new Intl.DateTimeFormat("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "Asia/Kolkata",
+      }).format(new Date(d))
+    : null;
 const {
   NOTIFICATION_TRIGGER,
   EXAM_STATUS,
@@ -184,7 +195,7 @@ exports.generateExam = asyncHandler(async (req, res, next) => {
   const examId       = exam._id;
   const examTitle    = exam.title;
   // `examNumber` is already in scope from earlier in this function.
-  const dashboardUrl = `${process.env.CLIENT_URL}/dashboard`;
+  const dashboardUrl = clientPath("/student");
 
   setImmediate(async () => {
     try {
@@ -665,6 +676,7 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
     // was accessed in setImmediate closure inconsistently. Snapshot it here.
     examTitle:   exam.title,
     examNumber:  exam.examNumber,
+    submittedAt: attempt.submittedAt,
   };
   const studentSnapshot = {
     _id:   studentDoc._id,
@@ -679,9 +691,10 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
         to:          studentSnapshot.email,
         subject:     `Submission Confirmed — ${attemptSnapshot.examTitle}`,
         html:        templates.examSubmitted({
-          name:       studentSnapshot.name,
-          examTitle:  attemptSnapshot.examTitle,
-          examNumber: attemptSnapshot.examNumber,
+          name:        studentSnapshot.name,
+          examTitle:   attemptSnapshot.examTitle,
+          examNumber:  attemptSnapshot.examNumber,
+          submittedAt: fmtIST(attemptSnapshot.submittedAt),
         }),
         trigger:     NOTIFICATION_TRIGGER.EXAM_SUBMITTED,
         recipientId: studentSnapshot._id,
@@ -690,7 +703,7 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
 
       const populatedAttempt = await Attempt.findById(attemptSnapshot._id).lean();
       const { computeCompleteAnalytics } = require("../services/analytics.service");
-      await computeCompleteAnalytics(populatedAttempt);
+      const analyticsResult = await computeCompleteAnalytics(populatedAttempt);
       await Attempt.findByIdAndUpdate(attemptSnapshot._id, { analyticsComputed: true });
 
       const { updateObjectiveProbability } = require("../services/probability.service");
@@ -717,7 +730,11 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
           name:        studentSnapshot.name,
           examTitle:   attemptSnapshot.examTitle,
           examNumber:  attemptSnapshot.examNumber,
-          dashboardUrl: `${process.env.CLIENT_URL}/dashboard`,
+          dashboardUrl: clientPath("/student"),
+          score:       analyticsResult?.score,
+          maxScore:    analyticsResult?.totalMarks,
+          percentage:  analyticsResult?.percentage,
+          accuracy:    analyticsResult?.overallAccuracy,
         }),
         trigger:     NOTIFICATION_TRIGGER.ANALYTICS_READY,
         recipientId: studentSnapshot._id,
@@ -746,9 +763,11 @@ exports.submitAttempt = asyncHandler(async (req, res, next) => {
               to:          admin.email,
               subject:     `Batch Analytics Updated — ${batchDoc?.name || "Batch"}`,
               html:        templates.batchAnalyticsUpdated({
-                adminName:   admin.name,
-                batchName:   batchDoc?.name || "Batch",
-                dashboardUrl: `${process.env.CLIENT_URL}/admin/dashboard`,
+                adminName:      admin.name,
+                batchName:      batchDoc?.name || "Batch",
+                submittedCount: submittedCount,
+                totalStudents:  totalBatchStudents,
+                dashboardUrl:   clientPath("/admin"),
               }),
               trigger:     NOTIFICATION_TRIGGER.BATCH_ANALYTICS_UPDATED,
               recipientId: admin._id,
@@ -908,6 +927,16 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
     (attemptsByExam[key] = attemptsByExam[key] || []).push(a);
   }
 
+  // Question count per exam — the list query drops `questions` (never expose
+  // the paper), so derive the count with a lightweight aggregation instead.
+  const questionCounts = await Exam.aggregate([
+    { $match: { _id: { $in: examIds } } },
+    { $project: { n: { $size: { $ifNull: ["$questions", []] } } } },
+  ]);
+  const questionCountByExam = Object.fromEntries(
+    questionCounts.map((c) => [String(c._id), c.n])
+  );
+
   const shapeAttempt = (a, exam) => ({
     _id:          a._id,
     attemptNumber: a.attemptNumber || 1,
@@ -939,6 +968,7 @@ exports.getMyExams = asyncHandler(async (req, res, next) => {
 
     return {
       ...exam,
+      totalQuestions: questionCountByExam[exam._id.toString()] ?? 0,
       attempt:  primary ? shapeAttempt(primary, exam) : null,
       attempts: examAttempts.map((a) => shapeAttempt(a, exam)),
       attemptCount:      submitted.length,

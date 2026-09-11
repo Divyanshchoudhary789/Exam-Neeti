@@ -5,7 +5,13 @@ const Batch = require("../models/Batch.model");
 const User = require("../models/User.model");
 const AppError = require("../utils/AppError");
 const { sendEmail, templates } = require("./email.service");
+const { clientPath } = require("../utils/clientUrl");
 const { ORDER_STATUS, SUBSCRIPTION_STATUS, NOTIFICATION_TRIGGER, BATCH_SOURCE } = require("../config/constants");
+
+const fmtDateIST = (d) =>
+  d
+    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" }).format(new Date(d))
+    : null;
 
 /**
  * Turns a paid Razorpay order into live access: activates a Subscription and
@@ -62,8 +68,9 @@ async function activateSubscriptionForOrder(orderId) {
       html: templates.subscriptionActivated({
         name: student.name,
         planName: plan.name,
-        expiresAt: expiresAt ? expiresAt.toDateString() : null,
-        dashboardUrl: `${(process.env.CLIENT_URL || "").split(",")[0]}/student`,
+        expiresAt: fmtDateIST(expiresAt),
+        amount: Number.isFinite(order.amountPaise) ? Math.round(order.amountPaise / 100).toLocaleString("en-IN") : null,
+        dashboardUrl: clientPath("/student"),
       }),
       trigger: NOTIFICATION_TRIGGER.SUBSCRIPTION_ACTIVATED,
       recipientId: student._id,

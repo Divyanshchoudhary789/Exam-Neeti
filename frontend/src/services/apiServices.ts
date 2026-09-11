@@ -167,8 +167,8 @@ export const authService = {
     const res = await api.post("/auth/forgot-password", { email });
     return res.data;
   },
-  resetPassword: async (token: string, newPassword: string) => {
-    const res = await api.patch(`/auth/reset-password/${token}`, { newPassword });
+  resetPassword: async (token: string, password: string, confirmPassword: string) => {
+    const res = await api.patch(`/auth/reset-password/${token}`, { password, confirmPassword });
     return res.data;
   },
 };
@@ -409,7 +409,9 @@ export type QuestionInsightMetric =
   | "incorrect"
   | "unattempted"
   | "correct"
-  | "weak_topic";
+  | "weak_topic"
+  | "attempted"
+  | "all_questions";
 
 export interface InsightQuestion {
   attemptId: string;

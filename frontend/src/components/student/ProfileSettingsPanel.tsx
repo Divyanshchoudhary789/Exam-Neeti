@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { studentService, authService } from "../../services/apiServices";
+import { studentService, authService, subscriptionService, type Subscription, type PlanAccess } from "../../services/apiServices";
 import { useAuthStore } from "../../store/useAuthStore";
 import {
   IconCheck,
@@ -13,6 +13,7 @@ import {
   IconKey,
   IconShield,
   IconClock,
+  IconRocket,
   Spinner,
 } from "../common/UIComponents";
 
@@ -24,6 +25,11 @@ export function ProfileSettingsPanel({ onBack }: { onBack: () => void }) {
   const [profile, setProfile]               = useState<Record<string, unknown> | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError]     = useState("");
+
+  // Plan / subscription
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [access, setAccess]             = useState<PlanAccess | null>(null);
+  const [planLoaded, setPlanLoaded]     = useState(false);
 
   // Edit profile
   const [editMode, setEditMode]               = useState(false);
@@ -66,6 +72,28 @@ export function ProfileSettingsPanel({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  // ── Load plan / subscription (independent of profile) ───────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [sub, acc] = await Promise.allSettled([
+        subscriptionService.getMine(),
+        subscriptionService.getMyAccess(),
+      ]);
+      if (cancelled) return;
+      if (sub.status === "fulfilled") {
+        const s = (sub.value?.data ?? sub.value) as { subscription?: Subscription };
+        setSubscription(s?.subscription ?? null);
+      }
+      if (acc.status === "fulfilled") {
+        const a = (acc.value?.data ?? acc.value) as { access?: PlanAccess };
+        setAccess(a?.access ?? null);
+      }
+      setPlanLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Save profile ───────────────────────────────────────────────────────────
   const handleSaveProfile = async () => {
@@ -145,6 +173,35 @@ export function ProfileSettingsPanel({ onBack }: { onBack: () => void }) {
       })
     : "—";
 
+  // ── Plan summary (real subscription/access data) ───────────────────────────
+  const plan = (() => {
+    const coaching = !subscription && access?.tier === "coaching";
+    const status = coaching ? "active" : subscription?.status ?? (access?.status || null);
+    const name = coaching
+      ? "Coaching Access"
+      : subscription?.plan?.name || access?.plan?.name || (status === "trial" ? "Free Trial" : status ? "Your Plan" : "No active plan");
+    const statusLabel = coaching ? "Included with your batch"
+      : status === "active" ? "Active"
+      : status === "trial" ? "Free trial"
+      : status === "expired" ? "Expired"
+      : status === "cancelled" ? "Cancelled"
+      : "Not subscribed";
+    const expiryRaw = access?.expiresAt || subscription?.expiresAt;
+    const expires = expiryRaw
+      ? new Date(expiryRaw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : null;
+    const capped = !!access?.capped;
+    const total = capped ? (access?.testsIncluded ?? 0) : 0;
+    const remaining = capped ? (access?.remaining ?? 0) : 0;
+    const tone = status === "active" ? "emerald" : status === "expired" || status === "cancelled" ? "rose" : "indigo";
+    return { coaching, status, name, statusLabel, expires, capped, total, remaining, tone };
+  })();
+  const planToneCls = plan.tone === "emerald"
+    ? { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", icon: "bg-emerald-100 text-emerald-700" }
+    : plan.tone === "rose"
+      ? { chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", icon: "bg-rose-100 text-rose-700" }
+      : { chip: "bg-indigo-50 text-indigo-700 border-indigo-200", bar: "bg-indigo-500", icon: "bg-indigo-100 text-indigo-700" };
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 font-sans text-slate-800">
@@ -182,6 +239,55 @@ export function ProfileSettingsPanel({ onBack }: { onBack: () => void }) {
               <span className={`inline-flex text-[10px] font-extrabold uppercase px-3 py-1 rounded-full border ${isActive ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
                 {isActive ? "Active Account" : "Inactive"}
               </span>
+            </div>
+
+            {/* My Plan — real subscription/access data */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+              {!planLoaded ? (
+                <div className="animate-pulse space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-24 rounded bg-slate-100" />
+                      <div className="h-2.5 w-16 rounded bg-slate-100" />
+                    </div>
+                  </div>
+                  <div className="h-2.5 w-40 rounded bg-slate-100" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${planToneCls.icon}`}>
+                      {plan.status === "active" ? <IconShield className="w-4 h-4" /> : <IconRocket className="w-4 h-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-black text-slate-900 truncate">{plan.name}</h3>
+                      <span className={`inline-block mt-0.5 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${planToneCls.chip}`}>
+                        {plan.statusLabel}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] font-semibold text-slate-500">
+                    {plan.expires && <p>Valid until <span className="font-bold text-slate-700">{plan.expires}</span></p>}
+                    {plan.capped && plan.total > 0 && (
+                      <>
+                        <p><span className="font-bold text-slate-700">{plan.remaining}</span> of {plan.total} test{plan.total === 1 ? "" : "s"} remaining</p>
+                        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${planToneCls.bar}`} style={{ width: `${Math.min(100, ((plan.total - plan.remaining) / plan.total) * 100)}%` }} />
+                        </div>
+                      </>
+                    )}
+                    {!plan.capped && plan.status === "active" && <p>Full test series &amp; analytics included.</p>}
+                    {plan.coaching && <p>Managed by your coaching institute.</p>}
+                    {!plan.coaching && !plan.status && <p>You&apos;re not on a plan yet — unlock the full test series and analytics.</p>}
+                  </div>
+                  {!plan.coaching && plan.status !== "active" && (
+                    <a href="/pricing" className="inline-flex items-center justify-center gap-1.5 w-full rounded-xl bg-slate-900 text-white px-3 py-2 text-[11px] font-bold hover:bg-slate-800 transition-colors">
+                      {plan.status === "expired" ? "Renew plan" : "See plans"}
+                    </a>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Account details */}

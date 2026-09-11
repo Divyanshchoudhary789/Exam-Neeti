@@ -580,7 +580,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
   await user.save({ validateBeforeSave: false });
 
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
+  const resetUrl = `${getPrimaryClientUrl()}/reset-password/${rawToken}`;
 
   try {
     await sendEmail({

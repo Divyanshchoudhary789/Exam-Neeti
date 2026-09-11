@@ -12,8 +12,8 @@ export function Testimonials() {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
   const testimonials = [
-    { id: "u1", quote: "The strategy I got from Exam Neeti changed the way I prepared. From confused to confident — the difference is real.", author: "AIR 152, UPSC Aspirant", avatar: "RS" },
-    { id: "u2", quote: "Mentorship and test series helped me identify my weak areas and improve consistently. Best decision I made!", author: "AIR 98, JEE Aspirant", avatar: "AK" },
+    { id: "u1", quote: "The strategy I got from Exam Neeti changed the way I prepared. From confused to confident — the difference is real.", author: "AIR 152, NEET Aspirant", avatar: "RS" },
+    { id: "u2", quote: "Mentorship and test series helped me identify my weak areas and improve consistently. Best decision I made!", author: "AIR 98, NEET Dropper", avatar: "AK" },
     { id: "u3", quote: "The personalized plan and regular doubt sessions kept me ahead of everyone. Highly recommended!", author: "AIR 215, NEET Aspirant", avatar: "PM" }
   ];
 
