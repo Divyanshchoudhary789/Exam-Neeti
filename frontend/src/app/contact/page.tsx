@@ -12,7 +12,6 @@ import {
   IconTarget,
   IconClock,
   IconGraduationCap,
-  IconBuilding,
   IconArrowRight,
   IconArrowLeft,
 } from "../../components/common/UIComponents";
@@ -235,23 +234,6 @@ export default function ContactPage() {
                 className="inline-flex items-center gap-1.5 mt-4 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer group"
               >
                 <span>Log in to your dashboard</span>
-                <IconArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
-              <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 text-indigo-600 flex items-center justify-center shadow-sm">
-                <IconBuilding className="w-4.5 h-4.5" />
-              </div>
-              <h3 className="text-sm font-bold text-slate-900 mt-4">Institutes</h3>
-              <p className="text-xs text-slate-600 leading-relaxed mt-2">
-                Batch onboarding, admin console demos and bulk pricing — pick &quot;Institute Partnership&quot; in the form and we&apos;ll schedule a walkthrough.
-              </p>
-              <button
-                onClick={() => handleOpenAuth("join")}
-                className="inline-flex items-center gap-1.5 mt-4 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer group"
-              >
-                <span>Request a demo</span>
                 <IconArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>

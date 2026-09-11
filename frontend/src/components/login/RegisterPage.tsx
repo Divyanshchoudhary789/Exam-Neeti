@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +14,7 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconCheck,
+  IconChevronDown,
   IconGraduationCap,
   IconRocket,
   IconPhone,
@@ -32,6 +33,81 @@ function IconBrain({ className = "w-6 h-6" }: { className?: string }) {
       <path d="M10 14.5c-.8 0-1.5-.7-1.5-1.5" />
       <path d="M14 14.5c.8 0 1.5-.7 1.5-1.5" />
     </svg>
+  );
+}
+
+/**
+ * Branded "Target Exam" dropdown — replaces the native <select>, which rendered
+ * with the browser's own (visually inconsistent) list styling. Matches the
+ * shell/focus-ring language of the other form fields above and below it.
+ */
+function TargetExamSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { label: string; value: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className={`relative ${open ? "z-30" : "z-0"}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`w-full flex items-center justify-between gap-2 rounded-xl bg-white border text-slate-900 text-sm px-4 py-3 transition-all font-medium cursor-pointer ${
+          open ? "border-indigo-600 ring-4 ring-indigo-600/10" : "border-slate-200/90 hover:border-slate-300"
+        }`}
+      >
+        <span className="truncate">{selected?.label}</span>
+        <IconChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${open ? "rotate-180 text-indigo-600" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl border border-slate-200/90 shadow-xl p-1.5 space-y-0.5"
+        >
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                  isSelected ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && <IconCheck className="w-4 h-4 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -207,13 +283,13 @@ export default function RegisterPage() {
             <p className="text-xs sm:text-sm text-slate-500 font-medium">Your free diagnostic test is unlocked immediately after signup.</p>
           </div>
 
-          <div className="flex items-center gap-3 rounded-2xl p-3.5 text-left border bg-[#eef2ff] border-[#4338ca] shadow-sm ring-2 ring-indigo-500/10 mb-6">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 bg-[#4338ca] text-white">
-              <IconGraduationCap className="w-5 h-5" />
+          <div className="flex items-center gap-2.5 w-full max-w-[400px] mx-auto rounded-xl px-3.5 py-2.5 text-left border bg-[#eef2ff] border-[#4338ca] shadow-sm ring-2 ring-indigo-500/10 mb-6">
+            <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 bg-[#4338ca] text-white">
+              <IconGraduationCap className="w-3.5 h-3.5" />
             </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-black leading-tight text-[#4338ca]">Student</p>
-              <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">Self-registration for aspirants</p>
+            <div className="min-w-0 flex items-baseline gap-1.5">
+              <p className="text-xs sm:text-sm font-black leading-tight text-[#4338ca] shrink-0">Student</p>
+              <p className="text-[10px] text-slate-500 font-medium truncate">— Self-registration for aspirants</p>
             </div>
           </div>
 
@@ -261,10 +337,12 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-1.5 text-left">
-              <label htmlFor="reg-goal" className="text-xs sm:text-sm font-bold text-slate-800 block ml-0.5">Target Exam</label>
-              <select id="reg-goal" value={goal || ""} onChange={(e) => setGoal(e.target.value as RegisterPayload["programType"])} className="w-full rounded-xl bg-white border border-slate-200/90 text-slate-900 text-sm px-4 py-3 focus:border-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-600/10 transition-all font-medium">
-                {GOALS.map((g) => <option key={g.label} value={g.value || ""}>{g.label}</option>)}
-              </select>
+              <label className="text-xs sm:text-sm font-bold text-slate-800 block ml-0.5">Target Exam</label>
+              <TargetExamSelect
+                value={goal || ""}
+                onChange={(v) => setGoal(v as RegisterPayload["programType"])}
+                options={GOALS.map((g) => ({ label: g.label, value: g.value || "" }))}
+              />
             </div>
 
             <div className="space-y-1.5 text-left">

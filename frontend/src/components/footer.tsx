@@ -78,7 +78,7 @@ export function Footer() {
             <h4 className="text-xs uppercase tracking-wider text-white">Features</h4>
             <ul className="space-y-2.5">
               <li><a href="#diagnostics" className="hover:text-white transition-colors text-slate-400">Performance Diagnostics</a></li>
-              <li><a href="#telemetry" className="hover:text-white transition-colors text-slate-400">Telemetry Matrix</a></li>
+              <li><a href="#telemetry" className="hover:text-white transition-colors text-slate-400">Strategy Recommendation</a></li>
             </ul>
           </div>
           <div className="space-y-4">

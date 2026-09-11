@@ -236,11 +236,16 @@ const HERO_IMAGE_SEAM =
   "linear-gradient(to right, #eef2ff 0%, rgba(238,242,255,0.28) 10%, rgba(238,242,255,0) 26%)," +
   "linear-gradient(to bottom, rgba(255,255,255,0) 74%, #ffffff 100%)";
 
-/** Shared shell + label style for the three floating stat cards. */
+/**
+ * Shared shell + label style for the three floating stat cards. A fixed
+ * height (rather than letting each card's own content set it) is what keeps
+ * all three the same height regardless of how much each one renders —
+ * `justify-center` then centers each card's content inside that fixed box so
+ * the shorter cards (Score Trend, Weakest Chapter) don't look top-anchored
+ * with dead space below.
+ */
 const HERO_CARD_SHELL =
-  "w-[212px] rounded-2xl bg-white p-4 shadow-[0_16px_40px_-10px_rgba(15,23,42,0.22)] ring-1 ring-slate-900/[0.04] transition-transform duration-300 hover:-translate-y-1";
-/** Same shell with tighter vertical padding — used by the two slimmer cards. */
-const HERO_CARD_SHELL_COMPACT = `${HERO_CARD_SHELL} !py-3`;
+  "w-[212px] h-[120px] rounded-2xl bg-white p-4 shadow-[0_16px_40px_-10px_rgba(15,23,42,0.22)] ring-1 ring-slate-900/[0.04] transition-transform duration-300 hover:-translate-y-1 flex flex-col justify-center";
 const HERO_CARD_LABEL = "text-[11px] font-semibold text-slate-500";
 
 /**
@@ -371,7 +376,7 @@ function ScoreTrendCard({ delta }: { delta: number }) {
     `L${pts[pts.length - 1].x},36 Z`;
 
   return (
-    <div className={`${HERO_CARD_SHELL_COMPACT} relative overflow-hidden`}>
+    <div className={`${HERO_CARD_SHELL} relative overflow-hidden`}>
       <div className="flex items-center gap-1">
         <p className={HERO_CARD_LABEL}>Score Trend</p>
         <InfoDot />
@@ -471,7 +476,7 @@ function AccuracyCard({ accuracy }: { accuracy: number }) {
 
 function WeakestChapterCard({ marksLost }: { marksLost: number }) {
   return (
-    <div className={HERO_CARD_SHELL_COMPACT}>
+    <div className={HERO_CARD_SHELL}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-1">
           <p className={HERO_CARD_LABEL}>Weakest Chapter</p>

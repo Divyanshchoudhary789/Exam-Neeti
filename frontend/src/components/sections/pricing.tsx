@@ -224,7 +224,7 @@ export function Pricing({ onOpenAuth }: PricingProps) {
   };
 
   return (
-    <section id="pricing" className="relative bg-gradient-to-b from-indigo-50 via-violet-50/60 to-white py-20 sm:py-24 px-4 sm:px-6 lg:px-8 w-full max-w-full">
+    <section id="pricing" className="relative bg-gradient-to-b from-indigo-50 via-violet-50/60 to-white pt-10 sm:pt-14 pb-20 sm:pb-24 px-4 sm:px-6 lg:px-8 w-full max-w-full">
       {/* Soft brand glow */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[700px] h-[400px] bg-indigo-500/[0.06] rounded-full blur-[130px]" />
@@ -243,23 +243,15 @@ export function Pricing({ onOpenAuth }: PricingProps) {
       </div>
 
       {/* Plan cards */}
-      <div className="relative mx-auto max-w-7xl mt-12 sm:mt-14 xl:mt-28">
+      <div className="relative mx-auto max-w-7xl mt-10 sm:mt-12 xl:mt-16">
         {/* Hand-drawn margin notes (desktop only) */}
-        <span className="pointer-events-none absolute -top-20 left-0 hidden xl:flex items-end gap-1.5 -rotate-6 text-[#6b5cf6]">
+        <span className="pointer-events-none absolute -top-24 left-0 hidden xl:flex items-end gap-1.5 -rotate-6 text-[#6b5cf6]">
           <span className="font-script text-xl font-bold leading-tight">Start small.<br />Upgrade anytime.</span>
           <svg viewBox="0 0 40 48" className="h-11 w-8" fill="none">
             <path d="M22 4 C 10 14 8 30 14 44" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
             <path d="M6 34 L14 45 L24 38" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="pointer-events-none absolute -top-24 right-0 hidden xl:flex items-end gap-1.5 rotate-6 text-[#6b5cf6]">
-          <svg viewBox="0 0 40 48" className="h-11 w-8" fill="none">
-            <path d="M18 4 C 30 14 32 30 26 44" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-            <path d="M34 34 L26 45 L16 38" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="font-script text-xl font-bold leading-tight text-right">Same great value.<br />Pay less per month<br />over the year!</span>
-        </span>
-
         <div
           ref={trackRef}
           onScroll={handleTrackScroll}
