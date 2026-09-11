@@ -57,6 +57,8 @@ const {
 }                                     = require("../services/bulkUploadOrchestrator.service");
 const { ROLES, QUESTION_STATUS, ADMIN_ACTIONS } = require("../config/constants");
 const AdminAuditLog                  = require("../models/AdminAuditLog.model");
+const SyllabusConfig                 = require("../models/SyllabusConfig.model");
+const { bestMatch, normalizeStr: normalizeSyllabusStr } = require("../utils/syllabusMatcher");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -954,6 +956,65 @@ function parsePreviousYearsInput(raw) {
 }
 
 /**
+ * Groups active SyllabusConfig entries into subject+classLevel-scoped
+ * chapter/topic lookups, fetched ONCE per bulk-upload job (not per row) and
+ * reused by resolveSyllabusChapterTopic() below.
+ */
+function buildSyllabusIndex(entries) {
+  const index = new Map();
+  for (const e of entries) {
+    const key = `${e.subject}|${e.classLevel}`;
+    if (!index.has(key)) index.set(key, { chapters: new Set(), topicsByChapter: new Map() });
+    const bucket = index.get(key);
+    bucket.chapters.add(e.chapter);
+    const chapterKey = normalizeSyllabusStr(e.chapter);
+    if (!bucket.topicsByChapter.has(chapterKey)) bucket.topicsByChapter.set(chapterKey, new Set());
+    bucket.topicsByChapter.get(chapterKey).add(e.topic);
+  }
+  return index;
+}
+
+/**
+ * Reconciles one row's raw chapter/topic text against the canonical
+ * syllabus for its subject+classLevel:
+ *   - exact/strong match  → silently replaced with the canonical spelling
+ *     (the row is a fresh "draft" pending admin review either way, and this
+ *     is what lets sprint generation hit a clean Tier-1 match instead of
+ *     falling through questionReconstruction.service.js's fuzzy tiers)
+ *   - weak/no match       → left as typed (never guessed at), and a
+ *     human-readable note is returned so the reviewing admin sees exactly
+ *     what to check — see the bulk_uploaded activityLog entry this feeds.
+ */
+function resolveSyllabusChapterTopic({ subject, classLevel, chapter, topic }, syllabusIndex) {
+  const bucket = syllabusIndex.get(`${subject}|${classLevel}`);
+  const result = { chapter, topic, note: null };
+  if (!bucket || bucket.chapters.size === 0) return result;
+
+  const chapterMatch = bestMatch(chapter, Array.from(bucket.chapters));
+  if (chapterMatch.confidence === "exact" || chapterMatch.confidence === "strong") {
+    result.chapter = chapterMatch.matched;
+  } else if (chapterMatch.confidence === "weak") {
+    result.note = `Chapter "${chapter}" doesn't exactly match the syllabus — closest is "${chapterMatch.matched}". Please verify.`;
+  } else {
+    result.note = `Chapter "${chapter}" wasn't found in the syllabus. Please verify, or add it via Manage Syllabus.`;
+  }
+
+  const topicCandidates = Array.from(bucket.topicsByChapter.get(normalizeSyllabusStr(result.chapter)) || []);
+  if (topicCandidates.length > 0) {
+    const topicMatch = bestMatch(topic, topicCandidates);
+    if (topicMatch.confidence === "exact" || topicMatch.confidence === "strong") {
+      result.topic = topicMatch.matched;
+    } else if (topicMatch.confidence === "weak") {
+      result.note = [result.note, `Topic "${topic}" doesn't exactly match the syllabus — closest is "${topicMatch.matched}". Please verify.`].filter(Boolean).join(" ");
+    } else if (!result.note) {
+      result.note = `Topic "${topic}" wasn't found under chapter "${result.chapter}". Please verify.`;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Reshapes one flat parsed row (field:string) into a createQuestionSchema-
  * shaped candidate. Joi + processMathField validate/convert it next — this
  * function only reshapes, it does not validate.
@@ -1082,17 +1143,42 @@ function resolveTextWithEquations(rawTextWithPlaceholders, fieldName, equationRe
       append(processed.text);
       hasLatex = hasLatex || processed.hasLatex;
     } else {
-      const res = equationResolution.get(parts[i]);
-      if (!res) continue;
+      const eqNumber = parts[i];
+      const res = equationResolution.get(eqNumber);
+
+      // Every equation SHOULD get a resolution entry (success or flagged
+      // failure — see resolveDocxEquationsAndImages), but never silently
+      // swallow a placeholder if one is somehow missing: dropping it here
+      // would leave a formula's exact spot in the text with nothing at all,
+      // indistinguishable from prose that never had a formula there.
+      if (!res) {
+        append(`[FORMULA #${eqNumber} — missing, please re-add manually]`);
+        continue;
+      }
+
       conversionReview.push({
         location,
         originalImageUrl: res.originalImageUrl,
         originalImagePublicId: null,
         convertedLatex: res.latex,
         flagged: res.flagged,
+        reason: res.reason || "",
         verified: false,
       });
-      if (res.latex) { append(`$${res.latex}$`); hasLatex = true; }
+
+      if (res.latex) {
+        append(`$${res.latex}$`);
+        hasLatex = true;
+      } else {
+        // Conversion failed (LibreOffice/Gemini couldn't produce LaTeX for
+        // this one) — previously this silently vanished, so a solution with
+        // several failed equations read as disconnected, plausible-looking
+        // prose with NO signal that content was missing or where to fix it.
+        // Leaving a marker at the exact spot means the text always reads
+        // honestly, and the admin knows precisely where to retype the
+        // formula (cross-referencing "Verify Conversions" below by reason).
+        append(`[FORMULA #${eqNumber} — could not auto-convert, please re-add]`);
+      }
     }
   }
 
@@ -1278,6 +1364,11 @@ async function runBulkUploadJob({
   const activeFieldDefs = await QuestionFieldDefinition.find({ isActive: true }).lean();
   const customFieldLabelMap = buildCustomFieldLabelMap(activeFieldDefs);
 
+  // Fetched ONCE for the whole batch — reconciles each row's free-text
+  // chapter/topic against the canonical syllabus (see resolveSyllabusChapterTopic).
+  const syllabusEntries = await SyllabusConfig.find({ isActive: true }).select("subject classLevel chapter topic").lean();
+  const syllabusIndex = buildSyllabusIndex(syllabusEntries);
+
   // ── Per-row: build candidate → Joi validate → math process → hash → dedup ──
   const failed            = structuralFailed.map((f) => ({ row: f.row, errors: [f.reason] }));
   const skippedDuplicates = [];
@@ -1304,6 +1395,13 @@ async function runBulkUploadJob({
     }
 
     try {
+      const syllabusResolution = resolveSyllabusChapterTopic(
+        { subject: value.subject, classLevel: value.classLevel, chapter: value.chapter, topic: value.topic },
+        syllabusIndex
+      );
+      value.chapter = syllabusResolution.chapter;
+      value.topic = syllabusResolution.topic;
+
       const conversionReview = [];
       const processedText = isRich
         ? resolveTextWithEquations(value.text, "Question Text", equationResolution, conversionReview, "text")
@@ -1332,6 +1430,7 @@ async function runBulkUploadJob({
 
       const rowFlagged = conversionReview.filter((c) => c.flagged).length;
       flaggedForReview += rowFlagged;
+      if (syllabusResolution.note) flaggedForReview += 1;
 
       const qImg = questionImages.get(rowNumber) || null;
       const sImgs = solutionImages.get(rowNumber) || [];
@@ -1366,7 +1465,10 @@ async function runBulkUploadJob({
         createdBy: { userId: user.id, email: user.email },
         uploadBatch: { batchId, fileName, uploadedAt },
         patternSlotTags: [], usageLog: [],
-        activityLog: [{ action: "bulk_uploaded", byUserId: user.id, byEmail: user.email, byRole: user.role || "", at: uploadedAt, meta: { batchId: String(batchId), fileName } }],
+        activityLog: [{
+          action: "bulk_uploaded", byUserId: user.id, byEmail: user.email, byRole: user.role || "", at: uploadedAt,
+          meta: { batchId: String(batchId), fileName, ...(syllabusResolution.note ? { note: syllabusResolution.note } : {}) },
+        }],
         conversionReview,
       });
       rowNumbers.push(rowNumber);

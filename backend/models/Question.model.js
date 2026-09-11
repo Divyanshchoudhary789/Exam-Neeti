@@ -408,6 +408,14 @@ const questionSchema = new mongoose.Schema(
           originalImagePublicId: { type: String, default: null },
           convertedLatex:   { type: String, default: "" },
           flagged:  { type: Boolean, default: false },
+          // Human-readable reason a flagged equation needs attention (e.g.
+          // "Could not rasterize this equation image...", "KaTeX validation
+          // failed: ...", "Model reported the equation image as
+          // unreadable.") — previously computed throughout the pipeline
+          // (officeRasterizer/geminiLatexService) but discarded before
+          // reaching here, leaving the reviewing admin with only a "Needs
+          // fix" pill and no idea why. Empty for a successful conversion.
+          reason:   { type: String, default: "" },
           verified: { type: Boolean, default: false },
           _id: false,
         },

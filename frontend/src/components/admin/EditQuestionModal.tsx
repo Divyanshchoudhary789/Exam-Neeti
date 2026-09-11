@@ -1,12 +1,20 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { CommonModal, Spinner, IconEye, IconCheck, IconCross, IconAlertTriangle } from "../common/UIComponents";
+import { CustomSelect } from "../common/CustomSelect";
 import { confirmDialog } from "../common/feedback";
 import { adminService } from "../../services/apiServices";
 import { MathRenderer } from "../common/MathRenderer";
 import { DynamicCustomFieldsSection } from "./CustomFieldInputs";
 import type { QuestionFieldDefinition, CustomFieldValues } from "../../types/questionFields";
+
+interface SyllabusChapterEntry {
+  subject: string;
+  classLevel: string;
+  chapter: string;
+  topics: Array<{ topic: string }>;
+}
 
 interface EditQuestionModalProps {
   isOpen: boolean;
@@ -23,6 +31,7 @@ interface ConversionReviewEntry {
   originalImageUrl: string | null;
   convertedLatex: string;
   flagged: boolean;
+  reason?: string;
   verified: boolean;
 }
 
@@ -115,8 +124,14 @@ export function EditQuestionModal({
   const [fieldDefinitions, setFieldDefinitions] = useState<QuestionFieldDefinition[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValues>({});
 
-  // Refetch active field definitions every time the modal opens, so a field
-  // added/edited/deactivated elsewhere (Manage Fields) is always current.
+  // Syllabus-driven Chapter/Topic dropdowns — same canonical source the Add
+  // Question form and the bulk-upload matcher use, so an edit never
+  // reintroduces a chapter/topic spelling that diverges from the syllabus.
+  const [syllabusChapters, setSyllabusChapters] = useState<SyllabusChapterEntry[]>([]);
+  const [syllabusLoaded, setSyllabusLoaded] = useState(false);
+
+  // Refetch active field definitions + syllabus every time the modal opens,
+  // so a field/chapter/topic added or changed elsewhere is always current.
   useEffect(() => {
     if (!isOpen) return;
     (async () => {
@@ -128,7 +143,33 @@ export function EditQuestionModal({
         // Non-fatal — form just won't show custom fields this session.
       }
     })();
+    (async () => {
+      try {
+        const res = await adminService.getSyllabus();
+        const raw = res?.data?.chapters || res?.chapters || [];
+        setSyllabusChapters(Array.isArray(raw) ? raw : []);
+      } catch {
+        // Non-fatal — Chapter/Topic dropdowns just fall back to showing the raw saved value.
+      } finally {
+        setSyllabusLoaded(true);
+      }
+    })();
   }, [isOpen]);
+
+  const chapterOptions = useMemo(
+    () =>
+      syllabusChapters
+        .filter((c) => c.subject?.toLowerCase() === subject.toLowerCase() && c.classLevel === classLevel)
+        .map((c) => ({ value: c.chapter, label: c.chapter })),
+    [syllabusChapters, subject, classLevel]
+  );
+  const topicOptions = useMemo(() => {
+    if (!chapter) return [];
+    const found = syllabusChapters.find(
+      (c) => c.subject?.toLowerCase() === subject.toLowerCase() && c.classLevel === classLevel && c.chapter === chapter
+    );
+    return (found?.topics || []).map((t) => ({ value: t.topic, label: t.topic }));
+  }, [syllabusChapters, subject, classLevel, chapter]);
 
   // Existing image URLs (for "already uploaded" previews) — read fresh from
   // questionData each render rather than mirrored into state, since they're
@@ -148,6 +189,12 @@ export function EditQuestionModal({
   const conversionReview = (questionData?.conversionReview as ConversionReviewEntry[] | undefined) || [];
   const activityLog = (questionData?.activityLog as ActivityLogEntry[] | undefined) || [];
   const unverifiedCount = conversionReview.length - verifiedIndexes.size;
+
+  // Set by the bulk-upload syllabus matcher when a row's chapter/topic text
+  // couldn't be confidently reconciled against the canonical syllabus —
+  // surfaced here (rather than only inside the collapsed History panel) so
+  // it's impossible to miss during review.
+  const syllabusNote = activityLog.find((a) => a.action === "bulk_uploaded" && a.meta?.note)?.meta?.note;
 
   useEffect(() => {
     // Reset the checklist to whatever the server already has recorded as
@@ -231,6 +278,8 @@ export function EditQuestionModal({
       showToast("Invalid question reference", "error");
       return;
     }
+    if (!chapter) { showToast("Select a chapter", "error"); return; }
+    if (!topic) { showToast("Select a topic", "error"); return; }
 
     if (status === "active" && unverifiedCount > 0) {
       const proceed = await confirmDialog({
@@ -252,7 +301,7 @@ export function EditQuestionModal({
       fd.append("subject", subject);
       fd.append("classLevel", classLevel);
       fd.append("chapter", chapter);
-      if (topic) fd.append("topic", topic);
+      fd.append("topic", topic);
       fd.append("difficulty", difficulty);
       fd.append("status", status);
       fd.append("text", text);
@@ -330,6 +379,13 @@ export function EditQuestionModal({
           </div>
         )}
 
+        {syllabusNote && (
+          <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <IconAlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs font-semibold text-amber-800 leading-relaxed">{syllabusNote}</p>
+          </div>
+        )}
+
         {conversionReview.length > 0 && (
           <div className="space-y-2.5 bg-sky-50/60 border border-sky-200 rounded-2xl p-3.5">
             <div className="flex items-center justify-between">
@@ -346,38 +402,50 @@ export function EditQuestionModal({
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {conversionReview.map((c, i) => {
                 const checked = verifiedIndexes.has(i);
+                const conversionFailed = c.flagged && !c.convertedLatex;
                 return (
                   <div
                     key={i}
-                    className={`flex flex-col sm:flex-row sm:items-center gap-2.5 p-2.5 rounded-xl border text-xs ${
+                    className={`flex flex-col gap-1.5 p-2.5 rounded-xl border text-xs ${
                       c.flagged ? "bg-red-50 border-red-200" : checked ? "bg-emerald-50 border-emerald-200" : "bg-white border-sky-100"
                     }`}
                   >
-                    <label className="flex items-center gap-2 shrink-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => setVerifiedIndexes((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(i); else next.delete(i);
-                          return next;
-                        })}
-                        className="w-4 h-4 rounded accent-sky-600"
-                      />
-                    </label>
-                    <span className="px-2 py-0.5 rounded-full border text-[9px] font-black uppercase bg-slate-100 text-slate-600 border-slate-200 shrink-0">
-                      {LOCATION_LABELS[c.location] || c.location}
-                    </span>
-                    {c.originalImageUrl ? (
-                      <img src={c.originalImageUrl} alt="Original equation" className="h-10 rounded-lg border border-slate-200 object-contain bg-white shrink-0" />
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-medium shrink-0 italic">native — no image</span>
-                    )}
-                    <span className="text-slate-300 shrink-0">→</span>
-                    <div className="flex-1 min-w-0 font-semibold text-slate-800">
-                      <MathRenderer text={`$${c.convertedLatex}$`} inline />
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                      <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => setVerifiedIndexes((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(i); else next.delete(i);
+                            return next;
+                          })}
+                          className="w-4 h-4 rounded accent-sky-600"
+                        />
+                      </label>
+                      <span className="px-2 py-0.5 rounded-full border text-[9px] font-black uppercase bg-slate-100 text-slate-600 border-slate-200 shrink-0">
+                        {LOCATION_LABELS[c.location] || c.location}
+                      </span>
+                      {c.originalImageUrl ? (
+                        <img src={c.originalImageUrl} alt="Original equation" className="h-10 rounded-lg border border-slate-200 object-contain bg-white shrink-0" />
+                      ) : conversionFailed ? (
+                        <span className="text-[10px] text-red-400 font-medium shrink-0 italic">no preview available</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-medium shrink-0 italic">native — no image</span>
+                      )}
+                      <span className="text-slate-300 shrink-0">→</span>
+                      <div className="flex-1 min-w-0 font-semibold text-slate-800">
+                        {conversionFailed ? (
+                          <span className="text-red-500 italic font-medium">not converted — retype this formula in the text above</span>
+                        ) : (
+                          <MathRenderer text={`$${c.convertedLatex}$`} inline />
+                        )}
+                      </div>
+                      {c.flagged && <span className="text-[9px] font-black uppercase text-red-600 shrink-0">Needs fix</span>}
                     </div>
-                    {c.flagged && <span className="text-[9px] font-black uppercase text-red-600 shrink-0">Needs fix</span>}
+                    {c.reason && (
+                      <p className="text-[10px] text-red-600/80 font-medium pl-6">{c.reason}</p>
+                    )}
                   </div>
                 );
               })}
@@ -486,7 +554,7 @@ export function EditQuestionModal({
             <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Subject</label>
             <select
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              onChange={(e) => { setSubject(e.target.value); setChapter(""); setTopic(""); }}
               className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-semibold cursor-pointer"
             >
               <option value="Physics">Physics</option>
@@ -498,7 +566,7 @@ export function EditQuestionModal({
             <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Class</label>
             <select
               value={classLevel}
-              onChange={(e) => setClassLevel(e.target.value)}
+              onChange={(e) => { setClassLevel(e.target.value); setChapter(""); setTopic(""); }}
               className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-semibold cursor-pointer"
             >
               <option value="XI">Class XI</option>
@@ -550,24 +618,37 @@ export function EditQuestionModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Chapter *</label>
-            <input
-              type="text"
-              required
+            <CustomSelect
+              searchable
+              showUnmatchedValue
               value={chapter}
-              onChange={(e) => setChapter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium"
+              onChange={(v) => { setChapter(v); setTopic(""); }}
+              options={chapterOptions}
+              placeholder={syllabusLoaded ? (chapterOptions.length ? "Select chapter" : "No chapters for this subject/class") : "Loading chapters..."}
+              searchPlaceholder="Search chapters..."
+              emptyMessage="No chapters match your search."
             />
           </div>
           <div>
-            <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Topic</label>
-            <input
-              type="text"
+            <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Topic *</label>
+            <CustomSelect
+              searchable
+              showUnmatchedValue
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium"
+              onChange={setTopic}
+              options={topicOptions}
+              disabled={!chapter}
+              placeholder={!chapter ? "Select a chapter first" : topicOptions.length ? "Select topic" : "No topics for this chapter"}
+              searchPlaceholder="Search topics..."
+              emptyMessage="No topics match your search."
             />
           </div>
         </div>
+        {chapter && !chapterOptions.some((o) => o.value === chapter) && (
+          <p className="text-[10px] text-amber-600 font-semibold -mt-2">
+            &ldquo;{chapter}&rdquo; isn&apos;t an exact syllabus match for {subject} · Class {classLevel} — pick the correct chapter above if this looks like a typo.
+          </p>
+        )}
 
         <div>
           <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Question Text *</label>

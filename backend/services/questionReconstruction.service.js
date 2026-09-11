@@ -41,25 +41,9 @@
  */
 
 const AppError = require("../utils/AppError");
+const { normalizeStr } = require("../utils/syllabusMatcher");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Normalizes string for fuzzy/robust matching:
- * - Lowercase
- * - Replace '&' with 'and'
- * - Remove non-alphanumeric punctuation
- * - Collapse multiple spaces and trim
- */
-function normalizeStr(str) {
-  if (!str) return "";
-  return str
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 /**
  * Returns true if qText matches targetText under flexible normalization & word overlap.

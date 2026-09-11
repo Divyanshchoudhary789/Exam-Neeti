@@ -97,10 +97,20 @@ async function parseQuestionsXlsx(buffer) {
         const anchorRow = Math.round(img.range.tl.row) + 1;
         const anchorCol = Math.round(img.range.tl.col) + 1;
 
+        // When the two image columns sit next to each other (the common
+        // case — see the generated template), a picture anchored right at
+        // the boundary can be within the ±1 tolerance of BOTH columns.
+        // Assign it to whichever column it's actually CLOSER to, rather
+        // than always preferring "question" on any tolerance match — that
+        // previously misattributed a solution-column image to the question
+        // whenever the two columns were adjacent.
+        const distToQuestion = questionImageCol ? Math.abs(anchorCol - questionImageCol) : Infinity;
+        const distToSolution = solutionImageCol ? Math.abs(anchorCol - solutionImageCol) : Infinity;
+
         const entry = imagesByRow.get(anchorRow) || {};
-        if (questionImageCol && Math.abs(anchorCol - questionImageCol) <= 1) {
+        if (distToQuestion <= 1 && distToQuestion <= distToSolution) {
           entry.questionImage = { buffer: mediaEntry.buffer, ext: mediaEntry.extension };
-        } else if (solutionImageCol && Math.abs(anchorCol - solutionImageCol) <= 1) {
+        } else if (distToSolution <= 1) {
           entry.solutionImage = { buffer: mediaEntry.buffer, ext: mediaEntry.extension };
         }
         imagesByRow.set(anchorRow, entry);

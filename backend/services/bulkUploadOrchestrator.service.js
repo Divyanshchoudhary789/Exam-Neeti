@@ -211,28 +211,6 @@ async function resolveDocxEquationsAndImages(parseResult, onProgress = async () 
 }
 
 /**
- * Replaces every `@@EQ_n@@` placeholder in `text` with `$latex$`, and
- * records a conversionReview entry (location tag `location`) for each one
- * it touches. Mutates `reviewEntries` (push).
- */
-function spliceEquationPlaceholders(text, equationResolution, location, reviewEntries) {
-  if (!text) return text;
-  return text.replace(/@@EQ_(\d+)@@/g, (_, id) => {
-    const res = equationResolution.get(id);
-    if (!res) return ""; // shouldn't happen — defensive
-    reviewEntries.push({
-      location,
-      originalImageUrl: res.originalImageUrl,
-      originalImagePublicId: null,
-      convertedLatex: res.latex,
-      flagged: res.flagged,
-      verified: false,
-    });
-    return res.latex ? `$${res.latex}$` : "";
-  });
-}
-
-/**
  * Uploads any raw image buffers attached to xlsx rows (`_questionImageFile`
  * / `_solutionImageFile`) to Cloudinary. Xlsx has no equation-image concept
  * (see questionXlsxParser.js) — this only handles diagrams.
@@ -277,5 +255,4 @@ async function resolveXlsxImages(rows, onProgress = async () => {}) {
 module.exports = {
   resolveDocxEquationsAndImages,
   resolveXlsxImages,
-  spliceEquationPlaceholders,
 };

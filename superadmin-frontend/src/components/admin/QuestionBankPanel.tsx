@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { adminService } from "../../services/apiServices";
 import { useAuthStore } from "../../store/useAuthStore";
 import { MathRenderer } from "../common/MathRenderer";
@@ -38,6 +38,13 @@ function getLastEditor(activityLog: unknown): string | null {
   if (!Array.isArray(activityLog)) return null;
   const edits = (activityLog as ActivityLogEntry[]).filter((a) => a.action === "edited" && a.byEmail);
   return edits.length > 0 ? edits[edits.length - 1].byEmail! : null;
+}
+
+interface SyllabusChapterEntry {
+  subject: string;
+  classLevel: string;
+  chapter: string;
+  topics: Array<{ topic: string }>;
 }
 
 /**
@@ -104,6 +111,13 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   const [customFieldValues, setCustomFieldValues] = useState<CustomFieldValues>({});
   const [showManageFieldsModal, setShowManageFieldsModal] = useState(false);
 
+  // Syllabus-driven Chapter/Topic dropdowns for the Add Question form — keeps
+  // manually-entered questions on the exact same chapter/topic spelling the
+  // bulk-upload matcher normalizes bulk rows to, so sprint generation always
+  // gets a clean match instead of falling through fuzzy tiers.
+  const [syllabusChapters, setSyllabusChapters] = useState<SyllabusChapterEntry[]>([]);
+  const [syllabusLoaded, setSyllabusLoaded] = useState(false);
+
   // ── Data loader ────────────────────────────────────────────────────────
   const loadQuestions = useCallback(async () => {
     const [qRes, stRes] = await Promise.allSettled([
@@ -148,6 +162,48 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   }, []);
 
   useEffect(() => { loadFieldDefinitions(); }, [loadFieldDefinitions]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await adminService.getSyllabus();
+        const raw = res?.data?.chapters || res?.chapters || [];
+        setSyllabusChapters(Array.isArray(raw) ? raw : []);
+      } catch {
+        // Non-fatal — Chapter/Topic dropdowns just show "no chapters found" below.
+      } finally {
+        setSyllabusLoaded(true);
+      }
+    })();
+  }, []);
+
+  const chapterOptionsFor = useCallback(
+    (subject: string, classLevel: string) =>
+      syllabusChapters
+        .filter((c) => c.subject?.toLowerCase() === subject.toLowerCase() && c.classLevel === classLevel)
+        .map((c) => ({ value: c.chapter, label: c.chapter })),
+    [syllabusChapters]
+  );
+
+  const topicOptionsFor = useCallback(
+    (subject: string, classLevel: string, chapter: string) => {
+      if (!chapter) return [];
+      const found = syllabusChapters.find(
+        (c) => c.subject?.toLowerCase() === subject.toLowerCase() && c.classLevel === classLevel && c.chapter === chapter
+      );
+      return (found?.topics || []).map((t) => ({ value: t.topic, label: t.topic }));
+    },
+    [syllabusChapters]
+  );
+
+  const newQChapterOptions = useMemo(
+    () => chapterOptionsFor(newQSubject, newQClassLevel),
+    [chapterOptionsFor, newQSubject, newQClassLevel]
+  );
+  const newQTopicOptions = useMemo(
+    () => topicOptionsFor(newQSubject, newQClassLevel, newQChapter),
+    [topicOptionsFor, newQSubject, newQClassLevel, newQChapter]
+  );
 
   // ── Handlers ───────────────────────────────────────────────────────────
   const handleViewQuestionDetails = async (id: string) => {
@@ -196,13 +252,16 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
   };
 
   const handleAddQuestion = async (e: React.FormEvent) => {
-    e.preventDefault(); setQSubmitting(true);
+    e.preventDefault();
+    if (!newQChapter) { showToast("Select a chapter", "error"); return; }
+    if (!newQTopic) { showToast("Select a topic", "error"); return; }
+    setQSubmitting(true);
     try {
       const fd = new FormData();
       fd.append("subject", newQSubject);
       fd.append("classLevel", newQClassLevel);
       fd.append("chapter", newQChapter);
-      if (newQTopic) fd.append("topic", newQTopic);
+      fd.append("topic", newQTopic);
       fd.append("difficulty", newQDifficulty);
       fd.append("text", newQText);
       fd.append("options", JSON.stringify([
@@ -486,11 +545,11 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
         <form onSubmit={handleAddQuestion} className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Subject</label>
-              <select value={newQSubject} onChange={e => setNewQSubject(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-semibold cursor-pointer">
+              <select value={newQSubject} onChange={e => { setNewQSubject(e.target.value); setNewQChapter(""); setNewQTopic(""); }} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-semibold cursor-pointer">
                 <option value="Physics">Physics</option><option value="Chemistry">Chemistry</option><option value="Biology">Biology</option>
               </select></div>
             <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Class</label>
-              <select value={newQClassLevel} onChange={e => setNewQClassLevel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-semibold cursor-pointer">
+              <select value={newQClassLevel} onChange={e => { setNewQClassLevel(e.target.value); setNewQChapter(""); setNewQTopic(""); }} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-semibold cursor-pointer">
                 <option value="XI">Class XI</option><option value="XII">Class XII</option>
               </select></div>
             <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Difficulty</label>
@@ -504,10 +563,36 @@ export function QuestionBankPanel({ showToast }: QuestionBankPanelProps) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Chapter *</label>
-              <input type="text" required value={newQChapter} onChange={e => setNewQChapter(e.target.value)} placeholder="e.g. Thermodynamics" className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium" /></div>
-            <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Topic</label>
-              <input type="text" value={newQTopic} onChange={e => setNewQTopic(e.target.value)} placeholder="e.g. First Law" className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs px-3 py-2 rounded-xl focus:outline-none font-medium" /></div>
+              <CustomSelect
+                searchable
+                showUnmatchedValue
+                value={newQChapter}
+                onChange={(v) => { setNewQChapter(v); setNewQTopic(""); }}
+                options={newQChapterOptions}
+                placeholder={syllabusLoaded ? (newQChapterOptions.length ? "Select chapter" : "No chapters for this subject/class") : "Loading chapters..."}
+                searchPlaceholder="Search chapters..."
+                emptyMessage="No chapters match your search."
+              />
+            </div>
+            <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Topic *</label>
+              <CustomSelect
+                searchable
+                showUnmatchedValue
+                value={newQTopic}
+                onChange={setNewQTopic}
+                options={newQTopicOptions}
+                disabled={!newQChapter}
+                placeholder={!newQChapter ? "Select a chapter first" : newQTopicOptions.length ? "Select topic" : "No topics for this chapter"}
+                searchPlaceholder="Search topics..."
+                emptyMessage="No topics match your search."
+              />
+            </div>
           </div>
+          {syllabusLoaded && newQChapterOptions.length === 0 && (
+            <p className="text-[10px] text-amber-600 font-semibold -mt-2">
+              No syllabus chapters found for {newQSubject} · Class {newQClassLevel}. Add them via Manage Syllabus first.
+            </p>
+          )}
           <div><label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Question Text *</label>
             <textarea required rows={3} value={newQText} onChange={e => setNewQText(e.target.value)} placeholder="Enter full question text (LaTeX supported)..." className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs p-3 rounded-xl focus:outline-none font-medium resize-none" /></div>
           <div className="grid grid-cols-2 gap-3">
