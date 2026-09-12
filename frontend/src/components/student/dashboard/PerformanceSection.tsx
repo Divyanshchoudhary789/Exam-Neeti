@@ -104,16 +104,16 @@ export function PerformanceSection({
       {/* KPI row — doc image 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5 sm:gap-3">
         <KpiCard label="Total Tests Taken" value={summary.totalTests} sub="scored this sprint" icon={IconClock} accent={subjectColor("physics")} />
-        <KpiCard label="Average Score" value={`${num(summary.overallPercentage).toFixed(0)}%`} sub={`${num(summary.averageScore).toFixed(0)} marks / test`} icon={IconChart} accent="#7c3aed" delta={dPct}
+        <KpiCard label="Average Score" value={`${num(summary.averageScore).toFixed(0)}`} sub={`${num(summary.overallPercentage).toFixed(0)}% avg per test`} icon={IconChart} accent="#7c3aed" delta={dPct}
           spark={timeline.map((t) => num(t.percentage))} status={pctStatus(num(summary.overallPercentage), dPct)} />
-        <KpiCard label="Highest Score" value={`${timeline.reduce((m, t) => Math.max(m, num(t.percentage)), 0).toFixed(0)}%`} sub={`${summary.highestScore} marks — your ceiling`} icon={IconCheck} accent="#059669"
+        <KpiCard label="Highest Score" value={`${summary.highestScore}`} sub={`${timeline.reduce((m, t) => Math.max(m, num(t.percentage)), 0).toFixed(0)}% — your ceiling`} icon={IconCheck} accent="#059669"
           spark={timeline.map((t) => num(t.percentage))} status={{ label: "Best", tone: "good" }} />
-        <KpiCard label="Average Accuracy" value={`${num(summary.overallAccuracy).toFixed(0)}%`} sub="of what you attempt" icon={IconTarget} accent="#0ea5e9" delta={dAcc}
+        <KpiCard label="Accuracy (Avg)" value={`${num(summary.overallAccuracy).toFixed(0)}%`} sub="of what you attempt" icon={IconTarget} accent="#0ea5e9" delta={dAcc}
           spark={timeline.map((t) => num(t.accuracy))} status={pctStatus(num(summary.overallAccuracy), dAcc)}
           onClick={() => open({ title: "Incorrect questions", metric: "incorrect", subtitle: `${num(summary.overallAccuracy).toFixed(1)}% average accuracy — the misses` })} />
         <KpiCard label="Improvement Potential" value={`${improvementPotential.toFixed(0)}%`} sub="recoverable marks headroom" icon={IconBulb} accent="#d97706"
           spark={timeline.map((t) => num(t.totalRecoverable))} status={improvementPotential > 15 ? { label: "High", tone: "warn" } : { label: "Low", tone: "good" }} />
-        <KpiCard label="Average Attempt Rate" value={`${num(summary.overallAttemptRate).toFixed(0)}%`} sub={`${(100 - num(summary.overallAttemptRate)).toFixed(0)}% left blank`} icon={IconTrendingUp} accent="#0d9488" delta={dRate}
+        <KpiCard label="Attempt Rate (Avg)" value={`${num(summary.overallAttemptRate).toFixed(0)}%`} sub={`${(100 - num(summary.overallAttemptRate)).toFixed(0)}% left blank`} icon={IconTrendingUp} accent="#0d9488" delta={dRate}
           spark={timeline.map((t) => num(t.attemptRate))} status={pctStatus(num(summary.overallAttemptRate), dRate)}
           onClick={() => open({ title: "Unattempted questions", metric: "unattempted", subtitle: `${(100 - num(summary.overallAttemptRate)).toFixed(1)}% of the paper left blank` })} />
       </div>
